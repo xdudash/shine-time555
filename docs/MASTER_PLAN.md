@@ -34,7 +34,7 @@
 - [ ] **P0.07 Establish repository hygiene.** Check secrets, public configuration, dependency lockfile, generated artifacts, licenses, source map exposure, Apache path rules, and required GitHub permissions. Write findings without exposing sensitive values.
 - [ ] **P0.08 Record environment inventory.** Read-only Supabase findings in `docs/recovery/environment-inventory.md`; Hostinger/version/source parity and backup owner remain open. Document production and staging URLs, project refs, migration head, deployed Edge Function version, current Hostinger artifact hash, backup method, and responsible operator. If access is unavailable, mark each as unverified and request only the missing connection.
 
-- [ ] **P0.09 Auto-updating frontend preview.** Publish the actual UI assets with synthetic role data after successful main verification; confirm live GitHub Pages URL and commit marker. Keep live Supabase disconnected. See `docs/preview.md`.
+- [x] **P0.09 Auto-updating frontend preview.** Publish the actual UI assets with synthetic role data after successful main verification; confirm live GitHub Pages URL and commit marker. Keep live Supabase disconnected. See `docs/preview.md`.
 
 **Gate G0:** imported source and archived snapshot traceable; local and CI baseline recorded; no production deployment from repository.
 
