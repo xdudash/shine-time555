@@ -5,7 +5,6 @@ on:
     workflows: ["Verify cleaning platform"]
     types: [completed]
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,7 +17,11 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -26,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -36,7 +39,7 @@ jobs:
       - run: npm run build
       - run: node scripts/build-preview.mjs
         env:
-          PREVIEW_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+          PREVIEW_COMMIT: ${{ github.event.workflow_run.head_sha }}
       - run: node scripts/check-preview.mjs
       - uses: actions/configure-pages@v5
         with:
