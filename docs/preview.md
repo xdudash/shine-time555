@@ -9,7 +9,7 @@ The GitHub Pages preview is a **visual and interaction preview of the actual fro
 3. On success, `Live platform preview` checks out that exact commit and publishes `https://xdudash.github.io/shine-time555/`.
 4. The banner shows the deployed commit prefix. Reload the page after a new workflow completes.
 
-The preview uses synthetic jobs, objects, users, and roles. Switch roles in the bottom bar. The current fixtures cover the administrator live board/jobs/objects, cleaner home, and owner home; other screens may show an explicit missing-fixture message. User changes are disabled. There is no production Supabase URL or publishable key in the published preview, and the live API client is not included. Do not use this preview as proof that backend changes or production integrations work.
+The preview uses fictional jobs, objects, users, and roles, including Bratislava and Prague examples. Switch roles in the banner above the application. Core read-only screens for the administrator, operations manager, cleaner, owner, and property manager have synthetic responses; actions that modify data show an explicit unavailable message. The redundant Operations pulse widget is omitted from this preview. There is no production Supabase URL or publishable key in the published preview, and the live API client is not included. Do not use this preview as proof that backend changes or production integrations work.
 
 ## Enablement and troubleshooting
 
