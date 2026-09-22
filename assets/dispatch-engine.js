@@ -1,0 +1,18 @@
+/* Smart dispatch engine: prioritizes jobs, estimates ETA, balances capacity and proposes safe reassignment. */
+(()=>{
+ const num=v=>Number.isFinite(Number(v))?Number(v):0;
+ const upper=v=>String(v??'').toUpperCase();
+ const now=()=>Date.now();
+ const toTime=v=>{if(!v)return null;const d=new Date(v);if(!Number.isNaN(d.getTime()))return d;const m=String(v).match(/^(\d{1,2}):(\d{2})$/);if(!m)return null;const d2=new Date();d2.setHours(Number(m[1]),Number(m[2]),0,0);return d2};
+ const distance=(a,b)=>window.ShineTimeAutoAssignment?.distance?.(a,b);
+ const jobMinutes=j=>window.ShineTimeShiftPlanner?.duration?.(j.start,j.end)||window.ShineTimeSchedule?.shiftMinutes?.(j.start,j.end)||num(j.durationMinutes||j.duration)||60;
+ const workload=(cleaner,shifts=[])=>shifts.filter(x=>String(x.cleanerId||x.cleaner_id)===String(cleaner.id||cleaner.user_id)).reduce((s,x)=>s+jobMinutes(x),0);
+ const urgency=j=>{const status=upper(j.status),base={CRITICAL:100,URGENT:90,OVERDUE:100,AT_RISK:85,LATE:90,RESCUE:95,CONFIRMED:45,ASSIGNED:35,OPEN:30,COMPLETED:0,CANCELLED:0}[status]??num(j.priority);const due=toTime(j.dueAt||j.due_at||j.slaAt||j.sla_at);let time=0;if(due)time=Math.max(0,100-Math.max(0,(due.getTime()-now())/60000)/3);return Math.min(100,Math.round(base+time))};
+ const eta=(cleaner,job,options={})=>{const km=distance(cleaner.location||cleaner,job.location||job);if(!Number.isFinite(km))return{distanceKm:null,minutes:null,confidence:'LOW'};const speed=Math.max(5,num(options.speedKmh||30));const buffer=Math.max(0,num(options.bufferMinutes||5));return{distanceKm:Math.round(km*10)/10,minutes:Math.ceil(km/speed*60+buffer),confidence:km<=10?'HIGH':km<=30?'MEDIUM':'LOW'};};
+ const eligible=(c,j,shifts=[],options={})=>{if(window.ShineTimeAutoAssignment?.eligible&&!window.ShineTimeAutoAssignment.eligible(c,j,shifts))return false;const used=workload(c,shifts),limit=Math.max(1,num(options.dailyLimit||480)),needed=jobMinutes(j);return options.enforceCapacity===false||used+needed<=limit;};
+ const rank=(cleaners=[],job={},shifts=[],options={})=>cleaners.filter(c=>eligible(c,job,shifts,options)).map(c=>{const e=eta(c,job,options),work=workload(c,shifts),rel=Math.min(1,num(c.reliability??c.rating??0)),limit=Math.max(1,num(options.dailyLimit||480)),capacity=Math.min(1,work/limit),u=urgency(job);const score=(e.minutes??120)*2+work*.45+(1-rel)*90+capacity*80-u*.35;return{cleaner:c,cleanerId:String(c.id||c.user_id),score:Math.round(score*100)/100,urgency:u,workMinutes:work,capacityPercent:Math.round(capacity*100),eta:e}}).sort((a,b)=>a.score-b.score);
+ const dispatch=(jobs=[],cleaners=[],shifts=[],options={})=>jobs.filter(j=>!['COMPLETED','CANCELLED'].includes(upper(j.status))).map(j=>{const candidates=rank(cleaners,j,shifts,options),current=String(j.cleanerId||j.cleaner_id||''),best=candidates[0]||null;return{job:j,priority:urgency(j),currentCleanerId:current||null,recommended:best,alternatives:candidates.slice(1,5),needsAssignment:!current,needsReassignment:Boolean(best&&current&&best.cleanerId!==current),eta:best?.eta||null};}).sort((a,b)=>b.priority-a.priority||Number(a.recommended?.score??999)-Number(b.recommended?.score??999));
+ const rebalance=(jobs=[],cleaners=[],shifts=[],options={})=>dispatch(jobs,cleaners,shifts,options).filter(x=>x.needsAssignment||x.needsReassignment);
+ const summary=rows=>({total:rows.length,assignments:rows.filter(x=>x.needsAssignment).length,reassignments:rows.filter(x=>x.needsReassignment).length,uncovered:rows.filter(x=>!x.recommended).length,urgent:rows.filter(x=>x.priority>=85).length});
+ window.ShineTimeDispatch={distance,jobMinutes,workload,urgency,eta,eligible,rank,dispatch,rebalance,summary};
+})();

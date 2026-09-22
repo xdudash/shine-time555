@@ -1,23 +1,44 @@
-name: Verify repository
-
-on:
-  push:
-  pull_request:
-
+name: Verify cleaning platform
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
-  syntax:
+  verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: shine_test_concurrency
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
-      - name: Check JavaScript syntax
-        run: node --check assets/platform.js
-      - name: Check PHP syntax
-        run: |
-          php -l index.php
-          php -l config/supabase.php
-      - name: Verify expected baseline files
-        run: |
-          test -s assets/platform.js
-          test -s assets/platform.css
-          test -s AGENTS.md
-          test -s docs/ssd/template.md
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: python scripts/package-frontend.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hostinger-frontend
+          path: |
+            artifacts/shine-time-frontend.zip
+            artifacts/frontend-checksums.json
+      - run: node scripts/test-concurrency.mjs
+        env:
+          SHINE_TEST_DATABASE_URL: postgresql://postgres:synthetic-test-only@localhost:5432/shine_test_concurrency
+      - run: node scripts/benchmark-history.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: database-test-results
+          path: artifacts/*.json

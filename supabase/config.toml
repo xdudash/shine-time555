@@ -1,0 +1,5 @@
+# Supabase project configuration used by local tooling and CI/CD.
+# Production project ref is supplied by the deployment workflow, not stored here.
+
+[functions.st-api]
+verify_jwt = true

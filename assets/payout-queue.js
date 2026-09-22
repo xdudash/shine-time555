@@ -1,0 +1,13 @@
+/* Additive payout queue: local review queue with threshold, status and reconciliation helpers. */
+(()=>{
+ const key='shine-time:payout-queue';
+ const load=()=>{try{return JSON.parse(localStorage.getItem(key)||'[]')}catch{return[]}};
+ const save=x=>{try{localStorage.setItem(key,JSON.stringify(x));return true}catch{return false}};
+ const engine=()=>window.ShineTimePayouts;
+ const enqueue=x=>{const rows=load();const item={id:String(x.id||crypto.randomUUID?.()||Date.now()),cleanerId:String(x.cleanerId||x.cleaner_id||'unknown'),gross:x.gross||0,bonus:x.bonus||0,deductions:x.deductions||0,tax:x.tax||0,fees:x.fees||0,status:x.status||'READY',createdAt:new Date().toISOString()};const calc=engine()?.calculate(item)||{payoutMinor:0};item.amountMinor=calc.payoutMinor;rows.push(item);save(rows);return item};
+ const remove=id=>{const rows=load().filter(x=>String(x.id)!==String(id));save(rows);return rows};
+ const summarize=(minimum=0)=>{const rows=load(),e=engine();return{count:rows.length,totalMinor:rows.reduce((s,x)=>s+Number(x.amountMinor||e?.calculate(x)?.payoutMinor||0),0),eligible:rows.filter(x=>(e?.threshold(Number(x.amountMinor||0),minimum).eligible)).length,paid:rows.filter(x=>x.status==='PAID').length,pending:rows.filter(x=>x.status!=='PAID').length}};
+ const mark=(id,status='PAID')=>{const rows=load().map(x=>String(x.id)===String(id)?{...x,status}:x);save(rows);return rows.find(x=>String(x.id)===String(id))||null};
+ const render=(container=document.querySelector('[data-payout-queue]'),minimum=0)=>{if(!container)return false;const rows=load(),s=summarize(minimum),e=engine();container.innerHTML=`<div class="section-head"><div><h3>Payout Queue</h3><p class="subtle">${s.pending} pending · ${(s.totalMinor/100).toFixed(2)} EUR</p></div></div><div class="kpi-grid"><div class="kpi"><span>Queue</span><strong>${s.count}</strong></div><div class="kpi"><span>Eligible</span><strong>${s.eligible}</strong></div><div class="kpi"><span>Pending</span><strong>${s.pending}</strong></div></div><div class="list">${rows.slice(0,20).map(x=>{const amount=(Number(x.amountMinor||e?.calculate(x)?.payoutMinor||0)/100).toFixed(2);return`<div class="list-row"><div><strong>${x.cleanerId}</strong><div class="subtle">${amount} EUR · ${x.status}</div></div><button class="btn" type="button" data-pay="${String(x.id).replace(/[^a-zA-Z0-9_-]/g,'')}">${x.status==='PAID'?'Done':'Mark paid'}</button></div>`}).join('')}</div>`;container.querySelectorAll('[data-pay]').forEach(b=>b.addEventListener('click',()=>{mark(b.dataset.pay);render(container,minimum)}));return true};
+ window.ShineTimePayoutQueue={load,save,enqueue,remove,summarize,mark,render};new MutationObserver(()=>render()).observe(document.body,{childList:true,subtree:true});
+})();

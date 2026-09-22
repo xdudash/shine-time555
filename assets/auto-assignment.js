@@ -1,0 +1,11 @@
+/* Additive assignment engine: deterministic cleaner selection by availability, workload, distance and reliability. */
+(()=>{
+ const num=v=>Number.isFinite(Number(v))?Number(v):0;
+ const minutes=(start,end)=>window.ShineTimeShiftPlanner?.duration(start,end)||window.ShineTimeSchedule?.shiftMinutes(start,end)||0;
+ const distance=(a,b)=>{if(!a||!b)return Infinity;const lat1=num(a.lat),lon1=num(a.lon),lat2=num(b.lat),lon2=num(b.lon);if(!Number.isFinite(lat1)||!Number.isFinite(lat2)||!Number.isFinite(lon1)||!Number.isFinite(lon2))return Infinity;const r=Math.PI/180,x=(lat2-lat1)*r,y=(lon2-lon1)*r,q=Math.sin(x/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(y/2)**2;return 6371*2*Math.atan2(Math.sqrt(q),Math.sqrt(1-q))};
+ const eligible=(cleaner,job,shifts=[])=>{if(cleaner.active===false||cleaner.available===false)return false;if(job.date&&cleaner.blockedDates?.includes(job.date))return false;const existing=shifts.filter(x=>String(x.cleanerId||x.cleaner_id)===String(cleaner.id||cleaner.user_id));if(existing.some(x=>String(x.date)===String(job.date)&&window.ShineTimeSchedule?.overlap?.(x,job)))return false;return true};
+ const rank=(cleaners=[],job={},shifts=[],options={})=>cleaners.filter(c=>eligible(c,job,shifts)).map(c=>{const id=String(c.id||c.user_id),work=shifts.filter(x=>String(x.cleanerId||x.cleaner_id)===id).reduce((s,x)=>s+minutes(x.start,x.end),0),dist=distance(c.location||c,job.location||job),reliability=num(c.reliability??c.rating??0);const max=num(options.dailyLimit||480);const pressure=max?work/max:0;const score=work*0.55+(Number.isFinite(dist)?dist*2:500)+(1-Math.min(reliability,1))*100+(pressure>1?500:0);return{cleaner:c,cleanerId:id,workMinutes:work,distanceKm:Number.isFinite(dist)?Math.round(dist*10)/10:null,reliability,score:Math.round(score*100)/100}}).sort((a,b)=>a.score-b.score);
+ const assign=(cleaners,job,shifts,options)=>{const ranked=rank(cleaners,job,shifts,options);return ranked[0]||null};
+ const rescue=(jobs=[],cleaners=[],shifts=[],options={})=>jobs.filter(j=>j.risk||['OVERDUE','AT_RISK','LATE','RESCUE'].includes(String(j.status||'').toUpperCase())).map(j=>({job:j,assignment:assign(cleaners,j,shifts,options)}));
+ window.ShineTimeAutoAssignment={distance,eligible,rank,assign,rescue};
+})();

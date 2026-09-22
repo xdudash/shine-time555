@@ -1,0 +1,30 @@
+name: Supabase integration
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prepare-integration.mjs
+      - name: Start isolated Supabase
+        run: node_modules/.bin/supabase start --workdir artifacts/supabase-integration -x studio,imgproxy,logflare,vector,supavisor,postgres-meta
+      - name: Serve API
+        run: node_modules/.bin/supabase functions serve st-api --workdir artifacts/supabase-integration > artifacts/edge-integration.log 2>&1 &
+      - run: node scripts/test-integration.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-results
+          path: artifacts/integration-result.json
+          if-no-files-found: ignore
+      - name: Stop isolated Supabase
+        if: always()
+        run: node_modules/.bin/supabase stop --workdir artifacts/supabase-integration --no-backup

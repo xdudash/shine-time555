@@ -1,0 +1,16 @@
+create index if not exists st_jobs_client_date_idx on public.st_jobs(client_id, service_date);
+create index if not exists st_jobs_cleaner_day_active_idx on public.st_jobs(assigned_cleaner_id, service_date, planned_start) where status <> 'CANCELLED';
+create index if not exists st_manager_properties_assigned_by_user_idx on public.st_manager_properties(assigned_by_user_id) where assigned_by_user_id is not null;
+create index if not exists st_jobs_created_by_idx on public.st_jobs(created_by_user_id);
+create index if not exists st_checklist_items_object_idx on public.st_checklist_items(object_id);
+create index if not exists st_job_checklist_job_idx on public.st_job_checklist(job_id);
+create index if not exists st_job_checklist_item_idx on public.st_job_checklist(checklist_item_id);
+create index if not exists st_job_checklist_completed_by_idx on public.st_job_checklist(completed_by_user_id);
+create index if not exists st_events_user_idx on public.st_job_events(user_id);
+create index if not exists st_photos_cleaner_idx on public.st_job_photos(cleaner_id);
+create index if not exists st_photos_checklist_idx on public.st_job_photos(checklist_item_id);
+create index if not exists st_issues_cleaner_idx on public.st_issues(cleaner_id);
+create index if not exists st_finance_client_idx on public.st_financial_entries(client_id, entry_date);
+create index if not exists st_finance_object_idx on public.st_financial_entries(object_id, entry_date);
+create index if not exists st_finance_job_idx on public.st_financial_entries(job_id);
+create index if not exists st_finance_created_by_idx on public.st_financial_entries(created_by_user_id);

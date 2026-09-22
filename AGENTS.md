@@ -1,35 +1,33 @@
-# Agent instructions — Shine Time
+# Shine Time — instructions for coding agents
 
-Read this file, `README.md`, `docs/architecture.md`, and the relevant specification before changing the repository. These rules apply to human and automated contributors.
+The canonical working repository is `xdudash/shine-time555`. Read this file, `docs/MASTER_PLAN.md`, `docs/SSD.md`, `docs/architecture.md`, and the relevant issue/spec before editing. The imported source came from `xdudash/shine-time` at commit `3dc3ecd21661f86ac0d4c834b860617bc9d34a9b`. Do not silently merge changes from that repository.
 
-## Mission and source of truth
+## Purpose and boundaries
 
-Build an operations platform for cleaning jobs and properties. User roles are admin, manager, property owner, and cleaner. The current repository is a deployable snapshot, **not** the original React source project. It contains a compiled bundle and a PHP entry point. Never pretend a source tree, migration, API implementation, or automated test exists when it does not.
+The operations platform serves admins, operations managers, cleaners, owners, and property managers. Runtime: Hostinger PHP/PWA frontend; Supabase Auth, PostgreSQL, Storage, Realtime, and Edge Function `st-api`. The baseline commit `5862510c21ee2dd18d21d17ef37809b62bec1ade` is a separate deployment snapshot, not editable source or proof of parity.
 
-Priority: current explicit user request > accepted feature spec > `docs/product.md` > `docs/architecture.md` > this file > assumptions. Record contradictions in the pull request.
+Read `docs/STATUS.md` as a dated report, not current production truth. Do not claim a feature works in production without fresh verification.
 
-## Before work
+## Workflow for every request
 
-1. Read `docs/ssd/README.md`. Choose the smallest change with one outcome.
-2. Confirm the files and integration points actually exist. Read existing behavior before editing.
-3. For feature, permission, data model, or API changes, create/update an accepted spec under `docs/ssd/specs/` using the template. For trivial copy and doc changes, explain scope in the pull request.
-4. Do not edit the generated `assets/platform.js` to implement product features. First recover the source project and reproducible build, or get an explicit exception with a tested rollback plan.
-5. Check `docs/roadmap.md` for sequencing and dependencies. A roadmap entry is a proposal, not proof that a feature works.
+1. Locate the next eligible checklist item in `docs/MASTER_PLAN.md`, or define one issue-sized item if the user reprioritizes.
+2. Inspect the actual code and relevant tests. Record baseline behavior and affected roles. Use `docs/ssd/template.md` for behavior or API changes and record open questions.
+3. Implement one vertical slice in a branch; keep schema, RLS, API, UI, tests, and docs consistent. If source behavior differs from spec, update the spec and explain the decision.
+4. Run `npm ci`, `npm test`, `npm run build` and narrower relevant tests. For SQL, API, or role changes add focused authorization and concurrency tests. Report commands and actual output.
+5. Open a focused PR describing behavior, security impact, deployment, rollback, and remaining gaps. Update the master plan only after evidence is attached.
 
-## Implementation rules
+## Security and correctness
 
-- Keep one issue / branch / pull request focused on one behavior. Do not mix formatting with behavior changes.
-- Define role permissions on the server and in Supabase RLS. Hiding UI controls is never authorization.
-- Never place service-role keys, private tokens, entry codes, customer details, or raw cleaning photos in commits, logs, issues, screenshots, or prompts.
-- Gate property access instructions and photos by accepted job and the correct property/assignee; verify access server-side and in storage policies. Define how access is revoked after reassignment or completion.
-- Changes to Supabase schema, policies, Edge Functions, storage, or Auth require a versioned migration/source artifact and a separate review of authorization. Do not apply a live database change merely because a file was committed.
-- For future source reconstruction, isolate domain modules and typed API contracts; keep generated output separate from editable source and record exact build commands and pinned dependencies.
-- Preserve SK/UA/EN localization when touching user-facing strings and verify phone-width behavior for cleaner flows.
+- Browser labels and hidden controls are not authorization. Check actor, resource scope, state, and ownership at the API and RLS/storage boundary.
+- No service-role key, DB password, access code, customer data, production photo, token, or secret in commits, issue bodies, fixtures, logs, or prompts.
+- Protect `ADMIN`, `OPERATIONS_MANAGER`, `PROPERTY_MANAGER`, `OWNER`, `CLEANER`, unassigned cleaner, and anonymous access in tests as applicable.
+- Assignment and completion transitions must be atomic, replay safe, and observable. Never re-run baseline migrations on production to resolve a local failure.
+- Migrations and Edge Function deployment require explicit environment targeting, backups, acceptance checks, and rollback procedure. A commit must not trigger production deployment from this repository without a separate reviewed setup.
+- Preserve finance ledger exactness and audit history; do not silently rewrite recorded payments.
+- Validate cleaner flows at mobile widths and preserve SK/UA/EN translations.
 
-## Verification and delivery
+## Source organization
 
-Run the checks relevant to the change and report what actually ran. At minimum, run `node --check assets/platform.js` and `php -l index.php` / `php -l config/supabase.php` when tools are available. CI runs these checks. No test result proves database permissions without a role-based integration test.
+`assets/` contains editable modules and generated bundles. Use `scripts/build.mjs`, not hand edits to generated outputs. `supabase/functions/st-api/` and `supabase/migrations/` hold backend source. `tests/` contains automated checks. the repository history preserves imported deployment evidence; do not deploy it by default.
 
-For permission changes, test admin, manager, owner, assigned cleaner, unassigned cleaner, and signed-out users. For assignment changes, verify accept, reject, reassignment, concurrent accepts, and offline/retry behavior.
-
-The pull request must include: intent, spec link, touched areas, evidence, data/security impact, deploy and rollback notes, and limitations. Update the spec status, architecture, and changelog when behavior actually changes. Do not mark a roadmap item complete based only on documentation.
+Always distinguish verified repository facts, historical documentation, assumptions, and production observations.

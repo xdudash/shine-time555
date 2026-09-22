@@ -1,0 +1,8 @@
+/* Dispatch recommendation center: scores plan changes, groups risk and exposes safe local actions. */
+(()=>{
+ const esc=v=>String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c));
+ const build=(data={},options={})=>{const plan=window.ShineTimeDispatchPlanner?.buildPlan(data.jobs||[],data.cleaners||[],data.shifts||[],options)||{plans:[],changes:[],summary:{}};const recommendations=plan.changes.map(x=>({...x,priority:x.lateMinutes>30?'CRITICAL':x.lateMinutes>0?'HIGH':'NORMAL'})).sort((a,b)=>({CRITICAL:0,HIGH:1,NORMAL:2}[a.priority]-({CRITICAL:0,HIGH:1,NORMAL:2}[b.priority])));return{...plan,recommendations}};
+ const applyLocal=(recommendations=[])=>recommendations.map(x=>({jobId:x.jobId,cleanerId:x.to,assignmentReason:x.reason,localOnly:true}));
+ const render=(container,result)=>{if(!container)return false;const r=result||{recommendations:[],summary:{jobs:0,predictedLate:0,totalLateMinutes:0,onTrack:0}};const s=r.summary||{};container.innerHTML=`<section class="card"><div class="section-head"><div><h3>Dispatch Plan</h3><p class="subtle">${s.jobs||0} jobs · ${s.predictedLate||0} predicted late · ${s.totalLateMinutes||0} late minutes</p></div><span class="badge">${s.predictedLate?'ACTION':'ON TRACK'}</span></div><div class="list">${(r.recommendations||[]).slice(0,15).map(x=>`<div class="list-row"><div><strong>${esc(x.jobId)}</strong><div class="subtle">${esc(x.from||'unassigned')} → ${esc(x.to)} · ${esc(x.reason)}</div></div><span class="badge">${esc(x.priority)}</span></div>`).join('')||'<div class="empty">No route changes recommended</div>'}</div></section>`;return true};
+ window.ShineTimeDispatchRecommendations={build,applyLocal,render};
+})();
