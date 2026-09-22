@@ -1,0 +1,18 @@
+# Auto-updating platform preview
+
+The GitHub Pages preview is a **visual and interaction preview of the actual frontend source**. It is generated from `index.php` script order, editable `assets/` modules, and the normal `npm run build` output. It is not the older `preview-demo.js` mockup.
+
+## Update path
+
+1. Merge or push a commit to `main`.
+2. The `Verify cleaning platform` workflow checks build, tests, PostgreSQL concurrency, and benchmark.
+3. On success, `Live platform preview` checks out that exact commit and publishes `https://xdudash.github.io/shine-time555/`.
+4. The banner shows the deployed commit prefix. Reload the page after a new workflow completes.
+
+The preview uses synthetic jobs, objects, users, and roles. Switch roles in the bottom bar. The current fixtures cover the administrator live board/jobs/objects, cleaner home, and owner home; other screens may show an explicit missing-fixture message. User changes are disabled. There is no production Supabase URL or publishable key in the published preview, and the live API client is not included. Do not use this preview as proof that backend changes or production integrations work.
+
+## Enablement and troubleshooting
+
+Repository Settings → Pages must use **GitHub Actions** as publishing source. The workflow attempts to configure Pages on the first run. If GitHub refuses first-time enablement, an administrator selects GitHub Actions in Settings → Pages, then reruns `Live platform preview`. The workflow's environment is `github-pages`; it may require approval if environment protection is configured.
+
+For an actual end-to-end staging app, use a separate Supabase staging environment and private hosting with real Auth, Storage, and migrations. Production currently has migration/function changes absent from this source, so it must not serve as a preview backend.

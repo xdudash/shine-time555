@@ -1,0 +1,27 @@
+import {readFile, writeFile, mkdir, cp} from 'node:fs/promises';
+import {join} from 'node:path';
+
+const root=process.cwd();
+const dest=join(root,'_site');
+await mkdir(join(dest,'assets'),{recursive:true});
+const php=await readFile(join(root,'index.php'),'utf8');
+const scripts=[...php.matchAll(/<script src="(assets\/[^"?]+)(?:\?[^"]*)?"><\/script>/g)].map(match=>match[1]);
+if(!scripts.includes('assets/app.js')||!scripts.includes('assets/supabase-client.js')) throw Error('Entry-point scripts changed; update preview builder');
+for(const script of scripts) {
+  if(script==='assets/supabase-client.js') continue;
+  await cp(join(root,script),join(dest,script));
+}
+for(const css of ['styles.css','ui-system.css','job-lifecycle.css']) await cp(join(root,'assets',css),join(dest,'assets',css));
+await cp(join(root,'preview/fixtures.js'),join(dest,'assets/preview-fixtures.js'));
+const commit=process.env.PREVIEW_COMMIT||'local';
+const head=php.match(/<head>([\s\S]*?)<\/head>/)?.[1]||'';
+const styles=head.replace(/<\?=[\s\S]*?\?>/g,'').replace(/\?v=[^"]*/g,'').replace(/<link rel="manifest"[^>]*>/g,'');
+const scriptTags=scripts.map(script=>'<script src="'+(script==='assets/supabase-client.js'?'assets/preview-fixtures.js':script)+'"></script>').join('\n');
+const html='<!doctype html><html lang="en"><head>'+styles+'<meta name="robots" content="noindex,nofollow"></head><body>'+
+  '<div id="app"></div><div id="modal-root"></div><div id="toast-root"></div>'+
+  '<div id="preview-banner" role="status" style="position:fixed;z-index:99999;bottom:0;left:0;right:0;background:#172033;color:white;padding:9px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font:14px system-ui"><strong>DEMO · synthetic data</strong><label>View as <select id="preview-role"><option>ADMIN</option><option>OPERATIONS_MANAGER</option><option>CLEANER</option><option>OWNER</option><option>PROPERTY_MANAGER</option></select></label><small>Commit '+commit.slice(0,12)+'</small></div>'+
+  '<script>window.ST_BASE="./";window.ST_BUILD="preview-'+commit.slice(0,12)+'";</script>'+scriptTags+
+  '<script>bootstrap();document.getElementById("preview-role").addEventListener("change",event=>window.STPreview.switchRole(event.target.value));</script></body></html>';
+await writeFile(join(dest,'index.html'),html);
+await writeFile(join(dest,'.nojekyll'),'');
+console.log('Built actual-source preview from',scripts.length,'application scripts, commit',commit);

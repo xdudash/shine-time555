@@ -2,6 +2,8 @@
 
 This is the working repository for incremental development. Begin with [the master plan](docs/MASTER_PLAN.md), [agent instructions](AGENTS.md), and [SSD workflow](docs/ssd/README.md). Source was imported from `xdudash/shine-time` commit `3dc3ecd21661f86ac0d4c834b860617bc9d34a9b`; the recovered deployment snapshot is preserved in the repository history. Automatic production deployment is disabled here pending release gates.
 
+The [auto-updating frontend preview](docs/preview.md) publishes after successful verification on `main`, using synthetic data and the actual UI source. It does not connect to production.
+
 Cleaning operations platform: Hostinger frontend, Supabase backend.
 
 ## Components
