@@ -2,6 +2,8 @@
 
 Deployable snapshot of the Shine Time cleaning operations interface, recovered from `Shine_Time_audit_update.zip` (14 September 2026).
 
+This repository is the starting point for incremental development. Read [product goals](docs/product.md), [current architecture](docs/architecture.md), [roadmap](docs/roadmap.md), [SSD workflow](docs/ssd/README.md), and [agent rules](AGENTS.md) before changing behavior.
+
 ## Contents
 
 - `index.php`: PHP entry point, HTML shell, and browser configuration.

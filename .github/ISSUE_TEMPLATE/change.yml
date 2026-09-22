@@ -1,0 +1,30 @@
+name: Small product change
+description: One reviewable improvement to Shine Time
+title: "[Change] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and affected role
+      description: Describe observed behavior and who is affected.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected outcome
+      description: Describe one observable result.
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance scenarios
+      description: Include success, failure, and denied access where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Reproduction and evidence
+      description: Share steps without customer data, passwords, or entry codes.

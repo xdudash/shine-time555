@@ -1,0 +1,23 @@
+name: Verify repository
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check JavaScript syntax
+        run: node --check assets/platform.js
+      - name: Check PHP syntax
+        run: |
+          php -l index.php
+          php -l config/supabase.php
+      - name: Verify expected baseline files
+        run: |
+          test -s assets/platform.js
+          test -s assets/platform.css
+          test -s AGENTS.md
+          test -s docs/ssd/template.md

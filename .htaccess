@@ -6,9 +6,9 @@ RewriteEngine On
 RewriteRule ^api(?:/|$) - [R=404,L]
 
 # Never expose application internals.
-RewriteRule ^(?:config|lib|storage|tests|supabase)(?:/|$) - [F,L]
-RewriteRule ^(?:schema\.sql|README\.md|HOSTINGER_SETUP\.md)$ - [F,L]
+RewriteRule ^(?:config|lib|storage|tests|supabase|docs|\.github|\.git)(?:/|$) - [F,L]
+RewriteRule \.(?:md|sql|ya?ml|json|lock)$ - [F,L,NC]
 
-<FilesMatch "^(?:\.env|database\.php|database\.example\.php)$">
+<FilesMatch "^(?:\.env(?:\..*)?|database\.php|database\.example\.php)$">
   Require all denied
 </FilesMatch>
