@@ -48,5 +48,7 @@ test('preview builder removes the redundant widget and keeps the role banner in 
   const source=await readFile(new URL('../scripts/build-preview.mjs',import.meta.url),'utf8');
   assert.match(source,/script!==['"]assets\/operations-dashboard\.js['"]/);
   assert.match(source,/position:sticky/);
+  assert.match(source,/assetVersion=encodeURIComponent\(commit\.slice\(0,12\)\)/);
+  assert.match(source,/preview-fixtures\.js[^\n]+assetVersion/);
   assert.doesNotMatch(source,/position:fixed;z-index:99999;bottom:0/);
 });
