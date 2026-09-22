@@ -29,6 +29,11 @@ test('demo API covers primary admin, cleaner and client screens with Bratislava 
   assert.ok(objects.some(object=>object.address.includes('Bratislava')));
   assert.ok(objects.some(object=>object.address.includes('Praha')));
   assert.ok(objects.every(object=>Number.isFinite(object.lat)&&Number.isFinite(object.lng)));
+  const clients=(await demo.request('/api/admin/clients')).clients;
+  assert.ok(clients.every(client=>Number.isInteger(client.objects)&&Number.isInteger(client.approved_objects)&&Number.isInteger(client.month_jobs)));
+  assert.ok((await demo.request('/api/cleaner/marketplace')).jobs.every(job=>job.projected_finish));
+  const settlement=await demo.request('/api/client/settlements');
+  assert.equal(settlement.summary.chargedCents,settlement.jobs.reduce((sum,job)=>sum+job.chargedCents,0));
 });
 
 test('demo responses stay isolated and mutations cannot change the preview',async()=>{
