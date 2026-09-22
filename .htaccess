@@ -1,0 +1,14 @@
+Options -Indexes
+DirectoryIndex index.php
+RewriteEngine On
+
+# The browser uses the Supabase Edge Function directly.
+RewriteRule ^api(?:/|$) - [R=404,L]
+
+# Never expose application internals.
+RewriteRule ^(?:config|lib|storage|tests|supabase)(?:/|$) - [F,L]
+RewriteRule ^(?:schema\.sql|README\.md|HOSTINGER_SETUP\.md)$ - [F,L]
+
+<FilesMatch "^(?:\.env|database\.php|database\.example\.php)$">
+  Require all denied
+</FilesMatch>
