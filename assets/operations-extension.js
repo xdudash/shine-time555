@@ -4,7 +4,7 @@ function serviceCategoryField(value='SHORT_STAY'){return `<div class="field wide
 adminNav.splice(4,0,['schedule','◷','Recurring jobs']);
 adminNav.splice(adminNav.findIndex(x=>x[0]==='finance')+1,0,['settlements','↔','Payments & payouts']);
 const originalAdminRenderer=renderAdmin;
-renderAdmin=async function(page){if(page==='schedule')return scheduleScreen();if(page==='settlements')return settlementScreen();return originalAdminRenderer(page)};
+renderAdmin=async function(page){if(!window.ShineTimeUi.adminRouteAllowed(page,state.me.role)){navTo('admin/live');return originalAdminRenderer('live')}if(page==='schedule')return scheduleScreen();if(page==='settlements')return settlementScreen();return originalAdminRenderer(page)};
 const originalCleanerRenderer=renderCleaner;
 renderCleaner=async function(page){if(page==='earnings')return settlementScreen();return originalCleanerRenderer(page)};
 clientFinance=async function(){return settlementScreen()};

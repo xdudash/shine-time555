@@ -39,11 +39,13 @@
     }).filter(Boolean);
   }
 
+  const restrictedAdminRoutes = new Set(['owner', 'clients', 'cleaners', 'finance', 'settlements', 'settings']);
+  function adminRouteAllowed(page, role) {
+    return role === 'ADMIN' || (role === 'OPERATIONS_MANAGER' && !restrictedAdminRoutes.has(page));
+  }
   function adminNavigationForRole(items, role) {
-    if (role !== 'OPERATIONS_MANAGER') return items;
-    const restricted = new Set(['owner', 'clients', 'cleaners', 'finance', 'settlements', 'settings']);
-    return items.filter(([route]) => !restricted.has(route));
+    return items.filter(([page]) => adminRouteAllowed(page, role));
   }
 
-  window.ShineTimeUi = { adminNavigationForRole, parseCoordinate, mapPoints };
+  window.ShineTimeUi = { adminRouteAllowed, adminNavigationForRole, parseCoordinate, mapPoints };
 })();

@@ -19,7 +19,7 @@ test('pwa layer exposes install action and update handling',()=>{
  assert.match(s,/beforeinstallprompt/);assert.match(s,/ShineTimePwa/);assert.match(s,/SKIP_WAITING/);assert.match(s,/serviceWorker/);
 });
 
-test('production entrypoint loads the additive UI layers',()=>{
+test('production entrypoint retains table and PWA tools but excludes account-unscoped drafts',()=>{
  const s=read('index.php');
- assert.match(s,/assets\/form-tools\.js/);assert.match(s,/assets\/table-tools\.js/);assert.match(s,/assets\/pwa-actions\.js/);
+ assert.doesNotMatch(s,/assets\/form-tools\.js/);assert.match(s,/assets\/table-tools\.js/);assert.match(s,/assets\/pwa-actions\.js/);
 });

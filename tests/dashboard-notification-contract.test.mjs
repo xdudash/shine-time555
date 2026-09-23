@@ -14,6 +14,6 @@ test('notification tools expose priority and quiet-hour logic',()=>{
  assert.match(s,/ShineTimeNotificationTools/);assert.match(s,/dedupe/);assert.match(s,/critical/);assert.match(s,/inQuietHours/);assert.match(s,/digest/);
 });
 
-test('entrypoint loads dashboard and notification helpers',()=>{
- const s=read('index.php');assert.match(s,/assets\/ops-dashboard-widgets\.js/);assert.match(s,/assets\/notifications-tools\.js/);
+test('entrypoint excludes unused dashboard and notification helpers',()=>{
+ const s=read('index.php');assert.doesNotMatch(s,/assets\/ops-dashboard-widgets\.js/);assert.doesNotMatch(s,/assets\/notifications-tools\.js/);
 });

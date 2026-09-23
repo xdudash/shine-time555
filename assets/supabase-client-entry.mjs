@@ -105,7 +105,7 @@ function subscribeJobs(onChange,onStatus=()=>{}) {
 }
 
 async function resetPassword(email){
-  const {error}=await getClient().auth.resetPasswordForEmail(email,{redirectTo:new URL(window.ST_BASE||'./',location.origin).href});
+  const {error}=await getClient().auth.resetPasswordForEmail(email,{redirectTo:new URL(window.ST_BASE||'./',location.href).href});
   if(error)throw error;
 }
 async function recoverPassword(password){const {error}=await getClient().auth.updateUser({password});if(error)throw error;}

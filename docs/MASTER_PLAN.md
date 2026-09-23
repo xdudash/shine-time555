@@ -106,3 +106,7 @@
 2. Perform P0.06: compare the archived five-file release with imported source before choosing which UI variant to serve.
 3. Inventory current environment for P0.08 without applying database or deployment changes.
 4. Select the first observed defect and write SSD-001 with a reproducible user journey.
+
+## Active audit slice — 2026-09-23
+
+SSD-011 (`docs/ssd/specs/011-interface-reliability.md`) implements the user's priority to remove broken/duplicate UI. Runtime reduced from 41 to 13 scripts; core job, finance, recurring, monitoring, notification and GPS flows remain. Route restrictions, error recovery, exports and asset versioning have focused regression tests. This advances P1.08/P3.02 but does not complete production or scale gates. Current production source/migration drift is confirmed in environment-inventory.md.
