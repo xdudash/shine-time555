@@ -21,6 +21,7 @@ try{
     window.testCalls.push(path);
     if(path==='/api/cleaner/jobs/1')return {id:1,status:'CLEANING',object_code:'TEST-1',object_name:'Test apartment',payout:20,bonus:0,deadline:'20:00',checklist:[{id:1,label:'Proof',required:true,completed:true,photo_required:true,photo_category:"Owner's photo"}],photos:[{id:1,mime:'video/mp4',category:'Additional',url:'https://test.shinetime.local/video.mp4'}],issues:[]};
     if(path==='/api/client/profile')return {client:{full_name:'Test Owner',email:'owner@test.invalid',company_name:'Test Portfolio'}};
+    if(path==='/api/client/dashboard')return {objects:{total:2,approved:2,pending:0},upcoming:[],completedToday:0,nextBooking:null};
     if(path==='/api/client/objects')return {objects:[]};
     if(path.startsWith('/api/cleaner/dashboard'))return {availability:{online:true,fromTime:'08:00',toTime:'20:00'},jobs:[],nextJob:null,total:0,earnings:0,projectedFinish:null};
     if(path==='/api/notifications')return {notifications:[],unread:0};
@@ -44,6 +45,7 @@ try{
  await page.waitForTimeout(150);
  assert.equal(await page.locator('.bottom-nav').getByText('Map',{exact:true}).count(),0,'cleaner has no standalone map tab');
  assert.equal(await page.locator('#online-toggle').innerText(),'● ONLINE');
+ assert.equal(await page.locator('.mobile-kpi').last().locator('.v').innerText(),'—','unknown projected finish is explicit');
  console.log('PASS: mobile cleaner home and availability');
  await page.evaluate(async()=>{window.ShineTimeSupabase.uploadProofFile=async(id,category,file)=>{window.lastUpload={id,category,mime:file.type};return {}};location.hash='cleaner/job/1';await render()});
  assert.equal(await page.locator('#page video').count(),1,'video report has a playable element');
@@ -59,6 +61,9 @@ try{
  await page.setViewportSize({width:390,height:844});
  await page.screenshot({path:'artifacts/cleaner-preview.png',fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'no mobile horizontal overflow');
+ await page.evaluate(async()=>{state.me={id:1,role:'OWNER',full_name:'Test Owner',company_name:'Test Portfolio',language:'en'};location.hash='client/home';await render()});
+ await page.screenshot({path:'artifacts/owner-mobile-preview.png',fullPage:true});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'owner page fits mobile viewport');
  await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Operations',language:'en'};location.hash='admin/jobs';await render();});
  await page.locator('.mobile-menu-trigger').click();
  assert.equal(await page.locator('.mobile-menu-trigger').getAttribute('aria-expanded'),'true');
