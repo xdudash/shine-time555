@@ -28,8 +28,8 @@ No production database writes or backend replacement. Preserve five roles, proof
 
 ### Task 3: Review and publication
 
-- [ ] Review full diff and test evidence; attach remaining production parity risks to recovery notes.
-- [ ] Commit, open PR, verify CI, merge and confirm Pages build/version.
+- [x] Review full diff and test evidence; attach remaining production parity risks to recovery notes.
+- [x] Commit, open PR, verify CI, merge and confirm Pages build/version.
 - [ ] Update the master plan and release evidence without claiming full production acceptance.
 
 ## Execution ledger
@@ -42,3 +42,6 @@ No production database writes or backend replacement. Preserve five roles, proof
 - One legacy entrypoint test required the retired automation layer. Updated its intended contract to require the core live coordinator and forbid the duplicate layer; retained its archived helper tests.
 
 - Verification: `npm ci`; `npm test` 116/116 pass, 47.9s; `npm run build`; `npm run check`; PHP WASM lint; preview build and safety scanner; frontend package; `git diff --check` all successful. Browser verification follows deployed release. Four legacy entrypoint contracts now enforce intentional retirement; archived helper tests remain.
+
+- PR #4 merged as dd109dc4d420 after Quality, Verify and Supabase integration all passed. Pages run 35881626304 succeeded; browser confirmed dd109dc4d420 with duplicate panels absent. Admin, operations-manager, cleaner job detail, owner property list and property-manager navigation rendered with synthetic examples.
+- Follow-up browser findings: owner navigation has no active tab and demo finance by-client rows omit jobs/cost/profit. Add explicit route metadata, natural/monetary table sorting, and reconciled demo finance rows. Regression tests failed first, then passed; independent review caught negative-English-currency ordering, also reproduced and corrected. Full suite 118/118, build/check and preview safety passed. Follow-up publication pending.

@@ -40,3 +40,11 @@ Run unit/database tests, build, PHP syntax and preview safety checks. Publish th
 ## Verification evidence
 
 2026-09-23: 116 tests passed, including eight new behavioral regression tests. Build, JavaScript syntax, PHP lint, preview safety and frontend packaging passed. Independent review findings were reproduced and fixed before publication. No production data or backend changes.
+
+## Follow-up: navigation and table feedback
+
+Browser verification on 2026-09-23 confirmed no active owner tab: the renderer parsed single-quoted onclick attributes while client navigation uses double quotes. Use explicit `data-route` and `aria-current`, map job/booking details to their parent tab and strip booking query parameters.
+
+Actual-code tests also reproduce text sorting failure: nonnumeric text was stripped to an empty string and converted to 0. Recognize numeric/money cells before comparing numbers; use natural locale text comparison otherwise. Cover both orders, Bratislava/Prague names, property IDs, and EN/SK money formatting. No API, data or authorization changes. Release/rollback follows the same frontend-only workflow.
+
+Browser inspection also found missing jobs/cost/profit in the demo by-client finance group. The fixture now reconciles with summary/object totals; regression assertions cover those sums. Independent follow-up review caught negative EN currency sorting; reproduced and fixed before release.

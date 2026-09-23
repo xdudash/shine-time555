@@ -34,6 +34,12 @@ test('demo API covers primary admin, cleaner and client screens with Bratislava 
   assert.ok((await demo.request('/api/cleaner/marketplace')).jobs.every(job=>job.projected_finish));
   const settlement=await demo.request('/api/client/settlements');
   assert.equal(settlement.summary.chargedCents,settlement.jobs.reduce((sum,job)=>sum+job.chargedCents,0));
+  const finance=await demo.request('/api/admin/finance?month=2026-09');
+  for(const group of [finance.byClient,finance.byObject]){
+    assert.equal(group.reduce((sum,row)=>sum+row.jobs,0),finance.summary.completedJobs);
+    assert.equal(group.reduce((sum,row)=>sum+row.cost,0),finance.summary.totalExpenses);
+    assert.equal(group.reduce((sum,row)=>sum+row.profit,0),finance.summary.profit);
+  }
 });
 
 test('demo responses stay isolated and mutations cannot change the preview',async()=>{

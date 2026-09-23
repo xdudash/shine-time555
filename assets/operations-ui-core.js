@@ -47,5 +47,12 @@
     return items.filter(([page]) => adminRouteAllowed(page, role));
   }
 
-  window.ShineTimeUi = { adminRouteAllowed, adminNavigationForRole, parseCoordinate, mapPoints };
+  function navigationRoute(route) {
+    const [area, page] = String(route).split('?')[0].split('/');
+    if (area === 'cleaner' && page === 'job') return 'cleaner/myday';
+    if (area === 'client' && page === 'booking') return 'client/bookings';
+    return `${area}/${page}`;
+  }
+
+  window.ShineTimeUi = { navigationRoute, adminRouteAllowed, adminNavigationForRole, parseCoordinate, mapPoints };
 })();
