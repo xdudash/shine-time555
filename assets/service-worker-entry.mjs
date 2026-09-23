@@ -2,7 +2,7 @@ import {staticCacheAllowed} from './live-updates.mjs';
 const BUILD='2026-09-07-scale1';
 const CACHE=`shinetime-shell-${BUILD}`;
 const BASE=new URL(self.registration.scope).pathname;
-const SHELL=['assets/styles.css','assets/i18n.js','assets/supabase-client.js','assets/operations-ui-core.js','assets/live-updates.js','assets/app.js','assets/money.js','assets/operations-extension.js','assets/monitoring-extension.js','assets/export.js','manifest.webmanifest','assets/icon-192.png','assets/icon-512.png'];
+const SHELL=['assets/styles.css','assets/ui-system.css','assets/mobile-ui.css','assets/job-lifecycle.css','assets/i18n.js','assets/supabase-client.js','assets/operations-ui-core.js','assets/live-updates.js','assets/app.js','assets/money.js','assets/operations-extension.js','assets/monitoring-extension.js','assets/export.js','manifest.webmanifest','assets/icon-192.png','assets/icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL.map(p=>BASE+p))).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(Promise.all([
   self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('shinetime-shell-')&&k!==CACHE).map(k=>caches.delete(k)))),

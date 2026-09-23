@@ -12,7 +12,7 @@ for(const script of scripts) {
   if(['assets/supabase-client.js','assets/operations-dashboard.js'].includes(script)) continue;
   await cp(join(root,script),join(dest,script));
 }
-for(const css of ['styles.css','ui-system.css','job-lifecycle.css']) await cp(join(root,'assets',css),join(dest,'assets',css));
+for(const css of ['styles.css','ui-system.css','mobile-ui.css','job-lifecycle.css']) await cp(join(root,'assets',css),join(dest,'assets',css));
 await cp(join(root,'preview/fixtures.js'),join(dest,'assets/preview-fixtures.js'));
 const commit=process.env.PREVIEW_COMMIT||'local';
 const assetVersion=encodeURIComponent(commit.slice(0,12));
