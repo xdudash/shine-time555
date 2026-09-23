@@ -37,3 +37,5 @@ Run tests, build, PHP lint, preview build/safety, then release the frontend thro
 ## Verification evidence
 
 Local: `npm ci`, 118/118 Node tests, `npm run build`, PHP WASM lint, preview build/safety and 54-file frontend package succeeded. Browser test checked 320/390px viewport width, mobile drawer, manager route filtering, card search, cleaner lifecycle and desktop navigation; no page errors. Published release verification follows CI.
+
+Follow-up browser audit: cleaner dashboard receives a null projected finish when no work is assigned. Show an explicit dash on Home and My Day; keep the booking CTA visible on the owner empty state and check owner layout at 390px. This is display-only and does not alter the job forecast or API contract.
