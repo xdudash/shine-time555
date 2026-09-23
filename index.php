@@ -28,6 +28,7 @@ $publicConfig = [
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="assets/styles.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/styles.css')) ?>">
   <link rel="stylesheet" href="assets/ui-system.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/ui-system.css')) ?>">
+  <link rel="stylesheet" href="assets/mobile-ui.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/mobile-ui.css')) ?>">
   <link rel="stylesheet" href="assets/job-lifecycle.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/job-lifecycle.css')) ?>">
 </head>
 <body>

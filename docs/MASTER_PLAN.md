@@ -110,3 +110,5 @@
 ## Active audit slice — 2026-09-23
 
 SSD-011 (`docs/ssd/specs/011-interface-reliability.md`) implements the user's priority to remove broken/duplicate UI. Runtime reduced from 41 to 13 scripts; core job, finance, recurring, monitoring, notification and GPS flows remain. Route restrictions, error recovery, exports and asset versioning have focused regression tests. This advances P1.08/P3.02 but does not complete production or scale gates. Current production source/migration drift is confirmed in environment-inventory.md.
+
+SSD-012 (`docs/ssd/specs/012-mobile-operations-core.md`) reprioritizes P3.02 under the user's explicit mobile/core request: reachable admin/manager navigation and actionable mobile job cards. This is a frontend vertical slice, not completion of the whole production or scale program.
