@@ -7,5 +7,5 @@
  const install=table=>{if(!table||table.dataset.tableTools==='1')return;table.dataset.tableTools='1';const heads=[...table.querySelectorAll('thead th')];heads.forEach((th,i)=>{if(th.dataset.noSort==='1')return;th.style.cursor='pointer';th.title=window.ST_I18N?.t('Sort','Sort')||'Sort';th.addEventListener('click',()=>{const current=Number(table.dataset.sortColumn);const dir=current===i&&Number(table.dataset.sortDir)===1?-1:1;sort(table,i,dir)})});[...table.tBodies[0]?.rows||[]].forEach(row=>{row.addEventListener('dblclick',()=>copyRow(row));row.title=(window.ST_I18N?.t('Double-click to copy row','Double-click to copy row')||'Double-click to copy row')});};
  const installAll=()=>document.querySelectorAll('#page table').forEach(install);
  window.ShineTimeTables={install,installAll,sort,search,copyRow};
- new MutationObserver(installAll).observe(document.body,{childList:true,subtree:true});setTimeout(installAll,120);
+ window.addEventListener('shine:rendered',installAll);setTimeout(installAll,120);
 })();

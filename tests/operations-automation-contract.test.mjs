@@ -38,7 +38,9 @@ test('operations automation improves keyboard accessibility for data rows',()=>{
   assert.match(source,/row\.querySelector\('button'\)\.click\(\)/);
 });
 
-test('production entrypoint loads the automation layer',()=>{
+test('production entrypoint retires duplicate automation and retains core live coordination',()=>{
   const source=read('index.php');
-  assert.match(source,/assets\/operations-automation\.js/);
+  assert.doesNotMatch(source,/assets\/operations-automation\.js/);
+  assert.match(source,/assets\/live-updates\.js/);
+  assert.match(source,/assets\/app\.js/);
 });

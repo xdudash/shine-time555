@@ -39,47 +39,19 @@ $publicConfig = [
     window.ST_BUILD = <?= json_encode($build, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     window.ST_SUPABASE = <?= json_encode($publicConfig, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
   </script>
-  <script src="assets/i18n.js?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/i18n.js')) ?>"></script>
-  <script src="assets/supabase-client.js?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/supabase-client.js')) ?>"></script>
-  <script src="assets/operations-ui-core.js?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/operations-ui-core.js')) ?>"></script>
-  <script src="assets/live-updates.js"></script>
-  <script src="assets/app.js?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/app.js')) ?>"></script>
-  <script src="assets/money.js"></script>
-  <script src="assets/operations-extension.js"></script>
-  <script src="assets/operations-validation.js"></script>
-  <script src="assets/monitoring-extension.js"></script>
-  <script src="assets/export.js"></script>
-  <script src="assets/operations-automation.js"></script>
-  <script src="assets/operations-command-center.js"></script>
-  <script src="assets/operations-dashboard.js"></script>
-  <script src="assets/ops-dashboard-widgets.js"></script>
-  <script src="assets/ops-charts.js"></script>
-  <script src="assets/shift-planner.js"></script>
-  <script src="assets/shift-board.js"></script>
-  <script src="assets/auto-assignment.js"></script>
-  <script src="assets/rescue-automation.js"></script>
-  <script src="assets/bulk-operations.js"></script>
-  <script src="assets/dispatch-engine.js"></script>
-  <script src="assets/dispatch-workflow.js"></script>
-  <script src="assets/dispatch-planner.js"></script>
-  <script src="assets/dispatch-recommendations.js"></script>
-  <script src="assets/performance-engine.js"></script>
-  <script src="assets/operations-brain.js"></script>
-  <script src="assets/command-center-live.js"></script>
-  <script src="assets/notifications-center.js"></script>
-  <script src="assets/notifications-tools.js"></script>
-  <script src="assets/payout-engine.js"></script>
-  <script src="assets/payout-queue.js"></script>
-  <script src="assets/finance-tools.js"></script>
-  <script src="assets/schedule-tools.js"></script>
-  <script src="assets/form-tools.js"></script>
-  <script src="assets/table-tools.js"></script>
-  <script src="assets/activity-log.js"></script>
-  <script src="assets/pwa-actions.js"></script>
-  <script src="assets/operations-command-surface.js"></script>
-  <script src="assets/dispatch-console.js"></script>
-  <script src="assets/job-lifecycle-console.js"></script>
-  <script src="assets/cleaner-gps-enforcement.js"></script>
+  <script src="assets/i18n.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/i18n.js'), 0, 16) ?>"></script>
+  <script src="assets/supabase-client.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/supabase-client.js'), 0, 16) ?>"></script>
+  <script src="assets/operations-ui-core.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/operations-ui-core.js'), 0, 16) ?>"></script>
+  <script src="assets/live-updates.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/live-updates.js'), 0, 16) ?>"></script>
+  <script src="assets/app.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/app.js'), 0, 16) ?>"></script>
+  <script src="assets/money.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/money.js'), 0, 16) ?>"></script>
+  <script src="assets/operations-extension.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/operations-extension.js'), 0, 16) ?>"></script>
+  <script src="assets/operations-validation.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/operations-validation.js'), 0, 16) ?>"></script>
+  <script src="assets/monitoring-extension.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/monitoring-extension.js'), 0, 16) ?>"></script>
+  <script src="assets/export.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/export.js'), 0, 16) ?>"></script>
+  <script src="assets/table-tools.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/table-tools.js'), 0, 16) ?>"></script>
+  <script src="assets/pwa-actions.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/pwa-actions.js'), 0, 16) ?>"></script>
+  <script src="assets/cleaner-gps-enforcement.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/cleaner-gps-enforcement.js'), 0, 16) ?>"></script>
   <script>bootstrap();</script>
 </body>
 </html>

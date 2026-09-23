@@ -11,7 +11,7 @@
         const result=await request(`/api/cleaner/jobs/${encodeURIComponent(id)}/status`,{method:'POST',body:{status:'ARRIVED',lat:position.coords.latitude,lng:position.coords.longitude,accuracyMeters:position.coords.accuracy}});
         if(result?.error)throw new Error(result.error.message||'Check-in failed');
         toast(result?.warning||'Checked in','success');
-        window.cleanerJobDetail?.(id);
+        await window.render?.();
       }catch(error){toast(error?.message||'Check-in failed','error');}
     },error=>{
       const message=error?.code===1?'Location permission is required to check in.':error?.code===2?'Your location is unavailable. Move to an area with GPS/network coverage and try again.':'Location request timed out. Try again.';

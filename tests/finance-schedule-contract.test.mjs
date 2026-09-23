@@ -12,6 +12,6 @@ test('schedule tools expose slot generation and conflict detection',()=>{
  const s=read('assets/schedule-tools.js');
  assert.match(s,/ShineTimeSchedule/);assert.match(s,/while\(a\+d<=b\)/);assert.match(s,/conflicts/);assert.match(s,/overlap/);assert.match(s,/weeklyHours/);assert.match(s,/nextWeekday/);
 });
-test('production entrypoint loads finance and schedule layers',()=>{
- const s=read('index.php');assert.match(s,/assets\/finance-tools\.js/);assert.match(s,/assets\/schedule-tools\.js/);
+test('production entrypoint excludes unused finance and schedule layers',()=>{
+ const s=read('index.php');assert.doesNotMatch(s,/assets\/finance-tools\.js/);assert.doesNotMatch(s,/assets\/schedule-tools\.js/);
 });
