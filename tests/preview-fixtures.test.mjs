@@ -52,7 +52,7 @@ test('demo responses stay isolated and mutations cannot change the preview',asyn
   client[0].name='Modified locally';
   assert.notEqual((await demo.request('/api/client/objects')).objects[0].name,'Modified locally');
   await assert.rejects(demo.request('/api/client/bookings',{method:'POST'}),/editing is unavailable/);
-  assert.equal((await demo.request('/api/client/bookings')).bookings.length,5);
+  assert.equal((await demo.request('/api/client/bookings')).bookings.length,6);
 });
 
 test('preview builder removes the redundant widget and keeps the role banner in normal page flow',async()=>{
@@ -62,4 +62,14 @@ test('preview builder removes the redundant widget and keeps the role banner in 
   assert.match(source,/assetVersion=encodeURIComponent\(commit\.slice\(0,12\)\)/);
   assert.match(source,/preview-fixtures\.js[^\n]+assetVersion/);
   assert.doesNotMatch(source,/position:fixed;z-index:99999;bottom:0/);
+});
+
+test('preview dispatch respects day filters and opens submitted reports',async()=>{
+ const demo=preview();
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Bratislava'}).format(new Date());
+ const rows=(await demo.request('/api/admin/jobs?date='+today)).jobs;
+ assert.ok(rows.every(j=>j.service_date===today));
+ const pending=rows.find(j=>j.review_status==='PENDING');assert.ok(pending,'submitted report example');
+ const detail=await demo.request('/api/admin/jobs/'+pending.id);
+ assert.equal(detail.review_version,1);assert.ok(Array.isArray(detail.checklist));assert.ok(Array.isArray(detail.events));
 });

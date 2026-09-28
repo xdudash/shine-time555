@@ -8,8 +8,8 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const PUBLIC_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? '';
 const MEDIA_BUCKET = 'st-cleaning-media';
-const APP_BUILD = '2026-09-07-scale1';
-const COMPATIBLE_BUILDS = new Set([APP_BUILD, '2026-09-01-r1']);
+const APP_BUILD = '2026-09-28-quality1';
+const COMPATIBLE_BUILDS = new Set([APP_BUILD]);
 const service = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
 type AnyRow = Record<string, any>;
@@ -674,13 +674,19 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
     }
     return { created: created.length, skipped, jobIds: created };
   }
-  const jobRoute = route.match(/^admin\/jobs\/(\d+)(?:\/(assign|rescue|bonus))?$/);
+  const jobRoute = route.match(/^admin\/jobs\/(\d+)(?:\/(assign|rescue|bonus|review))?$/);
   if (jobRoute) {
     const id = number(jobRoute[1]);
     const action = jobRoute[2] || '';
     if (!action && method === 'GET') return jobDetails(ctx, id);
     if (!action && method === 'PATCH') {
       return { job: (await hydrateJobs([await jobCommand(ctx, id, 'patch', body)]))[0] };
+    }
+    if (action === 'review' && method === 'POST') {
+      requireRole(ctx, ['ADMIN', 'OPERATIONS_MANAGER']);
+      if (!['APPROVED','REWORK_REQUIRED'].includes(body.decision) || !Number.isInteger(body.expectedVersion) || body.expectedVersion < 1 || !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,95}$/.test(String(body.requestId || ''))) throw new ApiError('Decision, expectedVersion and valid requestId required');
+      const reviewed = await result(service.rpc('st_review_job', { p_actor_id: ctx.appUser.id, p_job_id: id, p_decision: body.decision, p_note: String(body.note || ''), p_request_id: body.requestId, p_expected_version: body.expectedVersion })) as AnyRow;
+      return { job: (await hydrateJobs([reviewed]))[0] };
     }
     const job = await getJob(id);
     const terminal = ['COMPLETED', 'CANCELLED'].includes(job.status);

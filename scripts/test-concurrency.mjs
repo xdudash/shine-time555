@@ -24,6 +24,22 @@ try {
  await Promise.all(Array.from({length:50},()=>db.query("select st_job_command($1,$2,'complete','{}',$3)",[actor,job.id,key])));
  assert.equal((await db.query("select count(*)::int n from st_job_events where job_id=$1 and event_type='COMPLETED'",[job.id])).rows[0].n,1);
  assert.equal((await db.query('select completed_jobs from st_cleaners where id=$1',[winner.assigned_cleaner_id])).rows[0].completed_jobs,1);
+ // Opposite decisions share the same version: only one reviewer may commit.
+ const reviewRace=await Promise.allSettled([
+  db.query("select st_review_job(1,$1,'APPROVED','Reviewed',$2,1)",[job.id,crypto.randomUUID()]),
+  db.query("select st_review_job(6,$1,'REWORK_REQUIRED','Redo bathroom',$2,1)",[job.id,crypto.randomUUID()]),
+ ]);
+ assert.equal(reviewRace.filter(r=>r.status==='fulfilled').length,1,'Exactly one review decision must win');
+ assert.match(reviewRace.find(r=>r.status==='rejected').reason.message,/stale review version/i);
+ assert.equal((await db.query("select count(*)::int n from st_job_events where job_id=$1 and event_type like 'QUALITY_%'",[job.id])).rows[0].n,1);
+ // A fresh submission isolates repeated-review contention from the opposite-decision race.
+ const {rows:[replayJob]}=await db.query("insert into st_jobs(object_id,client_id,service_date,status,assigned_cleaner_id) values(2,1,current_date+2,'CLEANING',$1) returning id",[winner.assigned_cleaner_id]);
+ await db.query("select st_job_command($1,$2,'complete','{}',$3)",[actor,replayJob.id,crypto.randomUUID()]);
+ const reviewKey=crypto.randomUUID();
+ const replays=await Promise.all(Array.from({length:50},()=>db.query("select (st_review_job(6,$1,'APPROVED','Verified proof',$2,1)).review_version version",[replayJob.id,reviewKey])));
+ for(const replay of replays)assert.equal(replay.rows[0].version,2);
+ assert.equal((await db.query("select count(*)::int n from st_job_events where job_id=$1 and event_type='QUALITY_APPROVED'",[replayJob.id])).rows[0].n,1);
+ assert.equal((await db.query("select count(*)::int n from st_job_command_requests where job_id=$1 and action='review'",[replayJob.id])).rows[0].n,1);
  const contentionMs=Math.round(performance.now()-began);
  await db.exec(`
  insert into auth.users(id,email) select gen_random_uuid(),'load-'||g||'@test.invalid' from generate_series(1,50) g;
@@ -38,6 +54,6 @@ try {
  await Promise.all(independent.map(j=>db.query("select st_job_command($1,$2,'accept','{}',$3)",[j.actor_id,j.job_id,crypto.randomUUID()])));
  const independentMs=Math.round(performance.now()-independentStart);
  assert.equal((await db.query("select count(*)::int n from st_jobs j join st_objects o on o.id=j.object_id where o.code like 'LOAD-%' and j.status='ACCEPTED'")).rows[0].n,50);
- const report={engine:'Native PostgreSQL',simultaneousRequests:50,claimWinners:1,duplicateCompletions:50,completionEvents:1,contentionMs,independentJobs:50,independentMs};
+ const report={engine:'Native PostgreSQL',simultaneousRequests:50,claimWinners:1,duplicateCompletions:50,completionEvents:1,reviewDecisionWinners:1,duplicateReviews:50,reviewReplayEvents:1,contentionMs,independentJobs:50,independentMs};
  await mkdir('artifacts',{recursive:true});await writeFile('artifacts/concurrency.json',JSON.stringify(report,null,2)+'\n');console.log(report);
 }finally{await pool.end();}

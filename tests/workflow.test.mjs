@@ -14,6 +14,7 @@ test('owner booking through assignment, proof, completion and both settlements',
   await assert.rejects(command('complete'),/photo/i);
   await db.query("select st_record_job_photo(2,$1,'Final',$2,'final.jpg','image/jpeg',1000)",[job.id,`${job.id}/final.jpg`]);
   await command('complete');
+  await db.query("select st_review_job(1,$1,'APPROVED','Verified proof',$2,1)",[job.id,crypto.randomUUID()]);
   for(const [kind,amount] of [['CLIENT_PAYMENT',4000],['CLEANER_PAYOUT',2000]])await db.query('select st_record_settlement(1,$1,$2,$3,$4,$5)',[job.id,kind,amount,'Synthetic workflow',crypto.randomUUID()]);
   const {rows:[{report}]}=await db.query("select st_settlement_report(1,to_char(current_date+1,'YYYY-MM')) report");
   assert.equal(report.summary.dueCents,0);assert.equal(report.summary.payableCents,0);assert.equal(report.summary.jobs,1);

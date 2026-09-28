@@ -8,8 +8,17 @@ test('incoming events coalesce and wait while a user edits',async()=>{
  busy=false;live.resume();await delay(15);assert.equal(calls,1);live.stop();
 });
 test('events received during a refresh are not lost or refreshed concurrently',async()=>{
- let calls=0,active=0,max=0;const live=createLiveUpdates({isBusy:()=>false,delay:2,refresh:async()=>{calls++;active++;max=Math.max(max,active);if(calls===1)live.invalidate();await delay(8);active--;}});
- live.invalidate();await delay(40);assert.equal(calls,2);assert.equal(max,1);live.stop();
+ let firstStarted,releaseFirst,secondFinished;
+ const started=new Promise(resolve=>firstStarted=resolve);
+ const held=new Promise(resolve=>releaseFirst=resolve);
+ const finished=new Promise(resolve=>secondFinished=resolve);
+ let calls=0,active=0,max=0;
+ const live=createLiveUpdates({isBusy:()=>false,delay:2,refresh:async()=>{
+  calls++;active++;max=Math.max(max,active);
+  if(calls===1){live.invalidate();firstStarted();await held;}
+  active--;if(calls===2)secondFinished();
+ }});
+ try{live.invalidate();await started;assert.equal(calls,1);releaseFirst();await finished;assert.equal(calls,2);assert.equal(max,1);}finally{live.stop();}
 });
 test('private media and cross-origin resources are never shell cached',()=>{
  const origin='https://shinetime.sk';

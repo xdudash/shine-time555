@@ -27,6 +27,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - run: npx playwright install-deps chromium
+      - run: npm run test:browser
       - run: python scripts/package-frontend.py
       - uses: actions/upload-artifact@v4
         with:

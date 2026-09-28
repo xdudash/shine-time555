@@ -5,3 +5,6 @@ await build({entryPoints:['assets/service-worker-entry.mjs'],bundle:true,outfile
 console.log('Built auth client, live coordinator and cache-restricted service worker');
 
 await build({entryPoints:['assets/money.mjs'],bundle:true,outfile:'assets/money.js',format:'iife',target:'es2020',minify:true});
+
+await build({entryPoints:['assets/operations-board.mjs'],bundle:true,outfile:'assets/operations-board.js',globalName:'ShineTimeBoard',format:'iife',target:'es2020',minify:true});
+await build({entryPoints:['assets/checklist-drafts.mjs'],bundle:true,outfile:'assets/checklist-drafts.js',globalName:'ShineTimeChecklistDrafts',format:'iife',target:'es2020',minify:true});

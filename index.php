@@ -30,6 +30,7 @@ $publicConfig = [
   <link rel="stylesheet" href="assets/ui-system.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/ui-system.css')) ?>">
   <link rel="stylesheet" href="assets/mobile-ui.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/mobile-ui.css')) ?>">
   <link rel="stylesheet" href="assets/job-lifecycle.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/job-lifecycle.css')) ?>">
+  <link rel="stylesheet" href="assets/operations-workspace.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/operations-workspace.css')) ?>">
 </head>
 <body>
   <div id="app"></div>
@@ -44,6 +45,9 @@ $publicConfig = [
   <script src="assets/supabase-client.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/supabase-client.js'), 0, 16) ?>"></script>
   <script src="assets/operations-ui-core.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/operations-ui-core.js'), 0, 16) ?>"></script>
   <script src="assets/live-updates.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/live-updates.js'), 0, 16) ?>"></script>
+  <script src="assets/operations-board.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/operations-board.js'), 0, 16) ?>"></script>
+  <script src="assets/checklist-drafts.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/checklist-drafts.js'), 0, 16) ?>"></script>
+  <script src="assets/workspace-i18n.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/workspace-i18n.js'), 0, 16) ?>"></script>
   <script src="assets/app.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/app.js'), 0, 16) ?>"></script>
   <script src="assets/money.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/money.js'), 0, 16) ?>"></script>
   <script src="assets/operations-extension.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/operations-extension.js'), 0, 16) ?>"></script>

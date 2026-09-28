@@ -22,8 +22,9 @@
     {id:102,object_id:12,status:'UNASSIGNED',risk_score:68,risk_level:'ORANGE',risk_reasons:['Unassigned'],cleaner_name:null,planned_start:'12:00',eta:'13:15',deadline:'15:00',service_date:today},
     {id:103,object_id:13,status:'ACCEPTED',risk_score:18,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'10:30',eta:'12:30',deadline:'15:00',service_date:tomorrow},
     {id:104,object_id:14,status:'UNASSIGNED',risk_score:22,risk_level:'GREEN',risk_reasons:[],cleaner_name:null,planned_start:'11:00',eta:'12:30',deadline:'15:00',service_date:tomorrow},
+    {id:106,object_id:14,status:'COMPLETED',review_status:'PENDING',review_version:1,risk_score:0,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'08:00',eta:'09:30',deadline:'15:00',service_date:today},
     {id:105,object_id:11,status:'COMPLETED',risk_score:0,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'10:00',eta:'11:30',deadline:'15:00',service_date:yesterday}
-  ].map(j=>({...objects.find(o=>o.id===j.object_id),...j,object_code:objects.find(o=>o.id===j.object_id).code,object_name:objects.find(o=>o.id===j.object_id).name,projected_finish:j.eta,bonus:0}));
+  ].map(j=>({...objects.find(o=>o.id===j.object_id),...j,object_code:objects.find(o=>o.id===j.object_id).code,object_name:objects.find(o=>o.id===j.object_id).name,projected_finish:j.eta,assigned_cleaner_id:j.cleaner_name?3:null,review_status:j.review_status||(j.status==='COMPLETED'?'APPROVED':'NOT_SUBMITTED'),review_version:j.review_version||0,bonus:0}));
   const cleaners=[{id:3,full_name:'Demo cleaner',email:'cleaner@example.invalid',active:true,mode:'FLEX',transport:'CAR',reliability_score:96,rating:4.9,today_jobs:1,today_earnings:24,completed_jobs:42,cancellation_rate:0,reclean_rate:0,avg_delay_minutes:2,preferred_zones:['Bratislava — Staré Mesto','Praha — Nové Město']}];
   const clients=[{id:4,full_name:'Demo owner',company_name:'Demo stays',account_type:'OWNER',email:'owner@example.invalid',language:'en',user_active:true,active:true,objects:2,approved_objects:2,month_jobs:2,month_revenue:175},{id:5,full_name:'Demo manager',company_name:'Demo stays Prague',account_type:'PROPERTY_MANAGER',email:'manager@example.invalid',language:'en',user_active:true,active:true,objects:2,approved_objects:2,month_jobs:2,month_revenue:100}];
   const settings={companyName:'Shine Time Demo',timezone:'Europe/Bratislava',windowStart:'10:00',windowEnd:'15:00',travelBuffer:30,sameZoneTravelBuffer:15,safetyBuffer:15,rescueStart:'13:30',checkinRadiusMeters:150,reserveTargetPct:20,clientBookingStepMinutes:30,clientCancellationCutoffHours:12};
@@ -34,18 +35,19 @@
   const clientObject=o=>omit(o,['payout','client_id']);
   const clientJob=j=>omit(j,['payout','bonus','cleaner_name','client_id']);
   const cleanerJob=j=>omit(j,['client_price','client_name','client_id']);
-  const dashboard=()=>({kpis:{total:2,completed:0,cleaning:1,assigned:1,unassigned:1,atRisk:1,rescue:0},sla:{projectedReadyPct:50,health:'ORANGE'},capacity:{reservePct:25,health:'GREEN',cleaners:1},jobs:current()});
+  const dashboard=()=>({kpis:{total:3,completed:1,cleaning:1,assigned:1,unassigned:1,atRisk:1,rescue:0},sla:{projectedReadyPct:50,health:'ORANGE'},capacity:{reservePct:25,health:'GREEN',cleaners:1},jobs:current()});
   const capacity=date=>({jobs:jobs.filter(j=>j.service_date===date),capacity:{cleaners:1,demandMinutes:210,capacityMinutes:390,freeMinutes:180,reservePct:46,health:'GREEN'},cleaners:cleaners.map(c=>({...c,available:true,availability:{fromTime:'08:00',toTime:'16:00'}}))});
   const analytics=()=>({summary:{jobs:5,completed:1,onTimePct:100,issues:1,rescue:0},cleanerRanking:cleaners,objectPerformance:objects.map(o=>({...o,jobs:1,avg_duration:o.duration_minutes})),jobsToday:2,completedToday:0,risk:1});
   const finance=month=>({month,from:month+'-01',to:today,summary:{completedJobs:1,totalRevenue:42,cleaningRevenue:42,manualIncome:0,cleanerPayouts:24,cleanerBonuses:0,jobExtraCosts:0,manualExpenses:0,totalExpenses:24,profit:18,marginPct:43,avgProfitPerJob:18,avgRevenuePerJob:42},trend:[{month,revenue:42,expenses:24,profit:18}],byObject:[{code:'BA-001',name:'Old Town apartment',jobs:1,revenue:42,cost:24,profit:18}],byClient:[{id:4,name:'Demo stays',jobs:1,revenue:42,cost:24,profit:18}],entries:[]});
-  const settlements=()=>({summary:{chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400},jobs:[{id:105,object_code:'BA-001',object_name:'Old Town apartment',service_date:yesterday,chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400}],hasMore:false});
+  const settlements=()=>({summary:{chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400},jobs:[{id:105,object_code:'BA-001',object_name:'Old Town apartment',service_date:yesterday,review_status:'APPROVED',waitingReviewCents:0,chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400}],hasMore:false});
   function request(path,options={}){
     if(String(options.method||'GET').toUpperCase()!=='GET')return Promise.reject(Error('Demo preview: editing is unavailable. Changes require a connected staging or production account.'));
     const url=new URL(path,'https://preview.invalid');const resource=url.pathname;
     let data;
     if(resource==='/api/me')data={user:identities[role],settings,csrf:'demo',apiVersion:window.ST_BUILD};
     else if(resource==='/api/admin/dashboard')data=dashboard();
-    else if(resource==='/api/admin/jobs')data={jobs};
+    else if(resource==='/api/admin/jobs')data={jobs:url.searchParams.has('date')?jobs.filter(j=>j.service_date===url.searchParams.get('date')):jobs};
+    else if(/^\/api\/admin\/jobs\/\d+$/.test(resource)){const j=jobs.find(x=>x.id===Number(resource.split('/').at(-1)));if(!j)return Promise.reject(Error('Demo job not found'));data={...j,checklist:[{id:1,label:'Kitchen surfaces',required:true,completed:j.status==='COMPLETED',photo_required:false}],photos:[],issues:[],events:[]};}
     else if(resource==='/api/admin/objects')data={objects};
     else if(resource==='/api/client/objects')data={objects:objects.map(clientObject)};
     else if(resource==='/api/admin/clients')data={clients};
