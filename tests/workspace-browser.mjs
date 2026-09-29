@@ -35,6 +35,7 @@ try {
   }};
  });
  await page.addScriptTag({content:await readFile('assets/app.js','utf8')});
+ await page.addScriptTag({content:await readFile('assets/property-photos.js','utf8')});
  await page.evaluate(async()=>{state.me={id:1,role:'OPERATIONS_MANAGER',full_name:'Manager',language:'en'};state.settings={};ST_I18N.setLocale('en');location.hash='admin/jobs';await render()});
  await page.waitForSelector('[data-board-bucket="review"]',{timeout:3000});
  await page.locator('#job-search').fill('missing property');
