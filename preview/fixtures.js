@@ -41,6 +41,7 @@
   const finance=month=>({month,from:month+'-01',to:today,summary:{completedJobs:1,totalRevenue:42,cleaningRevenue:42,manualIncome:0,cleanerPayouts:24,cleanerBonuses:0,jobExtraCosts:0,manualExpenses:0,totalExpenses:24,profit:18,marginPct:43,avgProfitPerJob:18,avgRevenuePerJob:42},trend:[{month,revenue:42,expenses:24,profit:18}],byObject:[{code:'BA-001',name:'Old Town apartment',jobs:1,revenue:42,cost:24,profit:18}],byClient:[{id:4,name:'Demo stays',jobs:1,revenue:42,cost:24,profit:18}],entries:[]});
   const settlements=()=>({summary:{chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400},jobs:[{id:105,object_code:'BA-001',object_name:'Old Town apartment',service_date:yesterday,review_status:'APPROVED',waitingReviewCents:0,chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400}],hasMore:false});
   function request(path,options={}){
+    if(path.endsWith('/reference-photos')&&(!options.method||options.method==='GET'))return Promise.resolve({photos:[]});
     if(String(options.method||'GET').toUpperCase()!=='GET')return Promise.reject(Error('Demo preview: editing is unavailable. Changes require a connected staging or production account.'));
     const url=new URL(path,'https://preview.invalid');const resource=url.pathname;
     let data;

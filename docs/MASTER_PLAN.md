@@ -138,3 +138,7 @@ The broad product goal remains active. This slice does not close G3/G4 or certif
 - [ ] Native PostgreSQL/staging concurrency, real Auth/Storage journeys and production drift reconciliation before release.
 
 These requirements are not represented as completed by the current source changes.
+
+## User reprioritization — 2026-09-29
+
+- [x] Property reference-photo frontend and stale modal/completed-control fixes. Specification and verification scope: `docs/ssd/specs/012-property-reference-ui.md`. Uses existing production API; no backend deployment. Live customer write acceptance remains separate from synthetic browser coverage.

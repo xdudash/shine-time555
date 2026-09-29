@@ -33,6 +33,7 @@ try{
  });
  for(const name of ['operations-board.js','checklist-drafts.js','workspace-i18n.js'])await page.addScriptTag({content:await readFile('assets/'+name,'utf8')});
  await page.addScriptTag({content:await readFile(process.env.BASELINE_APP||'assets/app.js','utf8')});
+ await page.addScriptTag({content:await readFile('assets/property-photos.js','utf8')});
  await page.addScriptTag({content:await readFile('assets/money.js','utf8')});
  await page.addScriptTag({content:await readFile('assets/operations-extension.js','utf8')});
  await page.evaluate(async()=>{state.me={id:1,role:'OWNER',full_name:'Test Owner',language:'en'};state.settings={};ST_I18N.setLocale('en');location.hash='client/profile';await render();startLiveUpdates();});

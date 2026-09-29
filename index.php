@@ -57,6 +57,7 @@ $publicConfig = [
   <script src="assets/table-tools.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/table-tools.js'), 0, 16) ?>"></script>
   <script src="assets/pwa-actions.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/pwa-actions.js'), 0, 16) ?>"></script>
   <script src="assets/cleaner-gps-enforcement.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/cleaner-gps-enforcement.js'), 0, 16) ?>"></script>
+  <script src="assets/property-photos.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/property-photos.js'), 0, 16) ?>"></script>
   <script>bootstrap();</script>
 </body>
 </html>
