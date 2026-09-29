@@ -13,7 +13,7 @@ const clients=[];
 const channels=[];
 async function api(index,route,method='GET',body={},query={}){
  const {data:{session}}=await clients[index].auth.getSession();
- const res=await fetch(`${config.API_URL}/functions/v1/st-api`,{method:'POST',headers:{apikey:config.ANON_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({route,method,body,query,clientBuild:'2026-09-07-scale1'})});
+ const res=await fetch(`${config.API_URL}/functions/v1/st-api`,{method:'POST',headers:{apikey:config.ANON_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({route,method,body,query,clientBuild:'2026-09-28-quality1'})});
  const data=await res.json();
  assert.ok(res.ok,`${route}: ${res.status} ${JSON.stringify(data)}`);return data;
 }
@@ -79,6 +79,11 @@ try{
  const completion={requestId:crypto.randomUUID()};
  await api(cleaner,`${path}/complete`,'POST',completion);
  await api(cleaner,`${path}/complete`,'POST',completion);
+ await assert.rejects(api(0,'admin/settlements','POST',{jobId:booking.id,kind:'CLEANER_PAYOUT',amountCents:2000,requestId:crypto.randomUUID()}),/review|approv/i);
+ const pending=(await api(5,`admin/jobs/${booking.id}`)).job;
+ assert.equal(pending.review_status,'PENDING');
+ const accepted=await api(5,`admin/jobs/${booking.id}/review`,'POST',{decision:'APPROVED',expectedVersion:pending.review_version,requestId:crypto.randomUUID()});
+ assert.equal(accepted.job.review_status,'APPROVED');
  for(const [kind,amountCents] of [['CLIENT_PAYMENT',4000],['CLEANER_PAYOUT',2000]])await api(0,'admin/settlements','POST',{jobId:booking.id,kind,amountCents,note:'Synthetic test',requestId:crypto.randomUUID()});
  const settlement=await api(0,'admin/settlements','GET',{}, {month:date.slice(0,7)});
  assert.equal(settlement.summary.dueCents,0);assert.equal(settlement.summary.payableCents,0);
