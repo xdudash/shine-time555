@@ -93,5 +93,28 @@ try {
  await page.locator('[data-board-bucket="all"]').click();
  await page.evaluate(()=>{window.scrollTo(0,0);document.getElementById('toast-root').replaceChildren()});
  await mkdir('artifacts',{recursive:true});await page.screenshot({path:'artifacts/operations-workspace-mobile.png',fullPage:true});
+
+ // The live server contract predates quality approval; keep its real workflow usable.
+ await page.evaluate(async()=>{
+  window.ST_BUILD='2026-09-29-live1';window.ST_SUPABASE={apiBuild:'2026-09-07-scale1',capabilities:{qualityReview:false}};
+  delete jobs[0].review_status;delete jobs[0].review_version;
+  state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};
+  location.hash='admin/jobs';await render();
+ });
+ assert.equal(await page.evaluate(()=>releaseCompatible({apiVersion:'2026-09-07-scale1'})),true,'live frontend pins deployed API contract');
+ assert.equal(await page.locator('[data-board-bucket="review"]').count(),0);
+ assert.match(await page.locator('[data-board-bucket="completed"]').innerText(),/Completed/);
+ await page.addScriptTag({content:await readFile('assets/operations-extension.js','utf8')});
+ await page.evaluate(async()=>{
+  const original=ShineTimeSupabase.request;
+  ShineTimeSupabase.request=async(path,opts={})=>path.startsWith('/api/admin/settlements')?{summary:{payableCents:2000},jobs:[{id:101,service_date:'2026-09-29',object_name:'Test',payableCents:2000}]}:original(path,opts);
+  await settlementScreen();
+ });
+ assert.equal(await page.getByRole('button',{name:'Record',exact:true}).isEnabled(),true,'legacy completed settlement is usable');
+ await page.getByRole('button',{name:'Record',exact:true}).click();
+ await page.locator('#settlement-form').waitFor();
+ await page.evaluate(()=>{closeModal();state.settlementData.jobs[0].review_status='PENDING';settlementModal(101)});
+ assert.equal(await page.locator('#settlement-form').count(),0,'explicit pending approval never bypassed');
+ console.log('PASS live API compatibility, honest completed labels and settlement controls');
  assert.deepEqual(errors,[]);console.log('PASS owner status, mobile layouts and console');
 } finally {await browser.close()}

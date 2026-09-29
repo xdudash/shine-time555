@@ -1,0 +1,20 @@
+import {readFile,writeFile,mkdir,cp,rm,readdir} from 'node:fs/promises';
+import {join} from 'node:path';
+import {createHash} from 'node:crypto';
+const dest=join(process.cwd(),'_production');
+const target=JSON.parse(await readFile('deployment/pages-production.json','utf8'));
+if(target.projectRef!=='qbbtroiqioufuucrqair'||target.apiBuild!=='2026-09-07-scale1'||target.qualityReview!==false)throw Error('Revalidate production server before changing its contract');
+const php=await readFile('index.php','utf8');
+const scripts=[...php.matchAll(/<script src="(assets\/[^"?]+)(?:\?[^"]*)?"><\/script>/g)].map(m=>m[1]);
+const styles=[...php.matchAll(/<link rel="stylesheet" href="(assets\/[^"?]+)(?:\?[^"]*)?">/g)].map(m=>m[1]);
+if(!scripts.includes('assets/supabase-client.js')||!scripts.includes('assets/app.js')||styles.length<3)throw Error('Production entrypoint changed');
+await rm(dest,{recursive:true,force:true});await mkdir(join(dest,'assets'),{recursive:true});
+const files=[...new Set([...scripts,...styles,'sw.js','manifest.webmanifest','assets/icon-192.png','assets/icon-512.png'])];
+const checksums={};
+for(const file of files){await cp(file,join(dest,file));checksums[file]=createHash('sha256').update(await readFile(file)).digest('hex');}
+const cfg={url:`https://${target.projectRef}.supabase.co`,publishableKey:target.publishableKey,functionName:'st-api',apiBuild:target.apiBuild,capabilities:{qualityReview:target.qualityReview}};
+const commit=process.env.PRODUCTION_COMMIT||'local';
+const html=`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><meta name="robots" content="noindex"><title>Shine Time Operations</title><link rel="manifest" href="manifest.webmanifest">${styles.map(f=>`<link rel="stylesheet" href="${f}?v=${checksums[f].slice(0,16)}">`).join('')}</head><body><div id="app"></div><div id="modal-root"></div><div id="toast-root"></div><script>window.ST_BASE=new URL('./',location.href).pathname;window.ST_BUILD=${JSON.stringify(target.frontendBuild)};window.ST_SUPABASE=${JSON.stringify(cfg)};</script>${scripts.map(f=>`<script src="${f}?v=${checksums[f].slice(0,16)}"></script>`).join('')}<script>bootstrap();</script></body></html>`;
+await writeFile(join(dest,'index.html'),html);await writeFile(join(dest,'.nojekyll'),'');
+await writeFile(join(dest,'release.json'),JSON.stringify({commit,frontendBuild:target.frontendBuild,apiBuild:target.apiBuild,edgeVersion:11,mode:'production',checksums},null,2));
+console.log('Built authenticated production frontend; existing Supabase API v11 and data unchanged.');

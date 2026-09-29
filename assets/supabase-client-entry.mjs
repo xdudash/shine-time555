@@ -39,7 +39,7 @@ async function invoke(path, opts = {}) {
   const command=method!=='GET'&&/\/jobs\/\d+(?:\/(accept|assign|rescue|status|complete|cancel|bonus))?$/.test(path);
   if(command&&!uncertainCommands.has(key))uncertainCommands.set(key,crypto.randomUUID());
   const body=command?{...opts.body,requestId:opts.body?.requestId||uncertainCommands.get(key)}:opts.body??null;
-  const payload = toEdgeRequest(path,method,body,window.ST_BUILD||null);
+  const payload = toEdgeRequest(path,method,body,config.apiBuild||window.ST_BUILD||null);
   const promise=(async()=>{
     const {data,error}=await getClient().functions.invoke(config.functionName,{body:payload});
     if(error){const detail=await responseError(error);if(detail.status<500)uncertainCommands.delete(key);throw detail;}
@@ -93,7 +93,7 @@ async function bootstrapFirstAdmin(input) {
       method: 'POST',
       query: {},
       body: { fullName: input.fullName, phone: input.phone || '', language: input.language || 'ru' },
-      clientBuild: window.ST_BUILD || null,
+      clientBuild: config.apiBuild || window.ST_BUILD || null,
     },
   });
   if (invokeError) throw await responseError(invokeError);

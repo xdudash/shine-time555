@@ -1,4 +1,4 @@
-name: Live platform preview
+name: Live production application
 
 on:
   workflow_run:
@@ -12,7 +12,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: platform-preview
+  group: platform-production
   cancel-in-progress: true
 
 jobs:
@@ -37,15 +37,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: node scripts/build-preview.mjs
+      - run: node scripts/build-production.mjs
         env:
-          PREVIEW_COMMIT: ${{ github.event.workflow_run.head_sha }}
-      - run: node scripts/check-preview.mjs
+          PRODUCTION_COMMIT: ${{ github.event.workflow_run.head_sha }}
+      - run: node scripts/check-production.mjs
       - uses: actions/configure-pages@v5
         with:
           enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: _production
       - uses: actions/deploy-pages@v4
         id: deployment
