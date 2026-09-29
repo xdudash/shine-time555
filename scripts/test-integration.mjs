@@ -79,7 +79,7 @@ try{
  const completion={requestId:crypto.randomUUID()};
  await api(cleaner,`${path}/complete`,'POST',completion);
  await api(cleaner,`${path}/complete`,'POST',completion);
- await assert.rejects(api(0,'admin/settlements','POST',{jobId:booking.id,kind:'CLEANER_PAYOUT',amountCents:2000,requestId:crypto.randomUUID()}),/review|approv/i);
+ await assert.rejects(api(0,'admin/settlements','POST',{jobId:booking.id,kind:'CLEANER_PAYOUT',amountCents:2000,note:'Synthetic test',requestId:crypto.randomUUID()}),/review|approv/i);
  const pending=(await api(5,`admin/jobs/${booking.id}`)).job;
  assert.equal(pending.review_status,'PENDING');
  const accepted=await api(5,`admin/jobs/${booking.id}/review`,'POST',{decision:'APPROVED',expectedVersion:pending.review_version,requestId:crypto.randomUUID()});
