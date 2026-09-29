@@ -10,5 +10,5 @@ return [
     'url' => 'https://qbbtroiqioufuucrqair.supabase.co',
     'publishable_key' => 'sb_publishable_orOkvZF6ppJH8ObXcgfSMw_D4l8lrKs',
     'function_name' => 'st-api',
-    'release_build' => '2026-09-07-scale1',
+    'release_build' => '2026-09-28-quality1',
 ];

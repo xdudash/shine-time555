@@ -16,6 +16,7 @@ test('recurring generation is repeatable without duplicate jobs and snapshots ch
 test('payments are exact, idempotent, cannot overpay and preserve cleaner settlement separately',async()=>{
  const db=await setup();try{
   await db.exec("insert into st_jobs(object_id,client_id,service_date,status,assigned_cleaner_id,client_price,payout) values(1,1,current_date,'COMPLETED',1,0.30,0.20)");
+  await db.exec("update st_jobs set review_status='APPROVED' where id=1");
   const call=(kind,amount,key)=>db.query('select st_record_settlement(1,1,$1,$2,$3,$4)',[kind,amount,'Cash test',key]);
   await call('CLIENT_PAYMENT',10,'a');await call('CLIENT_PAYMENT',10,'a');await call('CLIENT_PAYMENT',20,'b');
   assert.equal((await db.query("select sum(amount_cents)::int n from st_settlements where kind='CLIENT_PAYMENT'")).rows[0].n,30);

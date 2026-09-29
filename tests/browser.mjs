@@ -2,8 +2,8 @@ import {createRequire} from 'node:module';
 import {readFile,mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url);
-const {chromium}=require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES+'/playwright');
-const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||process.cwd()+'/artifacts/browser/chromium',headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--no-zygote','--single-process']});
+const {chromium}=require('playwright');
+const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||process.cwd()+'/artifacts/browser/chromium',headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
 try{
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -26,11 +26,12 @@ try{
     if(path.startsWith('/api/cleaner/dashboard'))return {availability:{online:true,fromTime:'08:00',toTime:'20:00'},jobs:[],nextJob:null,total:0,earnings:0,projectedFinish:null};
     if(path==='/api/notifications')return {notifications:[],unread:0};
     if(path==='/api/admin/recurring')return {schedules:[]};
-    if(path.includes('/settlements'))return {summary:{chargedCents:12345},jobs:[],hasMore:false};
+    if(path.includes('/settlements'))return {summary:{chargedCents:12345,waitingReviewCents:2000,payableCents:0},jobs:[{id:10,object_code:'TEST',service_date:'2026-09-28',review_status:'PENDING',waitingReviewCents:2000,payableCents:0}],hasMore:false};
     if(path.startsWith('/api/admin/jobs'))return {jobs:[{id:101,object_code:'BA-001',object_name:'Old Town apartment',address:'Dunajská 15, Bratislava',zone:'Bratislava — Staré Mesto',status:'UNASSIGNED',risk_level:'ORANGE',risk_score:68,planned_start:'10:00',eta:'11:30',payout:24,bonus:0},{id:102,object_code:'PR-001',object_name:'New Town apartment',address:'Vodičkova 20, Praha',zone:'Praha — Nové Město',status:'ACCEPTED',risk_level:'GREEN',risk_score:12,planned_start:'12:00',eta:'13:30',payout:28,bonus:0,cleaner_name:'Demo cleaner'}]};
     throw Error('Unexpected test route '+path);
    }};
  });
+ for(const name of ['operations-board.js','checklist-drafts.js','workspace-i18n.js'])await page.addScriptTag({content:await readFile('assets/'+name,'utf8')});
  await page.addScriptTag({content:await readFile(process.env.BASELINE_APP||'assets/app.js','utf8')});
  await page.addScriptTag({content:await readFile('assets/money.js','utf8')});
  await page.addScriptTag({content:await readFile('assets/operations-extension.js','utf8')});
@@ -49,7 +50,7 @@ try{
  console.log('PASS: mobile cleaner home and availability');
  await page.evaluate(async()=>{window.ShineTimeSupabase.uploadProofFile=async(id,category,file)=>{window.lastUpload={id,category,mime:file.type};return {}};location.hash='cleaner/job/1';await render()});
  assert.equal(await page.locator('#page video').count(),1,'video report has a playable element');
- assert.equal(await page.getByRole('button',{name:'Complete cleaning',exact:true}).isDisabled(),true,'video does not satisfy required photo');
+ assert.equal(await page.getByRole('button',{name:'Submit report',exact:true}).isDisabled(),true,'video does not satisfy required photo');
  await page.locator('input[type=file]').first().setInputFiles({name:'proof.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')});
  await page.waitForFunction(()=>window.lastUpload);
  assert.equal((await page.evaluate(()=>window.lastUpload)).category,"Owner's photo",'quoted category survives the upload event');
@@ -92,7 +93,9 @@ try{
  assert.match(await page.locator('#page').innerText(),/No recurring schedules yet/);
  await page.evaluate(async()=>{location.hash='admin/settlements';await render()});
  assert.match(await page.locator('#page').innerText(),/123[.,]45/);
- console.log('PASS: recurring schedules and exact settlement amounts render');
+ assert.equal(await page.locator('#page button[disabled]').count(),1,'pending report cannot open payment form');
+ assert.match(await page.locator('#page').innerText(),/Awaiting review/);
+ console.log('PASS: recurring schedules, review gate and exact settlement amounts render');
  assert.equal(errors.length,0,errors.join('\n'));
  console.log('PASS: admin navigation and browser console');
 }finally{await browser.close();}

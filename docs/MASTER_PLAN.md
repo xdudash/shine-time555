@@ -112,3 +112,29 @@
 SSD-011 (`docs/ssd/specs/011-interface-reliability.md`) implements the user's priority to remove broken/duplicate UI. Runtime reduced from 41 to 13 scripts; core job, finance, recurring, monitoring, notification and GPS flows remain. Route restrictions, error recovery, exports and asset versioning have focused regression tests. This advances P1.08/P3.02 but does not complete production or scale gates. Current production source/migration drift is confirmed in environment-inventory.md.
 
 SSD-012 (`docs/ssd/specs/012-mobile-operations-core.md`) reprioritizes P3.02 under the user's explicit mobile/core request: reachable admin/manager navigation and actionable mobile job cards. This is a frontend vertical slice, not completion of the whole production or scale program.
+
+## Active delivery slice — 2026-09-28/29
+
+SSD-013 (`docs/ssd/specs/013-quality-dispatch-recovery.md`) implements the user's approved managed-cleaning concept in the existing stack:
+
+- Day dispatch queues with date, area, cleaner and accent-insensitive search; filtered counts and mobile cards.
+- Separate versioned quality review, manager approval/rework, historical approval backfill, one completion counter across rework.
+- Settlement approval gate and separate waiting-review versus payable balances.
+- Account/job-scoped checklist drafts, explicit pending confirmation, stale-access removal and latest-edit-safe replay.
+- SK/UK/RU/EN copy, real-source synthetic preview and reproducible browser checks in CI.
+
+Evidence and release limitations: `docs/verification/2026-09-29-quality-dispatch.md`.
+The broad product goal remains active. This slice does not close G3/G4 or certify production.
+
+### Remaining approved product scope
+
+- [ ] Explicit organizations/city scopes and multi-role memberships; migrate existing portfolio authorization without widening access.
+- [ ] Team slot assignment and team payment splits; retain one atomic claim per slot and schedule feasibility.
+- [ ] Versioned object instructions with media and protected, time-limited entry details.
+- [ ] Client/manager booking extras, approved quotes, monthly packages and exception-aware recurrences.
+- [ ] Full issue/reclamation lifecycle with responsible person, deadlines and authorized compensating adjustments.
+- [ ] Persistent media upload recovery and server-backed notifications/outbox; browser background limitations made explicit.
+- [ ] Complete language audit of inherited screens, optional instruction translations and locale/timezone defaults.
+- [ ] Native PostgreSQL/staging concurrency, real Auth/Storage journeys and production drift reconciliation before release.
+
+These requirements are not represented as completed by the current source changes.
