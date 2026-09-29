@@ -1,8 +1,8 @@
 # Shine Time Operations
 
-This is the working repository for incremental development. Begin with [the master plan](docs/MASTER_PLAN.md), [agent instructions](AGENTS.md), and [SSD workflow](docs/ssd/README.md). Source was imported from `xdudash/shine-time` commit `3dc3ecd21661f86ac0d4c834b860617bc9d34a9b`; the recovered deployment snapshot is preserved in the repository history. Automatic production deployment is disabled here pending release gates.
+This is the working repository for incremental development. Begin with [the master plan](docs/MASTER_PLAN.md), [agent instructions](AGENTS.md), and [SSD workflow](docs/ssd/README.md). Source was imported from `xdudash/shine-time` commit `3dc3ecd21661f86ac0d4c834b860617bc9d34a9b`; the recovered deployment snapshot is preserved in the repository history. Database and Edge Function deployments remain manual and gated. The static production frontend is deployed after CI, under the explicit release authorization of 2026-09-29.
 
-The [auto-updating frontend preview](docs/preview.md) publishes after successful verification on `main`, using synthetic data and the actual UI source. It does not connect to production.
+The public GitHub Pages URL now hosts the authenticated production frontend connected to the existing Supabase project. See [production deployment](docs/production-pages.md). Synthetic previews remain available locally through `scripts/build-preview.mjs`.
 
 Cleaning operations platform: Hostinger frontend, Supabase backend.
 

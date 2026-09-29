@@ -7,7 +7,7 @@
     "test": "node --test tests/*.test.mjs",
     "build": "node scripts/build.mjs",
     "check": "node --check assets/app.js",
-    "test:browser": "node scripts/prepare-browser.mjs && node scripts/build-preview.mjs && node scripts/check-preview.mjs && node tests/browser.mjs && node tests/workspace-browser.mjs && node tests/preview-browser.mjs"
+    "test:browser": "node scripts/prepare-browser.mjs && node scripts/build-preview.mjs && node scripts/check-preview.mjs && node tests/browser.mjs && node tests/workspace-browser.mjs && node tests/preview-browser.mjs && node scripts/build-production.mjs && node scripts/check-production.mjs && node tests/production-browser.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
