@@ -9,7 +9,7 @@ This document is the executable checklist for the first hardening phase from `do
 - Added a shared, bounded request-id validator in `supabase/functions/st-api/security.mjs`.
 - Added one explicit managed-account password policy: minimum 12, maximum 256 characters.
 - Added regression tests for request IDs and role-based response projection in `tests/security-regression.test.mjs`.
-- Added `supabase/migrations/20260914_security_phase1.sql`:
+- Added `supabase/migrations/20260913235900_security_phase1.sql`:
   - forces `st-cleaning-media` private;
   - revokes direct INSERT/UPDATE/DELETE/TRUNCATE from `anon` and `authenticated` on backend domain tables;
   - keeps only the intentionally exposed authenticated read surface explicit.

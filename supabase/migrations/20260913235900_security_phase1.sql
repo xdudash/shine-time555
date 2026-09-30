@@ -1,4 +1,6 @@
 -- Phase 1 security hardening.
+-- Renamed from 20260914_security_phase1.sql (2026-10-01) so every tool orders it
+-- deterministically before 20260914000100_lock_raw_jobs_client_access.
 -- The API uses the Supabase service role for media access, so the application
 -- bucket must not be publicly readable. Signed URLs remain the only client
 -- delivery mechanism.
@@ -27,4 +29,6 @@ revoke insert, update, delete, truncate on public.st_upload_tickets from anon, a
 
 -- Keep read access explicitly limited to the tables already exposed through
 -- the API/realtime surface. RLS remains the authorization boundary.
-grant select on public.st_users, public.st_cleaners, public.st_client_accounts, public.st_jobs to authenticated;
+-- st_jobs is deliberately NOT granted: raw job rows (client prices, notes, access
+-- details) are served only through st-api projections; realtime uses st_job_signals.
+grant select on public.st_users, public.st_cleaners, public.st_client_accounts to authenticated;

@@ -16,7 +16,7 @@ try{
   else if(url.pathname==='/functions/v1/st-api'){
    const payload=req.postDataJSON();requests.push(payload);
    if(req.headers().authorization!==`Bearer ${token}`){status=401;body={error:'Authentication required'}}
-   else if(payload.route==='me')body={user:{id:1,role:'ADMIN',full_name:'Synthetic operator',language:'en'},settings:{},apiVersion:'2026-09-07-scale1'};
+   else if(payload.route==='me')body={user:{id:1,role:'ADMIN',full_name:'Synthetic operator',language:'en'},settings:{},apiVersion:'2026-09-28-quality1'};
    else if(payload.route==='objects/1/reference-photos'&&payload.method==='POST')body={photo:{id:1}};
    else if(payload.route==='objects/1/reference-photos')body={photos:[{id:1,caption:'Entrance'}]};
    else if(payload.route==='objects/1/reference-photos/1')body={dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5XcAAAAASUVORK5CYII='};
@@ -29,7 +29,7 @@ try{
  await page.goto('https://live.test/');await page.locator('#login-form').waitFor();
  assert.equal(await page.locator('#preview-banner').count(),0);assert.equal(await page.locator('#admin-sidebar').count(),0);
  await page.locator('#login-form [name=email]').fill(user.email);await page.locator('#login-form [name=password]').fill('Synthetic-test-only-123');await page.locator('#login-form button').click();
- await page.locator('#admin-sidebar').waitFor();assert.equal(await page.locator('[data-board-bucket="review"]').count(),0);
+ await page.locator('#admin-sidebar').waitFor();assert.equal(await page.locator('[data-board-bucket="review"]').count(),1,'quality review queue is enabled against the quality1 API');
  await page.reload();await page.locator('#admin-sidebar').waitFor();
  await page.evaluate(()=>{document.querySelector('#page').innerHTML=propertyPhotoCard(1)});
  await page.locator('.property-photo-card img').waitFor();await page.locator('.property-photo-card button').click();
@@ -46,7 +46,7 @@ try{
   assert.equal(await page.locator('#reference-upload').count(),role==='OWNER'?1:0);
   await page.locator('.modal-foot button').click();
  }
- assert.ok(requests.length>=3);assert.ok(requests.every(r=>r.clientBuild==='2026-09-07-scale1'));
+ assert.ok(requests.length>=3);assert.ok(requests.every(r=>r.clientBuild==='2026-09-28-quality1'));
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.deepEqual(errors,[]);
- console.log('PASS production bundle: real Supabase adapter, signed-out isolation, sign-in, session reload, pinned API contract and mobile layout (synthetic network responses).');
+ console.log('PASS production bundle: real Supabase adapter, signed-out isolation, sign-in, session reload, pinned quality1 API contract, review queue and mobile layout (synthetic network responses).');
 }finally{await browser.close()}
