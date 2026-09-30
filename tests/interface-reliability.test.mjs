@@ -75,7 +75,7 @@ test('export neutralizes formula cells and uses the selected month and visible r
 
 test('finance mutation redraws pass through the shared render lifecycle',async()=>{
   const lines=read('assets/app.js').split('\n').filter(line=>/^window\.(saveFinanceEntry|deleteFinanceEntry)=/.test(line));
-  let rendered=0;const context=vm.createContext({window:{},state:{},$:()=>({value:'2026-08'}),api:async()=>({}),confirm:()=>true,closeModal:()=>{},toast:()=>{},render:async()=>rendered++,FormData:class {get(){return ''}}});
+  let rendered=0;const context=vm.createContext({window:{},state:{},$:()=>({value:'2026-08'}),api:async()=>({}),askConfirm:async()=>true,closeModal:()=>{},toast:()=>{},render:async()=>rendered++,FormData:class {get(){return ''}}});
   vm.runInContext(lines.join('\n'),context);
   await context.window.saveFinanceEntry();
   await context.window.deleteFinanceEntry(1);

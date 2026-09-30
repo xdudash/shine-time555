@@ -17,3 +17,32 @@
 @media(max-width:1180px){.app-shell{grid-template-columns:210px minmax(0,1fr)}.content{padding:22px 20px 45px}.grid.kpis{grid-template-columns:repeat(4,minmax(120px,1fr))}.st-stat-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:820px){.app-shell{display:block}.sidebar{display:none}.topbar{height:62px;padding:0 14px}.content{padding:16px 14px 34px}.grid.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.two-col,.three-col{grid-template-columns:1fr}.toolbar{padding:8px}.toolbar .input,.toolbar .select,.search{width:100%!important;min-width:0!important}.st-page-header{align-items:flex-start;flex-direction:column}.st-page-header h1{font-size:24px}.st-stat-row{grid-template-columns:1fr 1fr}.table-wrap{overflow-x:auto}.table-wrap table{min-width:760px}.live-board .job-actions,.ops-live-board .job-actions{justify-content:flex-start}.st-command-main{align-items:flex-start;flex-direction:column}.st-command-actions{justify-content:flex-start}.st-command-surface{position:relative}.st-command-hints{display:none}.st-dispatch-body{grid-template-columns:1fr}.st-dispatch-side{grid-template-columns:1fr 1fr}.st-dispatch-side strong{grid-column:1/-1}.st-dispatch-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.content{padding:14px 11px 30px}.grid.kpis{gap:8px}.kpi{min-height:88px;padding:12px}.kpi .value{font-size:24px}.st-stat-row{gap:8px}.st-stat{padding:13px}.st-stat strong{font-size:21px}.top-actions .btn:not(.primary){display:none}.st-command-actions{width:100%}.st-cmd{flex:1;min-width:70px}.st-dispatch-console{padding:14px;border-radius:17px}.st-dispatch-head{flex-direction:column}.st-dispatch-actions{width:100%}.st-dispatch-btn{flex:1}.st-dispatch-row{grid-template-columns:62px minmax(0,1fr) 24px}.st-dispatch-side{grid-template-columns:1fr}}
+/* 2026-10-01 usability pass */
+.app-shell .sidebar{overflow-y:auto;overscroll-behavior:contain}
+.app-shell .side-footer{padding-bottom:6px}
+.app-shell .side-footer .btn.ghost{color:#e6ecf3!important;border-color:#51607a!important;background:transparent}
+.next-job .meta-chip{background:rgba(255,255,255,.14);color:#f1f7f3}
+.active-job-head .meta-chip{background:#26364e;color:#f2f5f9}
+.nav-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.nav-links .btn{text-decoration:none;min-height:34px}
+.active-job-head .nav-links .btn{background:#26364e;color:#fff;border-color:#3a4c68}
+.geo-field .geo-actions{display:flex;flex-wrap:wrap;gap:8px}
+.geo-field .geo-status{display:block;margin-top:6px;line-height:1.4}
+.progress-track{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:0}
+.progress-track li{display:flex;align-items:center;gap:10px;position:relative;padding:7px 0 7px 2px;color:#8a95a5;font-size:13px}
+.progress-track li .dot{width:12px;height:12px;border-radius:50%;border:2px solid #cfd6df;background:#fff;flex:none;position:relative;z-index:1}
+.progress-track li:not(:last-child):after{content:"";position:absolute;left:7px;top:22px;bottom:-8px;width:2px;background:#e1e6ec}
+.progress-track li.done{color:#1f6b4c}.progress-track li.done .dot{background:#1f9d68;border-color:#1f9d68}
+.progress-track li.done:not(:last-child):after{background:#1f9d68}
+.progress-track li.current{color:#111827;font-weight:800}.progress-track li.current .dot{border-color:#1f9d68;box-shadow:0 0 0 4px #d9f3e6}
+.progress-track.cancelled{display:block;padding:10px;border-radius:10px;background:#f4f5f7;color:#5d6675}
+.progress-track.cancelled small{display:block;margin-top:4px}
+.portfolio-panel{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.portfolio-panel h4{margin:0 0 4px}
+.portfolio-panel .input{margin:8px 0}
+.portfolio-list{max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:12px}
+.portfolio-row{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+.portfolio-row:last-child{border-bottom:0}
+.portfolio-row input{margin-top:3px;width:18px;height:18px;flex:none}
+.portfolio-row small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.portfolio-row[hidden]{display:none}

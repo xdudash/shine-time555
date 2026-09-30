@@ -115,10 +115,27 @@
     document.documentElement.lang = locale === 'uk' ? 'uk' : locale;
     return locale;
   };
+  // Composite strings ("3 jobs", "Plan 12:00", "A · B", "● ONLINE") are translated piecewise
+  // so counters and times rendered into labels do not stay in English.
+  const NUM = String.raw`[-+≥≤]?\s?[€$]?\d[\d.,:/%–\- ]*(?:\s?(?:€|EUR|%|min|m|h))?`;
+  const reLeadNum = new RegExp(`^(${NUM})\\s+(.+)$`), reTailNum = new RegExp(`^(.+?)\\s+(${NUM})$`);
+  const reLeadSym = /^([●○◷⌖◆◎▣☷€＋+✓!★•→←📷📍🧭📞]+\s*)(.+)$/u;
+  const unit = (dict, n) => n.replace(/(\d)\s?min\b/g, `$1 ${dict.min ?? 'min'}`);
+  const composite = (dict, key, depth) => {
+    if (depth > 4) return undefined;
+    const tr = k => dict[k] ?? dict[k.toLowerCase()] ?? composite(dict, k, depth + 1);
+    for (const sep of [' · ', ' + ']) if (key.includes(sep)) { const parts = key.split(sep); const out = parts.map(p => tr(p) ?? unit(dict, p)); return out.some((v, i) => v !== parts[i]) ? out.join(sep) : undefined; }
+    let m = key.match(reLeadSym); if (m) { const r = tr(m[2]); return r === undefined ? undefined : m[1] + r; }
+    m = key.match(reLeadNum); if (m && !/^\d/.test(m[2])) { const r = tr(m[2]); if (r !== undefined) return `${unit(dict, m[1])} ${r}`; }
+    m = key.match(reTailNum); if (m) { const r = tr(m[1]); if (r !== undefined) return `${r} ${unit(dict, m[2])}`; }
+    if (/^\d[\d.,]*\s?min$/.test(key) && dict.min) return unit(dict, key);
+    return undefined;
+  };
   const t = (key, fallback) => {
     const locale = getLocale();
     if (locale === 'en') return fallback ?? key;
-    return D[locale]?.[key] ?? fallback ?? key;
+    const dict = D[locale] || {};
+    return dict[key] ?? (typeof key === 'string' && key.length < 200 ? composite(dict, key, 0) : undefined) ?? fallback ?? key;
   };
   const translateNode = node => {
     if (node.nodeType === Node.TEXT_NODE) {

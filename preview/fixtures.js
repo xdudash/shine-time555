@@ -50,9 +50,11 @@
     else if(resource==='/api/admin/jobs')data={jobs:url.searchParams.has('date')?jobs.filter(j=>j.service_date===url.searchParams.get('date')):jobs};
     else if(/^\/api\/admin\/jobs\/\d+$/.test(resource)){const j=jobs.find(x=>x.id===Number(resource.split('/').at(-1)));if(!j)return Promise.reject(Error('Demo job not found'));data={...j,checklist:[{id:1,label:'Kitchen surfaces',required:true,completed:j.status==='COMPLETED',photo_required:false}],photos:[],issues:[],events:[]};}
     else if(resource==='/api/admin/objects')data={objects};
+    else if(/^\/api\/admin\/objects\/\d+$/.test(resource))data={object:objects.find(o=>o.id===Number(resource.split('/').at(-1)))};
     else if(resource==='/api/client/objects')data={objects:objects.map(clientObject)};
     else if(resource==='/api/admin/clients')data={clients};
     else if(resource==='/api/admin/cleaners')data={cleaners};
+    else if(/^\/api\/admin\/clients\/\d+\/properties$/.test(resource))data={objectIds:objects.filter((o,i)=>i%2===1).map(o=>o.id)};
     else if(resource==='/api/admin/capacity')data=capacity(url.searchParams.get('date'));
     else if(resource==='/api/admin/analytics')data=analytics();
     else if(resource==='/api/admin/finance'||resource==='/api/client/finance')data=finance(url.searchParams.get('month')||today.slice(0,7));
