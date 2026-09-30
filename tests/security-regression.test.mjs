@@ -46,3 +46,19 @@ test('owner responses do not expose cleaner-only operational data', () => {
   const result = projectResponse({ payout: 25, bonus: 5, cleaner_reliability: 99, object_notes: 'private ops note', safe: true }, 'OWNER');
   assert.deepEqual(result, { safe: true });
 });
+
+test('cleaner receives entry details only while the job is actively assigned', () => {
+  const job = (status) => ({ id: 1, object_id: 7, status, access_instructions: 'code 1234', wifi: 'net', key_instructions: 'box', object_name: 'Flat' });
+  for (const status of ['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'CLEANING']) {
+    assert.equal(projectResponse({ job: job(status) }, 'CLEANER').job.access_instructions, 'code 1234', status);
+  }
+  for (const status of ['UNASSIGNED', 'RESCUE', 'COMPLETED', 'CANCELLED']) {
+    const projected = projectResponse({ jobs: [job(status)] }, 'CLEANER').jobs[0];
+    assert.equal(projected.access_instructions, undefined, status);
+    assert.equal(projected.wifi, undefined, status);
+    assert.equal(projected.key_instructions, undefined, status);
+    assert.equal(projected.object_name, 'Flat');
+  }
+  assert.equal(projectResponse({ job: job('COMPLETED') }, 'OWNER').job.access_instructions, 'code 1234');
+  assert.equal(projectResponse({ job: job('COMPLETED') }, 'ADMIN').job.access_instructions, 'code 1234');
+});

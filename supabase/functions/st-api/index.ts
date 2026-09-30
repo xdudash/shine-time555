@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.112.4';
 import { activeAssignmentStatuses, availableBookingSlots, cleanerEarningsSummary, clientAccountRows, coordinatesForStorage, financeBoardReport, marketplaceForCleaner, riskForJob, roleCapabilities, settingsFromRows } from './logic.mjs';
 import { marketplaceJobs, projectResponse } from './security.mjs';
 import { operationsRoute } from './operations.mjs';
+import { propertyPhotosRoute } from './property-photos.mjs';
 import { validatePhoto, validateMedia } from './media.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -473,97 +474,112 @@ async function clientPortfolioObjects(ctx: any) {
 }
 
 async function routeClient(ctx: any, route: string, method: string, query: AnyRow, body: AnyRow) {
-  requireRole(ctx, ['OWNER', 'PROPERTY_MANAGER']);
-  const clientId = ctx.client?.id;
-  if (!clientId) throw new ApiError('Client account is not configured', 403);
-  if (route === 'client/dashboard' && method === 'GET') {
-    const objects = await clientPortfolioObjects(ctx);
-    const raw = objects.length ? await result(service.from('st_jobs').select('*').in('object_id', objects.map((object) => object.id)).order('service_date')) as AnyRow[] : [];
-    const jobs = await hydrateJobs(raw);
-    const upcoming = jobs.filter((job) => job.status !== 'CANCELLED' && job.service_date >= today());
-    return { objects: { total: objects.length, approved: objects.filter((item) => item.approval_status === 'APPROVED' && item.active).length, pending: objects.filter((item) => item.approval_status === 'PENDING').length }, upcoming, nextBooking: upcoming[0] || null, completedToday: jobs.filter((job) => job.service_date === today() && job.status === 'COMPLETED').length };
-  }
-  if (route === 'client/finance' && method === 'GET') return result(service.rpc('st_settlement_report',{p_actor_id:ctx.appUser.id,p_month:query.month||today().slice(0,7)}));
-  if (route === 'client/objects' && method === 'GET') return { objects: await clientPortfolioObjects(ctx) };
-  if (route === 'client/objects' && method === 'POST') {
-    if (ctx.appUser.role !== 'OWNER') throw new ApiError('A property manager can only work with assigned properties', 403);
-    const coordinates = objectCoordinates(body.lat, body.lng);
-    const object = await one(service.from('st_objects').insert({ client_id: clientId, code: code(), name: String(body.name || ''), address: String(body.address || ''), zone: String(body.zone || 'Bratislava'), service_category: String(body.serviceCategory || 'SHORT_STAY'), apartment_type: String(body.apartmentType || 'Apartment'), bedrooms: number(body.bedrooms, 1), bathrooms: number(body.bathrooms, 1), lat: coordinates.lat, lng: coordinates.lng, access_instructions: body.accessInstructions || null, key_instructions: body.keyInstructions || null, parking: body.parking || null, linen_location: body.linenLocation || null, supplies_location: body.suppliesLocation || null, notes: body.notes || null, active: false, approval_status: 'PENDING' }).select().single()) as AnyRow;
-    const admins = await result(service.from('st_users').select('id').eq('role', 'ADMIN').eq('active', true)) as AnyRow[];
-    await Promise.all(admins.map((admin) => notify(admin.id, 'OBJECT_APPROVAL', 'Property needs approval', object.name)));
-    return { object };
-  }
-  const objectMatch = route.match(/^client\/objects\/(\d+)$/);
-  if (objectMatch) {
-    const objectId = number(objectMatch[1]);
-    if (method === 'GET') return { object: await clientObject(ctx, objectId) };
-    if (method === 'PATCH') {
-      const existing = await clientObject(ctx, objectId);
-      const structural = ['address', 'zone', 'apartmentType', 'bedrooms', 'bathrooms', 'lat', 'lng'].some((key) => body[key] !== undefined);
-      const coordinates = objectCoordinates(body.lat !== undefined ? body.lat : existing.lat, body.lng !== undefined ? body.lng : existing.lng);
-      const updates: AnyRow = {
-        name: body.name ?? existing.name, address: body.address ?? existing.address, zone: body.zone ?? existing.zone,
-        apartment_type: body.apartmentType ?? existing.apartment_type, bedrooms: body.bedrooms ?? existing.bedrooms, bathrooms: body.bathrooms ?? existing.bathrooms,
-        lat: coordinates.lat, lng: coordinates.lng, access_instructions: body.accessInstructions ?? existing.access_instructions,
-        key_instructions: body.keyInstructions ?? existing.key_instructions, parking: body.parking ?? existing.parking,
-        linen_location: body.linenLocation ?? existing.linen_location, supplies_location: body.suppliesLocation ?? existing.supplies_location, notes: body.notes ?? existing.notes,
-      };
-      if (structural) { updates.approval_status = 'PENDING'; updates.active = false; }
-      return { object: await one(service.from('st_objects').update(updates).eq('id', objectId).select().single()) };
+        requireRole(ctx, ['OWNER', 'PROPERTY_MANAGER']);
+        const clientId = ctx.client?.id;
+        if (!clientId)
+            throw new ApiError('Client account is not configured', 403);
+        if (route === 'client/dashboard' && method === 'GET') {
+            const objects = await clientPortfolioObjects(ctx);
+            const raw = objects.length ? await result(service.from('st_jobs').select('*').in('object_id', objects.map((object) => object.id)).order('service_date')) as AnyRow[] : [];
+            const jobs = await hydrateJobs(raw);
+            const upcoming = jobs.filter((job) => job.status !== 'CANCELLED' && job.service_date >= today());
+            return { objects: { total: objects.length, approved: objects.filter((item) => item.approval_status === 'APPROVED' && item.active).length, pending: objects.filter((item) => item.approval_status === 'PENDING').length }, upcoming, nextBooking: upcoming[0] || null, completedToday: jobs.filter((job) => job.service_date === today() && job.status === 'COMPLETED').length };
+        }
+        if (route === 'client/finance' && method === 'GET')
+            return result(service.rpc('st_settlement_report', { p_actor_id: ctx.appUser.id, p_month: query.month || today().slice(0, 7) }));
+        if (route === 'client/objects' && method === 'GET')
+            return { objects: await clientPortfolioObjects(ctx) };
+        if (body.serviceCategory !== undefined && !['SHORT_STAY', 'HOME', 'OFFICE', 'COMMON_AREAS', 'OTHER'].includes(body.serviceCategory))
+            throw new ApiError('Invalid service category');
+        if (route === 'client/objects' && method === 'POST') {
+            if (ctx.appUser.role !== 'OWNER')
+                throw new ApiError('A property manager can only work with assigned properties', 403);
+            const coordinates = objectCoordinates(body.lat, body.lng);
+            const object = await one(service.from('st_objects').insert({ client_id: clientId, code: code(), name: String(body.name || ''), address: String(body.address || ''), zone: String(body.zone || 'Bratislava'), service_category: String(body.serviceCategory || 'SHORT_STAY'), apartment_type: String(body.apartmentType || 'Apartment'), bedrooms: number(body.bedrooms, 1), bathrooms: number(body.bathrooms, 1), lat: coordinates.lat, lng: coordinates.lng, access_instructions: body.accessInstructions || null, key_instructions: body.keyInstructions || null, parking: body.parking || null, linen_location: body.linenLocation || null, supplies_location: body.suppliesLocation || null, notes: body.notes || null, active: false, approval_status: 'PENDING' }).select().single()) as AnyRow;
+            const admins = await result(service.from('st_users').select('id').eq('role', 'ADMIN').eq('active', true)) as AnyRow[];
+            await Promise.all(admins.map((admin) => notify(admin.id, 'OBJECT_APPROVAL', 'Property needs approval', object.name)));
+            return { object };
+        }
+        const objectMatch = route.match(/^client\/objects\/(\d+)$/);
+        if (objectMatch) {
+            const objectId = number(objectMatch[1]);
+            if (method === 'GET')
+                return { object: await clientObject(ctx, objectId) };
+            if (method === 'PATCH') {
+                const existing = await clientObject(ctx, objectId);
+                const structural = ['serviceCategory', 'address', 'zone', 'apartmentType', 'bedrooms', 'bathrooms', 'lat', 'lng'].some((key) => body[key] !== undefined);
+                const coordinates = objectCoordinates(body.lat !== undefined ? body.lat : existing.lat, body.lng !== undefined ? body.lng : existing.lng);
+                const updates: AnyRow = {
+                    service_category: body.serviceCategory ?? existing.service_category, name: body.name ?? existing.name, address: body.address ?? existing.address, zone: body.zone ?? existing.zone,
+                    apartment_type: body.apartmentType ?? existing.apartment_type, bedrooms: body.bedrooms ?? existing.bedrooms, bathrooms: body.bathrooms ?? existing.bathrooms,
+                    lat: coordinates.lat, lng: coordinates.lng, access_instructions: body.accessInstructions ?? existing.access_instructions,
+                    key_instructions: body.keyInstructions ?? existing.key_instructions, parking: body.parking ?? existing.parking,
+                    linen_location: body.linenLocation ?? existing.linen_location, supplies_location: body.suppliesLocation ?? existing.supplies_location, notes: body.notes ?? existing.notes,
+                };
+                if (structural) {
+                    updates.approval_status = 'PENDING';
+                    updates.active = false;
+                }
+                return { object: await one(service.from('st_objects').update(updates).eq('id', objectId).select().single()) };
+            }
+        }
+        if (route === 'client/slots' && method === 'GET') {
+            const objectId = number(query.objectId);
+            const date = String(query.date || '');
+            if (!objectId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today())
+                throw new ApiError('objectId and a future date are required');
+            const object = await clientObject(ctx, objectId);
+            if (!object.active || object.approval_status !== 'APPROVED')
+                throw new ApiError('Object is not approved for booking', 404);
+            const [jobs, availability, appSettings, cleaners] = await Promise.all([
+                result(service.from('st_jobs').select('*').eq('service_date', date)) as Promise<AnyRow[]>,
+                result(service.from('st_cleaner_availability').select('*').eq('service_date', date)) as Promise<AnyRow[]>,
+                settings(), activeCleaners(date),
+            ]);
+            const windows = availability;
+            return { date, object, slots: availableBookingSlots({ object, jobs, windows, cleaners, durationMinutes: object.duration_minutes, settings: appSettings, stepMinutes: number(appSettings.clientBookingStepMinutes, 30) }).filter(slot => date !== today() || slot > currentTime()), capacity: cleaners.filter((cleaner) => cleaner.available).length };
+        }
+        if (route === 'client/bookings' && method === 'GET') {
+            const objects = await clientPortfolioObjects(ctx);
+            const rows = objects.length ? await result(service.from('st_jobs').select('*').in('object_id', objects.map((object) => object.id)).order('service_date', { ascending: false })) as AnyRow[] : [];
+            return { bookings: await hydrateJobs(rows) };
+        }
+        if (route === 'client/bookings' && method === 'POST') {
+            const object = await clientObject(ctx, number(body.objectId));
+            const slotsResult = await routeClient(ctx, 'client/slots', 'GET', { objectId: body.objectId, date: body.serviceDate }, {});
+            if (!slotsResult.slots.includes(String(body.startTime)))
+                throw new ApiError('This cleaning slot is no longer available', 409, { availableSlots: slotsResult.slots });
+            const job = await createJob(ctx, { objectId: object.id, serviceDate: body.serviceDate, clientId: object.client_id, plannedStart: body.startTime, earliestStart: body.startTime, deadline: String(object.deadline_time).slice(0, 5), bookingSource: 'CLIENT_BOOKING', marketplaceVisible: true });
+            await insertEvent(job.id, ctx.appUser.id, 'CLIENT_BOOKED', { startTime: body.startTime });
+            const admins = await result(service.from('st_users').select('id').eq('role', 'ADMIN').eq('active', true)) as AnyRow[];
+            await Promise.all(admins.map((admin) => notify(admin.id, 'CLIENT_BOOKING', 'New client cleaning reservation', `${object.code} · ${body.serviceDate} ${body.startTime}`)));
+            return { booking: (await hydrateJobs([job]))[0] };
+        }
+        const booking = route.match(/^client\/bookings\/(\d+)(?:\/(cancel))?$/);
+        if (booking) {
+            const jobId = number(booking[1]);
+            if (!booking[2] && method === 'GET') {
+                const job = await jobFor(ctx, jobId);
+                const details = await jobDetails(ctx, jobId);
+                return { booking: (await hydrateJobs([job]))[0], photos: details.photos, issues: details.issues };
+            }
+            if (booking[2] === 'cancel' && method === 'POST') {
+                const job = await jobFor(ctx, jobId);
+                if (job.status === 'COMPLETED')
+                    throw new ApiError('Completed booking cannot be cancelled', 409);
+                await jobCommand(ctx, jobId, 'cancel', body);
+                return { ok: true };
+            }
+        }
+        if (route === 'client/profile' && method === 'GET')
+            return { client: ctx.client, user: await publicUser(ctx) };
+        if (route === 'client/profile' && method === 'PATCH') {
+            const user = await one(service.from('st_users').update({ full_name: body.fullName ?? ctx.appUser.full_name, phone: body.phone ?? ctx.appUser.phone, language: validLanguage(body.language) }).eq('id', ctx.appUser.id).select().single()) as AnyRow;
+            const client = await one(service.from('st_client_accounts').update({ company_name: body.companyName ?? ctx.client.company_name, billing_name: body.billingName ?? ctx.client.billing_name, ico: body.ico ?? ctx.client.ico, dic: body.dic ?? ctx.client.dic, ic_dph: body.icDph ?? ctx.client.ic_dph, billing_address: body.billingAddress ?? ctx.client.billing_address }).eq('id', clientId).select().single()) as AnyRow;
+            return { client, user };
+        }
+        throw new ApiError('Route not found', 404);
     }
-  }
-  if (route === 'client/slots' && method === 'GET') {
-    const objectId = number(query.objectId);
-    const date = String(query.date || '');
-    if (!objectId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today()) throw new ApiError('objectId and a future date are required');
-    const object = await clientObject(ctx, objectId);
-    if (!object.active || object.approval_status !== 'APPROVED') throw new ApiError('Object is not approved for booking', 404);
-    const [jobs, availability, appSettings, cleaners] = await Promise.all([
-      result(service.from('st_jobs').select('*').eq('service_date', date)) as Promise<AnyRow[]>,
-      result(service.from('st_cleaner_availability').select('*').eq('service_date', date)) as Promise<AnyRow[]>,
-      settings(), activeCleaners(date),
-    ]);
-    const windows = availability;
-    return { date, object, slots: availableBookingSlots({ object, jobs, windows, cleaners, durationMinutes: object.duration_minutes, settings: appSettings, stepMinutes: number(appSettings.clientBookingStepMinutes, 30) }).filter(slot => date !== today() || slot > currentTime()), capacity: cleaners.filter((cleaner) => cleaner.available).length };
-  }
-  if (route === 'client/bookings' && method === 'GET') {
-    const objects = await clientPortfolioObjects(ctx);
-    const rows = objects.length ? await result(service.from('st_jobs').select('*').in('object_id', objects.map((object) => object.id)).order('service_date', { ascending: false })) as AnyRow[] : [];
-    return { bookings: await hydrateJobs(rows) };
-  }
-  if (route === 'client/bookings' && method === 'POST') {
-    const object = await clientObject(ctx, number(body.objectId));
-    const slotsResult = await routeClient(ctx, 'client/slots', 'GET', { objectId: body.objectId, date: body.serviceDate }, {});
-    if (!slotsResult.slots.includes(String(body.startTime))) throw new ApiError('This cleaning slot is no longer available', 409, { availableSlots: slotsResult.slots });
-    const job = await createJob(ctx, { objectId: object.id, serviceDate: body.serviceDate, clientId: object.client_id, plannedStart: body.startTime, earliestStart: body.startTime, deadline: String(object.deadline_time).slice(0, 5), bookingSource: 'CLIENT_BOOKING', marketplaceVisible: true });
-    await insertEvent(job.id, ctx.appUser.id, 'CLIENT_BOOKED', { startTime: body.startTime });
-    const admins = await result(service.from('st_users').select('id').eq('role', 'ADMIN').eq('active', true)) as AnyRow[];
-    await Promise.all(admins.map((admin) => notify(admin.id, 'CLIENT_BOOKING', 'New client cleaning reservation', `${object.code} · ${body.serviceDate} ${body.startTime}`)));
-    return { booking: (await hydrateJobs([job]))[0] };
-  }
-  const booking = route.match(/^client\/bookings\/(\d+)(?:\/(cancel))?$/);
-  if (booking) {
-    const jobId = number(booking[1]);
-    if (!booking[2] && method === 'GET') {
-      const job = await jobFor(ctx, jobId);
-      const details = await jobDetails(ctx, jobId);
-      return { booking: (await hydrateJobs([job]))[0], photos: details.photos, issues: details.issues };
-    }
-    if (booking[2] === 'cancel' && method === 'POST') {
-      const job = await jobFor(ctx, jobId);
-      if (job.status === 'COMPLETED') throw new ApiError('Completed booking cannot be cancelled', 409);
-      await jobCommand(ctx, jobId, 'cancel', body);
-      return { ok: true };
-    }
-  }
-  if (route === 'client/profile' && method === 'GET') return { client: ctx.client, user: await publicUser(ctx) };
-  if (route === 'client/profile' && method === 'PATCH') {
-    const user = await one(service.from('st_users').update({ full_name: body.fullName ?? ctx.appUser.full_name, phone: body.phone ?? ctx.appUser.phone, language: validLanguage(body.language) }).eq('id', ctx.appUser.id).select().single()) as AnyRow;
-    const client = await one(service.from('st_client_accounts').update({ company_name: body.companyName ?? ctx.client.company_name, billing_name: body.billingName ?? ctx.client.billing_name, ico: body.ico ?? ctx.client.ico, dic: body.dic ?? ctx.client.dic, ic_dph: body.icDph ?? ctx.client.ic_dph, billing_address: body.billingAddress ?? ctx.client.billing_address }).eq('id', clientId).select().single()) as AnyRow;
-    return { client, user };
-  }
-  throw new ApiError('Route not found', 404);
-}
 
 async function createManagedUser(role: string, body: AnyRow) {
   if (!body.email || !body.password || !body.fullName) throw new ApiError('email, password and fullName are required');
@@ -597,243 +613,313 @@ async function updateManagedLoginEmail(user: AnyRow, value: unknown) {
 }
 
 async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow, body: AnyRow) {
-  const capabilities = roleCapabilities(ctx.appUser.role);
-  if (!capabilities.operations) throw new ApiError('Forbidden', 403);
-  const accountRoute = route === 'admin/settings'
-    || (route === 'admin/cleaners' && method === 'POST')
-    || (route === 'admin/clients' && method === 'POST')
-    || /^admin\/(cleaners|clients)\/\d+(?:\/password)?$/.test(route);
-  if ((route.startsWith('admin/finance') && !capabilities.finance) || (accountRoute && !capabilities.access)) throw new ApiError('Forbidden', 403);
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(query.date || '')) ? String(query.date) : today();
-  if (route === 'admin/dashboard' && method === 'GET') {
-    const [raw, cleaners, appSettings] = await Promise.all([
-      result(service.from('st_jobs').select('*').eq('service_date', date).order('planned_start')) as Promise<AnyRow[]>, activeCleaners(date), settings(),
-    ]);
-    const jobs = await hydrateJobs(raw);
-    const summary = capacity(cleaners, jobs, appSettings);
-    const kpis = { total: jobs.length, completed: jobs.filter((item) => item.status === 'COMPLETED').length, cleaning: jobs.filter((item) => item.status === 'CLEANING').length, assigned: jobs.filter((item) => ['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'CLEANING'].includes(item.status)).length, unassigned: jobs.filter((item) => item.status === 'UNASSIGNED').length, atRisk: jobs.filter((item) => item.risk_level === 'ORANGE').length, rescue: jobs.filter((item) => item.status === 'RESCUE').length };
-    const ready = jobs.filter((item) => item.status === 'COMPLETED' || (item.eta && item.eta <= item.deadline)).length;
-    return { date, kpis, jobs, capacity: summary, sla: { projectedReadyPct: jobs.length ? Math.round(ready / jobs.length * 100) : 100, health: summary.health } };
-  }
-  if (route === 'admin/objects' && method === 'GET') {
-    const objects = await result(service.from('st_objects').select('*').order('approval_status').order('active', { ascending: false }).order('code')) as AnyRow[];
-    const clients = await fetchRows('st_client_accounts', objects.map((item) => item.client_id));
-    const users = await fetchRows('st_users', clients.map((item) => item.user_id));
-    const clientById = new Map(clients.map((item) => [String(item.id), item]));
-    const userById = new Map(users.map((item) => [String(item.id), item]));
-    return { objects: objects.map((object) => ({ ...object, company_name: clientById.get(String(object.client_id))?.company_name || null, client_name: userById.get(String(clientById.get(String(object.client_id))?.user_id))?.full_name || null })) };
-  }
-  if (route === 'admin/objects' && method === 'POST') {
-    const coordinates = objectCoordinates(body.lat, body.lng);
-    const object = await one(service.from('st_objects').insert({ code: body.code || code(), client_id: body.clientId || null, name: String(body.name || ''), address: String(body.address || ''), zone: String(body.zone || 'Bratislava'), service_category: String(body.serviceCategory || 'SHORT_STAY'), apartment_type: String(body.apartmentType || 'Apartment'), bedrooms: number(body.bedrooms, 1), bathrooms: number(body.bathrooms, 1), lat: coordinates.lat, lng: coordinates.lng, checkout_time: body.checkoutTime || '10:00', deadline_time: body.deadlineTime || '15:00', duration_minutes: number(body.durationMinutes, 120), payout: number(body.payout), client_price: number(body.clientPrice), active: body.active !== false, approval_status: body.approvalStatus || 'APPROVED', access_instructions: body.accessInstructions || null, key_instructions: body.keyInstructions || null, parking: body.parking || null, linen_location: body.linenLocation || null, supplies_location: body.suppliesLocation || null, wifi: body.wifi || null, notes: body.notes || null }).select().single()) as AnyRow;
-    return { object };
-  }
-  const objectChecklist = route.match(/^admin\/objects\/(\d+)\/checklist$/);
-  if (objectChecklist && method === 'PUT') {
-    const objectId = number(objectChecklist[1]);
-    await result(service.from('st_checklist_items').delete().eq('object_id', objectId));
-    const items = Array.isArray(body.items) ? body.items : [];
-    if (items.length) await result(service.from('st_checklist_items').insert(items.map((item: AnyRow, index: number) => ({ object_id: objectId, label: String(item.label || ''), required: item.required !== false, photo_required: truthy(item.photoRequired), photo_category: item.photoCategory || null, sort_order: index + 1 }))));
-    return { ok: true };
-  }
-  const objectRoute = route.match(/^admin\/objects\/(\d+)$/);
-  if (objectRoute) {
-    const id = number(objectRoute[1]);
-    if (method === 'GET') return { object: await one(service.from('st_objects').select('*').eq('id', id).single()) };
-    if (method === 'PATCH') {
-      const map: AnyRow = { name: body.name, address: body.address, zone: body.zone, service_category:body.serviceCategory, apartment_type: body.apartmentType, bedrooms: body.bedrooms, bathrooms: body.bathrooms, lat: body.lat, lng: body.lng, checkout_time: body.checkoutTime, deadline_time: body.deadlineTime, duration_minutes: body.durationMinutes, payout: body.payout, client_price: body.clientPrice, active: body.active, approval_status: body.approvalStatus, client_id: body.clientId, access_instructions: body.accessInstructions, key_instructions: body.keyInstructions, parking: body.parking, linen_location: body.linenLocation, supplies_location: body.suppliesLocation, wifi: body.wifi, notes: body.notes };
-      if (body.lat !== undefined || body.lng !== undefined) {
-        const current = await one(service.from('st_objects').select('lat,lng').eq('id', id).single()) as AnyRow;
-        const coordinates = objectCoordinates(body.lat !== undefined ? body.lat : current.lat, body.lng !== undefined ? body.lng : current.lng);
-        map.lat = coordinates.lat;
-        map.lng = coordinates.lng;
-      }
-      const updates = Object.fromEntries(Object.entries(map).filter(([, value]) => value !== undefined));
-      return { object: await one(service.from('st_objects').update(updates).eq('id', id).select().single()) };
+        const capabilities = roleCapabilities(ctx.appUser.role);
+        if (!capabilities.operations)
+            throw new ApiError('Forbidden', 403);
+        const accountRoute = route === 'admin/settings'
+            || (route === 'admin/cleaners' && method === 'POST')
+            || (route === 'admin/clients' && method === 'POST')
+            || /^admin\/(cleaners|clients)\/\d+(?:\/password)?$/.test(route);
+        if ((route.startsWith('admin/finance') && !capabilities.finance) || (accountRoute && !capabilities.access))
+            throw new ApiError('Forbidden', 403);
+        if (body.serviceCategory !== undefined && !['SHORT_STAY', 'HOME', 'OFFICE', 'COMMON_AREAS', 'OTHER'].includes(body.serviceCategory))
+            throw new ApiError('Invalid service category');
+        const portfolio = route.match(/^admin\/clients\/(\d+)\/properties(?:\/(\d+))?$/);
+        if (portfolio) {
+            if (ctx.appUser.role !== 'ADMIN')
+                throw new ApiError('Forbidden', 403);
+            const manager = await one(service.from('st_client_accounts').select('id,user_id,account_type').eq('id', Number(portfolio[1])).single());
+            const managerUser = await one(service.from('st_users').select('role,active').eq('id', manager.user_id).single());
+            if (manager.account_type !== 'PROPERTY_MANAGER' || managerUser.role !== 'PROPERTY_MANAGER' || !managerUser.active)
+                throw new ApiError('Active property manager required');
+            if (method === 'GET' && !portfolio[2])
+                return { objectIds: (await result(service.from('st_manager_properties').select('object_id').eq('manager_client_id', manager.id))).map((r: AnyRow) => r.object_id) };
+            const objectId = Number(portfolio[2] || body.objectId);
+            if (!Number.isSafeInteger(objectId) || objectId <= 0)
+                throw new ApiError('Choose a property');
+            await one(service.from('st_objects').select('id').eq('id', objectId).single());
+            if (method === 'POST' && !portfolio[2]) {
+                await result(service.from('st_manager_properties').upsert({ manager_client_id: manager.id, object_id: objectId, assigned_by_user_id: ctx.appUser.id }, { onConflict: 'manager_client_id,object_id' }));
+                return { ok: true };
+            }
+            if (method === 'DELETE' && portfolio[2]) {
+                await result(service.from('st_manager_properties').delete().eq('manager_client_id', manager.id).eq('object_id', objectId));
+                return { ok: true };
+            }
+            throw new ApiError('Method not allowed', 405);
+        }
+        const date = /^\d{4}-\d{2}-\d{2}$/.test(String(query.date || '')) ? String(query.date) : today();
+        if (route === 'admin/dashboard' && method === 'GET') {
+            const [raw, cleaners, appSettings] = await Promise.all([
+                result(service.from('st_jobs').select('*').eq('service_date', date).order('planned_start')) as Promise<AnyRow[]>, activeCleaners(date), settings(),
+            ]);
+            const jobs = await hydrateJobs(raw);
+            const summary = capacity(cleaners, jobs, appSettings);
+            const kpis = { total: jobs.length, completed: jobs.filter((item) => item.status === 'COMPLETED').length, cleaning: jobs.filter((item) => item.status === 'CLEANING').length, assigned: jobs.filter((item) => ['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'CLEANING'].includes(item.status)).length, unassigned: jobs.filter((item) => item.status === 'UNASSIGNED').length, atRisk: jobs.filter((item) => item.risk_level === 'ORANGE').length, rescue: jobs.filter((item) => item.status === 'RESCUE').length };
+            const ready = jobs.filter((item) => item.status === 'COMPLETED' || (item.eta && item.eta <= item.deadline)).length;
+            return { date, kpis, jobs, capacity: summary, sla: { projectedReadyPct: jobs.length ? Math.round(ready / jobs.length * 100) : 100, health: summary.health } };
+        }
+        if (route === 'admin/objects' && method === 'GET') {
+            const objects = await result(service.from('st_objects').select('*').order('approval_status').order('active', { ascending: false }).order('code')) as AnyRow[];
+            const clients = await fetchRows('st_client_accounts', objects.map((item) => item.client_id));
+            const users = await fetchRows('st_users', clients.map((item) => item.user_id));
+            const clientById = new Map(clients.map((item) => [String(item.id), item]));
+            const userById = new Map(users.map((item) => [String(item.id), item]));
+            return { objects: objects.map((object) => ({ ...object, company_name: clientById.get(String(object.client_id))?.company_name || null, client_name: userById.get(String(clientById.get(String(object.client_id))?.user_id))?.full_name || null })) };
+        }
+        if (route === 'admin/objects' && method === 'POST') {
+            const coordinates = objectCoordinates(body.lat, body.lng);
+            const object = await one(service.from('st_objects').insert({ code: body.code || code(), client_id: body.clientId || null, name: String(body.name || ''), address: String(body.address || ''), zone: String(body.zone || 'Bratislava'), service_category: String(body.serviceCategory || 'SHORT_STAY'), apartment_type: String(body.apartmentType || 'Apartment'), bedrooms: number(body.bedrooms, 1), bathrooms: number(body.bathrooms, 1), lat: coordinates.lat, lng: coordinates.lng, checkout_time: body.checkoutTime || '10:00', deadline_time: body.deadlineTime || '15:00', duration_minutes: number(body.durationMinutes, 120), payout: number(body.payout), client_price: number(body.clientPrice), active: body.active !== false, approval_status: body.approvalStatus || 'APPROVED', access_instructions: body.accessInstructions || null, key_instructions: body.keyInstructions || null, parking: body.parking || null, linen_location: body.linenLocation || null, supplies_location: body.suppliesLocation || null, wifi: body.wifi || null, notes: body.notes || null }).select().single()) as AnyRow;
+            return { object };
+        }
+        const objectChecklist = route.match(/^admin\/objects\/(\d+)\/checklist$/);
+        if (objectChecklist && method === 'PUT') {
+            const objectId = number(objectChecklist[1]);
+            await result(service.from('st_checklist_items').delete().eq('object_id', objectId));
+            const items = Array.isArray(body.items) ? body.items : [];
+            if (items.length)
+                await result(service.from('st_checklist_items').insert(items.map((item: AnyRow, index: number) => ({ object_id: objectId, label: String(item.label || ''), required: item.required !== false, photo_required: truthy(item.photoRequired), photo_category: item.photoCategory || null, sort_order: index + 1 }))));
+            return { ok: true };
+        }
+        const objectRoute = route.match(/^admin\/objects\/(\d+)$/);
+        if (objectRoute) {
+            const id = number(objectRoute[1]);
+            if (method === 'GET')
+                return { object: await one(service.from('st_objects').select('*').eq('id', id).single()) };
+            if (method === 'PATCH') {
+                const map: AnyRow = { name: body.name, address: body.address, zone: body.zone, service_category: body.serviceCategory, apartment_type: body.apartmentType, bedrooms: body.bedrooms, bathrooms: body.bathrooms, lat: body.lat, lng: body.lng, checkout_time: body.checkoutTime, deadline_time: body.deadlineTime, duration_minutes: body.durationMinutes, payout: body.payout, client_price: body.clientPrice, active: body.active, approval_status: body.approvalStatus, client_id: body.clientId, access_instructions: body.accessInstructions, key_instructions: body.keyInstructions, parking: body.parking, linen_location: body.linenLocation, supplies_location: body.suppliesLocation, wifi: body.wifi, notes: body.notes };
+                if (body.lat !== undefined || body.lng !== undefined) {
+                    const current = await one(service.from('st_objects').select('lat,lng').eq('id', id).single()) as AnyRow;
+                    const coordinates = objectCoordinates(body.lat !== undefined ? body.lat : current.lat, body.lng !== undefined ? body.lng : current.lng);
+                    map.lat = coordinates.lat;
+                    map.lng = coordinates.lng;
+                }
+                const updates = Object.fromEntries(Object.entries(map).filter(([, value]) => value !== undefined));
+                if (!Object.keys(updates).length)
+                    return { object: await one(service.from('st_objects').select('*').eq('id', id).single()) };
+                return { object: await one(service.from('st_objects').update(updates).eq('id', id).select().single()) };
+            }
+            if (method === 'DELETE') {
+                await result(service.from('st_objects').delete().eq('id', id));
+                return { ok: true };
+            }
+        }
+        if (route === 'admin/jobs' && method === 'GET') {
+            let builder: any = service.from('st_jobs').select('*').eq('service_date', date).order('planned_start');
+            if (query.status)
+                builder = builder.eq('status', query.status);
+            if (query.cleanerId)
+                builder = builder.eq('assigned_cleaner_id', number(query.cleanerId));
+            return { jobs: await hydrateJobs(await result(builder) as AnyRow[]) };
+        }
+        if (route === 'admin/jobs' && method === 'POST') {
+            const job = await createJob(ctx, body);
+            await insertEvent(job.id, ctx.appUser.id, 'JOB_CREATED', { serviceDate: body.serviceDate });
+            return { job: (await hydrateJobs([job]))[0] };
+        }
+        if (route === 'admin/jobs/generate' && method === 'POST') {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.serviceDate || '')))
+                throw new ApiError('serviceDate required');
+            const objects = body.objectIds?.length ? await fetchRows('st_objects', body.objectIds) : await result(service.from('st_objects').select('*').eq('active', true)) as AnyRow[];
+            const created: number[] = [], skipped: number[] = [];
+            for (const object of objects) {
+                try {
+                    const job = await createJob(ctx, { objectId: object.id, serviceDate: body.serviceDate, marketplaceVisible: body.publish !== false });
+                    created.push(job.id);
+                    await insertEvent(job.id, ctx.appUser.id, 'JOB_GENERATED', { serviceDate: body.serviceDate });
+                }
+                catch (error) {
+                    if (error instanceof ApiError && error.status === 409)
+                        skipped.push(object.id);
+                    else
+                        throw error;
+                }
+            }
+            return { created: created.length, skipped, jobIds: created };
+        }
+        const jobRoute = route.match(/^admin\/jobs\/(\d+)(?:\/(assign|rescue|bonus|cancel|review))?$/);
+        if (jobRoute) {
+            const id = number(jobRoute[1]);
+            const action = jobRoute[2] || '';
+            if (!action && method === 'GET')
+                return jobDetails(ctx, id);
+            if (action === 'review' && method === 'POST') {
+                requireRole(ctx, ['ADMIN', 'OPERATIONS_MANAGER']);
+                if (!['APPROVED','REWORK_REQUIRED'].includes(body.decision) || !Number.isInteger(body.expectedVersion) || body.expectedVersion < 1 || !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,95}$/.test(String(body.requestId || ''))) throw new ApiError('Decision, expectedVersion and valid requestId required');
+                const reviewed = await result(service.rpc('st_review_job', { p_actor_id: ctx.appUser.id, p_job_id: id, p_decision: body.decision, p_note: String(body.note || ''), p_request_id: body.requestId, p_expected_version: body.expectedVersion })) as AnyRow;
+                return { job: (await hydrateJobs([reviewed]))[0] };
+            }
+            if (action === 'cancel' && method === 'POST')
+                return { job: (await hydrateJobs([await jobCommand(ctx, id, 'cancel', body)]))[0] };
+            if (!action && method === 'PATCH') {
+                return { job: (await hydrateJobs([await jobCommand(ctx, id, 'patch', body)]))[0] };
+            }
+            const job = await getJob(id);
+            const terminal = ['COMPLETED', 'CANCELLED'].includes(job.status);
+            if (['assign', 'rescue'].includes(action) && terminal)
+                throw new ApiError('Completed or cancelled jobs cannot be reassigned', 409);
+            if (action === 'assign' && method === 'POST') {
+                const cleanerId = number(body.cleanerId);
+                const cleaner = await one(service.from('st_cleaners').select('*').eq('id', cleanerId).eq('active', true).single()) as AnyRow;
+                const updated = await jobCommand(ctx, id, 'assign', body);
+                return { job: (await hydrateJobs([updated]))[0] };
+            }
+            if (action === 'rescue' && method === 'POST') {
+                const cleanerId = number(body.cleanerId);
+                const bonus = number(body.bonus, Math.max(number(job.bonus), 6));
+                if (cleanerId) {
+                    return routeAdmin(ctx, `admin/jobs/${id}/assign`, 'POST', {}, { ...body, cleanerId, bonus });
+                }
+                return { job: (await hydrateJobs([await jobCommand(ctx, id, 'rescue', { ...body, bonus })]))[0] };
+            }
+            if (action === 'bonus' && method === 'POST') {
+                return { job: (await hydrateJobs([await jobCommand(ctx, id, 'patch', { ...body, bonus: number(body.bonus) })]))[0] };
+            }
+        }
+        if (route === 'admin/cleaners' && method === 'GET') {
+            const rows = await activeCleaners(date);
+            const all = await result(service.from('st_cleaners').select('*').order('active', { ascending: false }).order('reliability_score', { ascending: false })) as AnyRow[];
+            const users = await fetchRows('st_users', all.map((item) => item.user_id));
+            const rawJobs = await result(service.from('st_jobs').select('*').eq('service_date', date)) as AnyRow[];
+            const byId = new Map(rows.map((item) => [String(item.id), item]));
+            const userById = new Map(users.map((item) => [String(item.id), item]));
+            return { cleaners: all.map((cleaner) => ({ ...cleaner, ...userById.get(String(cleaner.user_id)), ...(byId.get(String(cleaner.id)) || { available: false, availability: { online: false, fromTime: '10:00', toTime: '15:00' } }), id: cleaner.id, today_jobs: rawJobs.filter((job) => same(job.assigned_cleaner_id, cleaner.id) && job.status !== 'CANCELLED').length, today_earnings: rawJobs.filter((job) => same(job.assigned_cleaner_id, cleaner.id) && job.status === 'COMPLETED').reduce((sum, job) => sum + number(job.payout) + number(job.bonus), 0) })) };
+        }
+        if (route === 'admin/cleaners' && method === 'POST')
+            return createManagedUser('CLEANER', body);
+        const cleanerRoute = route.match(/^admin\/cleaners\/(\d+)(?:\/(password))?$/);
+        if (cleanerRoute) {
+            const cleanerId = number(cleanerRoute[1]);
+            const cleaner = await one(service.from('st_cleaners').select('*').eq('id', cleanerId).single()) as AnyRow;
+            if (cleanerRoute[2] === 'password' && method === 'POST') {
+                if (String(body.password || '').length < 10)
+                    throw new ApiError('Temporary password must be at least 10 characters');
+                const user = await one(service.from('st_users').select('*').eq('id', cleaner.user_id).single()) as AnyRow;
+                await result(service.auth.admin.updateUserById(user.auth_user_id, { password: String(body.password) }));
+                await notify(user.id, 'SECURITY', 'Password reset', 'Operations reset your login password.');
+                return { ok: true };
+            }
+            if (method === 'PATCH') {
+                const updates: AnyRow = { mode: body.mode, reliability_score: body.reliabilityScore, rating: body.rating, transport: body.transport, preferred_zones: body.preferredZones, max_jobs_day: body.maxJobsDay, active: body.active };
+                await result(service.from('st_cleaners').update(Object.fromEntries(Object.entries(updates).filter(([, value]) => value !== undefined))).eq('id', cleanerId));
+                const user = await one(service.from('st_users').select('*').eq('id', cleaner.user_id).single()) as AnyRow;
+                if (body.email !== undefined)
+                    await updateManagedLoginEmail(user, body.email);
+                const userUpdates: AnyRow = { active: body.active, full_name: body.fullName, phone: body.phone, language: body.language && validLanguage(body.language) };
+                await result(service.from('st_users').update(Object.fromEntries(Object.entries(userUpdates).filter(([, value]) => value !== undefined))).eq('id', cleaner.user_id));
+                return { cleaner: await one(service.from('st_cleaners').select('*').eq('id', cleanerId).single()) };
+            }
+        }
+        if (route === 'admin/clients' && method === 'GET') {
+            const month = today().slice(0, 7);
+            const [clients, objects, jobs] = await Promise.all([
+                result(service.from('st_client_accounts').select('*').order('created_at', { ascending: false })) as Promise<AnyRow[]>,
+                result(service.from('st_objects').select('id,client_id,active,approval_status')) as Promise<AnyRow[]>,
+                result(service.from('st_jobs').select('client_id,service_date,status,client_price,extra_revenue').gte('service_date', `${month}-01`).lte('service_date', monthEnd(month))) as Promise<AnyRow[]>,
+            ]);
+            const users = await fetchRows('st_users', clients.map((item) => item.user_id));
+            return { clients: clientAccountRows({ clients, users, objects, jobs, month }) };
+        }
+        if (route === 'admin/clients' && method === 'POST')
+            return createManagedUser(['PROPERTY_MANAGER', 'MANAGER'].includes(String(body.accountType)) ? 'PROPERTY_MANAGER' : 'OWNER', body);
+        const clientRoute = route.match(/^admin\/clients\/(\d+)(?:\/(password))?$/);
+        if (clientRoute) {
+            const clientId = number(clientRoute[1]);
+            const client = await one(service.from('st_client_accounts').select('*').eq('id', clientId).single()) as AnyRow;
+            const user = await one(service.from('st_users').select('*').eq('id', client.user_id).single()) as AnyRow;
+            if (clientRoute[2] === 'password' && method === 'POST') {
+                if (String(body.password || '').length < 10)
+                    throw new ApiError('Temporary password must be at least 10 characters');
+                await result(service.auth.admin.updateUserById(user.auth_user_id, { password: String(body.password) }));
+                return { ok: true };
+            }
+            if (method === 'PATCH') {
+                if (body.email !== undefined)
+                    await updateManagedLoginEmail(user, body.email);
+                await result(service.from('st_users').update({ full_name: body.fullName ?? user.full_name, phone: body.phone ?? user.phone, language: body.language ? validLanguage(body.language) : user.language, active: body.active ?? user.active }).eq('id', user.id));
+                const updates: AnyRow = { account_type: body.accountType === 'MANAGER' ? 'PROPERTY_MANAGER' : body.accountType, company_name: body.companyName, billing_name: body.billingName, ico: body.ico, dic: body.dic, ic_dph: body.icDph, billing_address: body.billingAddress, notes: body.notes };
+                const accountUpdates = Object.fromEntries(Object.entries(updates).filter(([, value]) => value !== undefined));
+                if (!Object.keys(accountUpdates).length)
+                    return { client };
+                return { client: await one(service.from('st_client_accounts').update(accountUpdates).eq('id', clientId).select().single()) };
+            }
+        }
+        if (route === 'admin/finance' && method === 'GET') {
+            const month = /^\d{4}-\d{2}$/.test(String(query.month || '')) ? String(query.month) : today().slice(0, 7);
+            const from = `${month}-01`, to = monthEnd(month);
+            const trendStart = new Date(`${month}-01T12:00:00Z`);
+            trendStart.setUTCMonth(trendStart.getUTCMonth() - 11);
+            const [rawJobs, entries, trendJobs, trendEntries] = await Promise.all([
+                result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as Promise<AnyRow[]>,
+                result(service.from('st_financial_entries').select('*').gte('entry_date', from).lte('entry_date', to).order('entry_date', { ascending: false })) as Promise<AnyRow[]>,
+                result(service.from('st_jobs').select('*').gte('service_date', trendStart.toISOString().slice(0, 10)).lte('service_date', to)) as Promise<AnyRow[]>,
+                result(service.from('st_financial_entries').select('*').gte('entry_date', trendStart.toISOString().slice(0, 10)).lte('entry_date', to)) as Promise<AnyRow[]>,
+            ]);
+            const jobs = await hydrateJobs(rawJobs);
+            const clients = await fetchRows('st_client_accounts', entries.map((entry) => entry.client_id));
+            const objects = await fetchRows('st_objects', entries.map((entry) => entry.object_id));
+            const users = await fetchRows('st_users', clients.map((client) => client.user_id));
+            const clientById = new Map(clients.map((client) => [String(client.id), client]));
+            const objectById = new Map(objects.map((object) => [String(object.id), object]));
+            const userById = new Map(users.map((user) => [String(user.id), user]));
+            const detailedEntries = entries.map((entry) => ({ ...entry, client_name: userById.get(String(clientById.get(String(entry.client_id))?.user_id))?.full_name || null, company_name: clientById.get(String(entry.client_id))?.company_name || null, object_code: objectById.get(String(entry.object_id))?.code || null, object_name: objectById.get(String(entry.object_id))?.name || null }));
+            const report = financeBoardReport({ jobs, entries: detailedEntries, month, trendJobs, trendEntries });
+            return { month, from, to, ...report, entries: detailedEntries, jobs };
+        }
+        if (route === 'admin/finance/entries' && method === 'POST') {
+            if (number(body.amount) <= 0 || !['INCOME', 'EXPENSE'].includes(String(body.entryType)))
+                throw new ApiError('Valid type and positive amount are required');
+            return { entry: await one(service.from('st_financial_entries').insert({ entry_date: body.entryDate || today(), entry_type: body.entryType, category: body.category || 'OTHER', amount: number(body.amount), description: body.description || null, client_id: body.clientId || null, object_id: body.objectId || null, job_id: body.jobId || null, created_by_user_id: ctx.appUser.id }).select().single()) };
+        }
+        const financeEntry = route.match(/^admin\/finance\/entries\/(\d+)$/);
+        if (financeEntry && method === 'DELETE') {
+            await result(service.from('st_financial_entries').delete().eq('id', number(financeEntry[1])));
+            return { ok: true };
+        }
+        if (route === 'admin/issues' && method === 'GET') {
+            const issues = await result(service.from('st_issues').select('*').order('status').order('priority').order('id', { ascending: false })) as AnyRow[];
+            const jobs = await fetchRows('st_jobs', issues.map((issue) => issue.job_id));
+            const hydrated = await hydrateJobs(jobs);
+            const jobById = new Map(hydrated.map((job) => [String(job.id), job]));
+            return { issues: issues.map((issue) => ({ ...issue, ...{ object_code: jobById.get(String(issue.job_id))?.object_code, address: jobById.get(String(issue.job_id))?.address, cleaner_name: jobById.get(String(issue.job_id))?.cleaner_name, service_date: jobById.get(String(issue.job_id))?.service_date }, photos: issue.photos_json || [] })) };
+        }
+        const issueRoute = route.match(/^admin\/issues\/(\d+)$/);
+        if (issueRoute && method === 'PATCH') {
+            const issue = await one(service.from('st_issues').update({ status: body.status || 'OPEN', resolution_note: body.resolutionNote || null, resolved_at: body.status === 'RESOLVED' ? new Date().toISOString() : null }).eq('id', number(issueRoute[1])).select().single()) as AnyRow;
+            if (issue.status === 'RESOLVED') {
+                const remaining = await result(service.from('st_issues').select('id').eq('job_id', issue.job_id).eq('status', 'OPEN')) as AnyRow[];
+                if (!remaining.length)
+                    await result(service.from('st_jobs').update({ issue_flag: false }).eq('id', issue.job_id));
+            }
+            await insertEvent(issue.job_id, ctx.appUser.id, 'ISSUE_UPDATED', { issueId: issue.id, status: issue.status });
+            return { issue };
+        }
+        if (route === 'admin/capacity' && method === 'GET') {
+            const [raw, cleaners, appSettings] = await Promise.all([result(service.from('st_jobs').select('*').eq('service_date', date).neq('status', 'CANCELLED')) as Promise<AnyRow[]>, activeCleaners(date), settings()]);
+            return { date, capacity: capacity(cleaners, raw, appSettings), cleaners, jobs: await hydrateJobs(raw) };
+        }
+        if (route === 'admin/analytics' && method === 'GET') {
+            const from = String(query.from || '2000-01-01'), to = String(query.to || '2099-12-31');
+            const [raw, issues, cleaners] = await Promise.all([
+                result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as Promise<AnyRow[]>,
+                result(service.from('st_issues').select('id').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`)) as Promise<AnyRow[]>,
+                activeCleaners(date),
+            ]);
+            const completed = raw.filter((job) => job.status === 'COMPLETED');
+            const onTime = completed.filter((job) => job.completed_at && new Date(job.completed_at).getHours() <= 15);
+            const objects = await result(service.from('st_objects').select('*').order('code')) as AnyRow[];
+            return { summary: { jobs: raw.length, completed: completed.length, onTimePct: completed.length ? Math.round(onTime.length / completed.length * 1000) / 10 : 100, rescue: raw.filter((job) => job.rescue_state !== 'NONE').length, cancelled: raw.filter((job) => job.status === 'CANCELLED').length, issues: issues.length }, byDate: [], cleanerRanking: cleaners, objectPerformance: objects.map((object) => ({ ...object, jobs: raw.filter((job) => same(job.object_id, object.id)).length, avg_duration: raw.filter((job) => same(job.object_id, object.id)).length ? Math.round(raw.filter((job) => same(job.object_id, object.id)).reduce((sum, job) => sum + number(job.duration_minutes), 0) / raw.filter((job) => same(job.object_id, object.id)).length) : null })) };
+        }
+        if (route === 'admin/settings' && method === 'GET')
+            return { settings: await settings() };
+        if (route === 'admin/settings' && method === 'PATCH') {
+            const updates = Object.entries(body).filter(([key]) => key !== "requestId").map(([key, value]) => ({ setting_key: key, value_json: value }));
+            if (updates.length)
+                await result(service.from('st_settings').upsert(updates, { onConflict: 'setting_key' }));
+            return { settings: await settings() };
+        }
+        throw new ApiError('Route not found', 404);
     }
-    if (method === 'DELETE') { await result(service.from('st_objects').delete().eq('id', id)); return { ok: true }; }
-  }
-  if (route === 'admin/jobs' && method === 'GET') {
-    let builder: any = service.from('st_jobs').select('*').eq('service_date', date).order('planned_start');
-    if (query.status) builder = builder.eq('status', query.status);
-    if (query.cleanerId) builder = builder.eq('assigned_cleaner_id', number(query.cleanerId));
-    return { jobs: await hydrateJobs(await result(builder) as AnyRow[]) };
-  }
-  if (route === 'admin/jobs' && method === 'POST') {
-    const job = await createJob(ctx, body);
-    await insertEvent(job.id, ctx.appUser.id, 'JOB_CREATED', { serviceDate: body.serviceDate });
-    return { job: (await hydrateJobs([job]))[0] };
-  }
-  if (route === 'admin/jobs/generate' && method === 'POST') {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.serviceDate || ''))) throw new ApiError('serviceDate required');
-    const objects = body.objectIds?.length ? await fetchRows('st_objects', body.objectIds) : await result(service.from('st_objects').select('*').eq('active', true)) as AnyRow[];
-    const created: number[] = [], skipped: number[] = [];
-    for (const object of objects) {
-      try { const job = await createJob(ctx, { objectId: object.id, serviceDate: body.serviceDate, marketplaceVisible: body.publish !== false }); created.push(job.id); await insertEvent(job.id, ctx.appUser.id, 'JOB_GENERATED', { serviceDate: body.serviceDate }); }
-      catch (error) { if (error instanceof ApiError && error.status === 409) skipped.push(object.id); else throw error; }
-    }
-    return { created: created.length, skipped, jobIds: created };
-  }
-  const jobRoute = route.match(/^admin\/jobs\/(\d+)(?:\/(assign|rescue|bonus|review))?$/);
-  if (jobRoute) {
-    const id = number(jobRoute[1]);
-    const action = jobRoute[2] || '';
-    if (!action && method === 'GET') return jobDetails(ctx, id);
-    if (!action && method === 'PATCH') {
-      return { job: (await hydrateJobs([await jobCommand(ctx, id, 'patch', body)]))[0] };
-    }
-    if (action === 'review' && method === 'POST') {
-      requireRole(ctx, ['ADMIN', 'OPERATIONS_MANAGER']);
-      if (!['APPROVED','REWORK_REQUIRED'].includes(body.decision) || !Number.isInteger(body.expectedVersion) || body.expectedVersion < 1 || !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,95}$/.test(String(body.requestId || ''))) throw new ApiError('Decision, expectedVersion and valid requestId required');
-      const reviewed = await result(service.rpc('st_review_job', { p_actor_id: ctx.appUser.id, p_job_id: id, p_decision: body.decision, p_note: String(body.note || ''), p_request_id: body.requestId, p_expected_version: body.expectedVersion })) as AnyRow;
-      return { job: (await hydrateJobs([reviewed]))[0] };
-    }
-    const job = await getJob(id);
-    const terminal = ['COMPLETED', 'CANCELLED'].includes(job.status);
-    if (['assign', 'rescue'].includes(action) && terminal) throw new ApiError('Completed or cancelled jobs cannot be reassigned', 409);
-    if (action === 'assign' && method === 'POST') {
-      const cleanerId = number(body.cleanerId);
-      const cleaner = await one(service.from('st_cleaners').select('*').eq('id', cleanerId).eq('active', true).single()) as AnyRow;
-      const updated = await jobCommand(ctx, id, 'assign', body);
-      return { job: (await hydrateJobs([updated]))[0] };
-    }
-    if (action === 'rescue' && method === 'POST') {
-      const cleanerId = number(body.cleanerId);
-      const bonus = number(body.bonus, Math.max(number(job.bonus), 6));
-      if (cleanerId) {
-        return routeAdmin(ctx, `admin/jobs/${id}/assign`, 'POST', {}, { ...body, cleanerId, bonus });
-      }
-      return { job: (await hydrateJobs([await jobCommand(ctx, id, 'rescue', { ...body, bonus })]))[0] };
-    }
-    if (action === 'bonus' && method === 'POST') {
-      return { job: (await hydrateJobs([await jobCommand(ctx, id, 'patch', { ...body, bonus: number(body.bonus) })]))[0] };
-    }
-  }
-  if (route === 'admin/cleaners' && method === 'GET') {
-    const rows = await activeCleaners(date);
-    const all = await result(service.from('st_cleaners').select('*').order('active', { ascending: false }).order('reliability_score', { ascending: false })) as AnyRow[];
-    const users = await fetchRows('st_users', all.map((item) => item.user_id));
-    const rawJobs = await result(service.from('st_jobs').select('*').eq('service_date', date)) as AnyRow[];
-    const byId = new Map(rows.map((item) => [String(item.id), item])); const userById = new Map(users.map((item) => [String(item.id), item]));
-    return { cleaners: all.map((cleaner) => ({ ...cleaner, ...userById.get(String(cleaner.user_id)), ...(byId.get(String(cleaner.id)) || { available: false, availability: { online: false, fromTime: '10:00', toTime: '15:00' } }), today_jobs: rawJobs.filter((job) => same(job.assigned_cleaner_id, cleaner.id) && job.status !== 'CANCELLED').length, today_earnings: rawJobs.filter((job) => same(job.assigned_cleaner_id, cleaner.id) && job.status === 'COMPLETED').reduce((sum, job) => sum + number(job.payout) + number(job.bonus), 0) })) };
-  }
-  if (route === 'admin/cleaners' && method === 'POST') return createManagedUser('CLEANER', body);
-  const cleanerRoute = route.match(/^admin\/cleaners\/(\d+)(?:\/(password))?$/);
-  if (cleanerRoute) {
-    const cleanerId = number(cleanerRoute[1]);
-    const cleaner = await one(service.from('st_cleaners').select('*').eq('id', cleanerId).single()) as AnyRow;
-    if (cleanerRoute[2] === 'password' && method === 'POST') {
-      if (String(body.password || '').length < 10) throw new ApiError('Temporary password must be at least 10 characters');
-      const user = await one(service.from('st_users').select('*').eq('id', cleaner.user_id).single()) as AnyRow;
-      await result(service.auth.admin.updateUserById(user.auth_user_id, { password: String(body.password) }));
-      await notify(user.id, 'SECURITY', 'Password reset', 'Operations reset your login password.');
-      return { ok: true };
-    }
-    if (method === 'PATCH') {
-      const updates: AnyRow = { mode: body.mode, reliability_score: body.reliabilityScore, rating: body.rating, transport: body.transport, preferred_zones: body.preferredZones, max_jobs_day: body.maxJobsDay, active: body.active };
-      await result(service.from('st_cleaners').update(Object.fromEntries(Object.entries(updates).filter(([, value]) => value !== undefined))).eq('id', cleanerId));
-      const user = await one(service.from('st_users').select('*').eq('id', cleaner.user_id).single()) as AnyRow;
-      if (body.email !== undefined) await updateManagedLoginEmail(user, body.email);
-      const userUpdates: AnyRow = { full_name: body.fullName, phone: body.phone, language: body.language && validLanguage(body.language) };
-      await result(service.from('st_users').update(Object.fromEntries(Object.entries(userUpdates).filter(([, value]) => value !== undefined))).eq('id', cleaner.user_id));
-      return { cleaner: await one(service.from('st_cleaners').select('*').eq('id', cleanerId).single()) };
-    }
-  }
-  if (route === 'admin/clients' && method === 'GET') {
-    const month = today().slice(0, 7);
-    const [clients, objects, jobs] = await Promise.all([
-      result(service.from('st_client_accounts').select('*').order('created_at', { ascending: false })) as Promise<AnyRow[]>,
-      result(service.from('st_objects').select('id,client_id,active,approval_status')) as Promise<AnyRow[]>,
-      result(service.from('st_jobs').select('client_id,service_date,status,client_price,extra_revenue').gte('service_date', `${month}-01`).lte('service_date', monthEnd(month))) as Promise<AnyRow[]>,
-    ]);
-    const users = await fetchRows('st_users', clients.map((item) => item.user_id));
-    return { clients: clientAccountRows({ clients, users, objects, jobs, month }) };
-  }
-  if (route === 'admin/clients' && method === 'POST') return createManagedUser(['PROPERTY_MANAGER', 'MANAGER'].includes(String(body.accountType)) ? 'PROPERTY_MANAGER' : 'OWNER', body);
-  const clientRoute = route.match(/^admin\/clients\/(\d+)(?:\/(password))?$/);
-  if (clientRoute) {
-    const clientId = number(clientRoute[1]);
-    const client = await one(service.from('st_client_accounts').select('*').eq('id', clientId).single()) as AnyRow;
-    const user = await one(service.from('st_users').select('*').eq('id', client.user_id).single()) as AnyRow;
-    if (clientRoute[2] === 'password' && method === 'POST') {
-      if (String(body.password || '').length < 10) throw new ApiError('Temporary password must be at least 10 characters');
-      await result(service.auth.admin.updateUserById(user.auth_user_id, { password: String(body.password) }));
-      return { ok: true };
-    }
-    if (method === 'PATCH') {
-      if (body.email !== undefined) await updateManagedLoginEmail(user, body.email);
-      await result(service.from('st_users').update({ full_name: body.fullName ?? user.full_name, phone: body.phone ?? user.phone, language: body.language ? validLanguage(body.language) : user.language, active: body.active ?? user.active }).eq('id', user.id));
-      const updates: AnyRow = { account_type: body.accountType === 'MANAGER' ? 'PROPERTY_MANAGER' : body.accountType, company_name: body.companyName, billing_name: body.billingName, ico: body.ico, dic: body.dic, ic_dph: body.icDph, billing_address: body.billingAddress, notes: body.notes };
-      return { client: await one(service.from('st_client_accounts').update(Object.fromEntries(Object.entries(updates).filter(([, value]) => value !== undefined))).eq('id', clientId).select().single()) };
-    }
-  }
-  if (route === 'admin/finance' && method === 'GET') {
-    const month = /^\d{4}-\d{2}$/.test(String(query.month || '')) ? String(query.month) : today().slice(0, 7);
-    const from = `${month}-01`, to = monthEnd(month);
-    const trendStart = new Date(`${month}-01T12:00:00Z`); trendStart.setUTCMonth(trendStart.getUTCMonth() - 11);
-    const [rawJobs, entries, trendJobs, trendEntries] = await Promise.all([
-      result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as Promise<AnyRow[]>,
-      result(service.from('st_financial_entries').select('*').gte('entry_date', from).lte('entry_date', to).order('entry_date', { ascending: false })) as Promise<AnyRow[]>,
-      result(service.from('st_jobs').select('*').gte('service_date', trendStart.toISOString().slice(0, 10)).lte('service_date', to)) as Promise<AnyRow[]>,
-      result(service.from('st_financial_entries').select('*').gte('entry_date', trendStart.toISOString().slice(0, 10)).lte('entry_date', to)) as Promise<AnyRow[]>,
-    ]);
-    const jobs = await hydrateJobs(rawJobs);
-    const clients = await fetchRows('st_client_accounts', entries.map((entry) => entry.client_id));
-    const objects = await fetchRows('st_objects', entries.map((entry) => entry.object_id));
-    const users = await fetchRows('st_users', clients.map((client) => client.user_id));
-    const clientById = new Map(clients.map((client) => [String(client.id), client]));
-    const objectById = new Map(objects.map((object) => [String(object.id), object]));
-    const userById = new Map(users.map((user) => [String(user.id), user]));
-    const detailedEntries = entries.map((entry) => ({ ...entry, client_name: userById.get(String(clientById.get(String(entry.client_id))?.user_id))?.full_name || null, company_name: clientById.get(String(entry.client_id))?.company_name || null, object_code: objectById.get(String(entry.object_id))?.code || null, object_name: objectById.get(String(entry.object_id))?.name || null }));
-    const report = financeBoardReport({ jobs, entries: detailedEntries, month, trendJobs, trendEntries });
-    return { month, from, to, ...report, entries: detailedEntries, jobs };
-  }
-  if (route === 'admin/finance/entries' && method === 'POST') {
-    if (number(body.amount) <= 0 || !['INCOME', 'EXPENSE'].includes(String(body.entryType))) throw new ApiError('Valid type and positive amount are required');
-    return { entry: await one(service.from('st_financial_entries').insert({ entry_date: body.entryDate || today(), entry_type: body.entryType, category: body.category || 'OTHER', amount: number(body.amount), description: body.description || null, client_id: body.clientId || null, object_id: body.objectId || null, job_id: body.jobId || null, created_by_user_id: ctx.appUser.id }).select().single()) };
-  }
-  const financeEntry = route.match(/^admin\/finance\/entries\/(\d+)$/);
-  if (financeEntry && method === 'DELETE') { await result(service.from('st_financial_entries').delete().eq('id', number(financeEntry[1]))); return { ok: true }; }
-  if (route === 'admin/issues' && method === 'GET') {
-    const issues = await result(service.from('st_issues').select('*').order('status').order('priority').order('id', { ascending: false })) as AnyRow[];
-    const jobs = await fetchRows('st_jobs', issues.map((issue) => issue.job_id)); const hydrated = await hydrateJobs(jobs);
-    const jobById = new Map(hydrated.map((job) => [String(job.id), job]));
-    return { issues: issues.map((issue) => ({ ...issue, ...{ object_code: jobById.get(String(issue.job_id))?.object_code, address: jobById.get(String(issue.job_id))?.address, cleaner_name: jobById.get(String(issue.job_id))?.cleaner_name, service_date: jobById.get(String(issue.job_id))?.service_date }, photos: issue.photos_json || [] })) };
-  }
-  const issueRoute = route.match(/^admin\/issues\/(\d+)$/);
-  if (issueRoute && method === 'PATCH') {
-    const issue = await one(service.from('st_issues').update({ status: body.status || 'OPEN', resolution_note: body.resolutionNote || null, resolved_at: body.status === 'RESOLVED' ? new Date().toISOString() : null }).eq('id', number(issueRoute[1])).select().single()) as AnyRow;
-    if (issue.status === 'RESOLVED') {
-      const remaining = await result(service.from('st_issues').select('id').eq('job_id', issue.job_id).eq('status', 'OPEN')) as AnyRow[];
-      if (!remaining.length) await result(service.from('st_jobs').update({ issue_flag: false }).eq('id', issue.job_id));
-    }
-    await insertEvent(issue.job_id, ctx.appUser.id, 'ISSUE_UPDATED', { issueId: issue.id, status: issue.status });
-    return { issue };
-  }
-  if (route === 'admin/capacity' && method === 'GET') {
-    const [raw, cleaners, appSettings] = await Promise.all([result(service.from('st_jobs').select('*').eq('service_date', date).neq('status', 'CANCELLED')) as Promise<AnyRow[]>, activeCleaners(date), settings()]);
-    return { date, capacity: capacity(cleaners, raw, appSettings), cleaners, jobs: await hydrateJobs(raw) };
-  }
-  if (route === 'admin/analytics' && method === 'GET') {
-    const from = String(query.from || '2000-01-01'), to = String(query.to || '2099-12-31');
-    const [raw, issues, cleaners] = await Promise.all([
-      result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as Promise<AnyRow[]>,
-      result(service.from('st_issues').select('id').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`)) as Promise<AnyRow[]>,
-      activeCleaners(date),
-    ]);
-    const completed = raw.filter((job) => job.status === 'COMPLETED');
-    const onTime = completed.filter((job) => job.completed_at && new Date(job.completed_at).getHours() <= 15);
-    const objects = await result(service.from('st_objects').select('*').order('code')) as AnyRow[];
-    return { summary: { jobs: raw.length, completed: completed.length, onTimePct: completed.length ? Math.round(onTime.length / completed.length * 1000) / 10 : 100, rescue: raw.filter((job) => job.rescue_state !== 'NONE').length, cancelled: raw.filter((job) => job.status === 'CANCELLED').length, issues: issues.length }, byDate: [], cleanerRanking: cleaners, objectPerformance: objects.map((object) => ({ ...object, jobs: raw.filter((job) => same(job.object_id, object.id)).length, avg_duration: raw.filter((job) => same(job.object_id, object.id)).length ? Math.round(raw.filter((job) => same(job.object_id, object.id)).reduce((sum, job) => sum + number(job.duration_minutes), 0) / raw.filter((job) => same(job.object_id, object.id)).length) : null })) };
-  }
-  if (route === 'admin/settings' && method === 'GET') return { settings: await settings() };
-  if (route === 'admin/settings' && method === 'PATCH') {
-    const updates = Object.entries(body).map(([key, value]) => ({ setting_key: key, value_json: value }));
-    if (updates.length) await result(service.from('st_settings').upsert(updates, { onConflict: 'setting_key' }));
-    return { settings: await settings() };
-  }
-  throw new ApiError('Route not found', 404);
-}
 
 async function bootstrap(req: Request, body: AnyRow) {
   const { authUser } = await authOnly(req);
@@ -896,6 +982,8 @@ Deno.serve(async (req) => {
       return json({ notifications, unread: notifications.filter((item) => !item.read_at).length });
     }
     if (route === 'notifications/read' && method === 'POST') { await result(service.from('st_notifications').update({ read_at: new Date().toISOString() }).eq('user_id', ctx.appUser.id).is('read_at', null)); return json({ ok: true }); }
+    const propertyPhotos = await propertyPhotosRoute({ ctx, route, method, body, service, result, ApiError, jobFor, clientObject });
+    if (propertyPhotos !== null) return json(propertyPhotos);
     const extended=await operationsRoute({ctx,route,method,query,body,service,result,ApiError,today});
     if(extended!==null)return json(extended);
     if (route.startsWith('account/')) return json(await account(ctx, route, method, body));

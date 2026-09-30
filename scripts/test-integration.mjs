@@ -28,7 +28,7 @@ try{
  }
  await db.query(`insert into st_cleaners(user_id,max_jobs_day) values(2,20),(3,20);
  insert into st_client_accounts(user_id,account_type) values(4,'OWNER'),(5,'PROPERTY_MANAGER');
- insert into st_objects(client_id,code,name,address,checkout_time,deadline_time,duration_minutes,payout,client_price) values(1,'INTEGRATION','Test apartment','Synthetic address','08:00','20:00',60,20,40);
+ insert into st_objects(client_id,code,name,address,checkout_time,deadline_time,duration_minutes,payout,client_price,access_instructions) values(1,'INTEGRATION','Test apartment','Synthetic address','08:00','20:00',60,20,40,'Synthetic-door-code');
  insert into st_cleaner_availability(cleaner_id,service_date,online,from_time,to_time) values(1,current_date+1,true,'08:00','20:00'),(2,current_date+1,true,'08:00','20:00');`);
  for(let attempt=0;;attempt++){try{await api(0,'health');break}catch(error){if(attempt>=30)throw error;await new Promise(r=>setTimeout(r,1000));}}
  for(let i=0;i<roles.length;i++)assert.equal((await api(i,'me')).user.role,roles[i]);
@@ -66,6 +66,19 @@ try{
  }
  assert.ok(events.length>0,'Assigned cleaner must receive real Realtime job changes');
  for(const event of events)assert.deepEqual(Object.keys(event.new).sort(),['changed_at','job_id']);
+ // Entry details and reference photos are visible only to the assigned cleaner during active work.
+ assert.match(JSON.stringify(await api(cleaner,path)),/Synthetic-door-code/,'Active cleaner sees entry details');
+ const guidePng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aBZkAAAAASUVORK5CYII=','base64').toString('base64');
+ const {photo:guide}=await api(0,'objects/1/reference-photos','POST',{caption:'Entrance',mime:'image/png',base64:guidePng});
+ assert.equal((await api(cleaner,`cleaner/jobs/${booking.id}/reference-photos`)).photos.length,1);
+ assert.match((await api(cleaner,`cleaner/jobs/${booking.id}/reference-photos/${guide.id}`)).dataUrl,/^data:image\/png;base64,/);
+ await assert.rejects(api(unrelated,`cleaner/jobs/${booking.id}/reference-photos`),/403|Forbidden|assigned/i);
+ await assert.rejects(api(4,'objects/1/reference-photos'),/403|Forbidden/i,'Unlinked property manager is denied');
+ await api(0,'admin/clients/2/properties','POST',{objectId:1});
+ assert.equal((await api(4,'objects/1/reference-photos')).photos.length,1,'Linked property manager can view');
+ await assert.rejects(api(4,`objects/1/reference-photos/${guide.id}`,'DELETE'),/403|Forbidden/i,'Property manager cannot delete');
+ assert.equal((await api(3,'objects/1/reference-photos')).photos.length,1,'Owner can view');
+ await assert.rejects(api(cleaner,'objects/1/reference-photos'),/403|Forbidden/i);
  for(const item of (await db.query('select id from st_job_checklist where job_id=$1',[booking.id])).rows)await api(cleaner,`${path}/checklist/${item.id}`,'PATCH',{completed:true});
  await assert.rejects(api(cleaner,`${path}/complete`,'POST',{requestId:crypto.randomUUID()}),/photo/i);
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aBZkAAAAASUVORK5CYII=','base64');
@@ -79,15 +92,27 @@ try{
  const completion={requestId:crypto.randomUUID()};
  await api(cleaner,`${path}/complete`,'POST',completion);
  await api(cleaner,`${path}/complete`,'POST',completion);
+ assert.doesNotMatch(JSON.stringify(await api(cleaner,path)),/Synthetic-door-code/,'Entry details are withdrawn after completion');
+ await assert.rejects(api(cleaner,`cleaner/jobs/${booking.id}/reference-photos`),/403|Forbidden/i,'Reference photos are withdrawn after completion');
+ const month=date.slice(0,7);
+ const waiting=await api(0,'admin/settlements/monthly','GET',{},{month,side:'CLIENT',partyId:1});
+ assert.deepEqual(waiting.groups,[],'Unapproved work is not offered for monthly settlement');assert.equal(waiting.waitingReviewJobs,1);
+ await assert.rejects(api(0,'admin/settlements/batch','POST',{month,side:'CLIENT',partyId:1,items:[{jobId:booking.id,amountCents:4000}],note:'Synthetic',requestId:crypto.randomUUID()}),/review|approv/i);
+ await assert.rejects(api(5,'admin/settlements/monthly','GET',{},{month,side:'CLIENT'}),/403|Forbidden/i,'Operations manager cannot see monthly finance');
  await assert.rejects(api(0,'admin/settlements','POST',{jobId:booking.id,kind:'CLEANER_PAYOUT',amountCents:2000,note:'Synthetic test',requestId:crypto.randomUUID()}),/review|approv/i);
  const pending=await api(5,`admin/jobs/${booking.id}`);
  assert.equal(pending.review_status,'PENDING');
  const accepted=await api(5,`admin/jobs/${booking.id}/review`,'POST',{decision:'APPROVED',expectedVersion:pending.review_version,requestId:crypto.randomUUID()});
  assert.equal(accepted.job.review_status,'APPROVED');
- for(const [kind,amountCents] of [['CLIENT_PAYMENT',4000],['CLEANER_PAYOUT',2000]])await api(0,'admin/settlements','POST',{jobId:booking.id,kind,amountCents,note:'Synthetic test',requestId:crypto.randomUUID()});
+ const ready=await api(0,'admin/settlements/monthly','GET',{},{month,side:'CLIENT',partyId:1});
+ assert.equal(ready.groups.length,1);assert.equal(ready.groups[0].dueCents,4000);assert.equal(ready.waitingReviewJobs,0);
+ const batch={month,side:'CLIENT',partyId:1,items:[{jobId:booking.id,amountCents:4000}],note:'Synthetic monthly',requestId:crypto.randomUUID()};
+ assert.deepEqual(await api(0,'admin/settlements/batch','POST',batch),{count:1,amountCents:4000});
+ assert.deepEqual(await api(0,'admin/settlements/batch','POST',batch),{count:1,amountCents:4000},'Batch replay is idempotent');
+ await api(0,'admin/settlements','POST',{jobId:booking.id,kind:'CLEANER_PAYOUT',amountCents:2000,note:'Synthetic test',requestId:crypto.randomUUID()});
  const settlement=await api(0,'admin/settlements','GET',{}, {month:date.slice(0,7)});
  assert.equal(settlement.summary.dueCents,0);assert.equal(settlement.summary.payableCents,0);
  await assert.rejects(api(3,'admin/settings'),/403|Forbidden|permission/i);
- const report={realAuthRoles:5,booking:true,signedStorageUpload:true,idempotentFinalize:true,completion:true,settlements:true,realtime:true,privateJobAccess:true,productionTouched:false};
+ const report={realAuthRoles:5,booking:true,referencePhotos:true,entryDetailsWithdrawn:true,monthlySettlementGate:true,signedStorageUpload:true,idempotentFinalize:true,completion:true,settlements:true,realtime:true,privateJobAccess:true,productionTouched:false};
  await writeFile('artifacts/integration-result.json',JSON.stringify(report,null,2));console.log(report);
 }finally{for(const stop of channels)await stop();await db.end();for(const client of clients)await client.auth.signOut();}

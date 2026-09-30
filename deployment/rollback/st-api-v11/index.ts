@@ -1,0 +1,12 @@
+import { runtime } from './runtime.ts';
+import { createAuth } from './auth.ts';
+import { createJobs } from './jobs.ts';
+import { createCleaner } from './cleaner.ts';
+import { createClientRoutes } from './client.ts';
+import { createAdmin } from './admin.ts';
+import { createHandler } from './router.ts';
+const auth = createAuth(runtime);
+const services = { ...runtime, ...auth };
+const jobs = createJobs(services);
+const shared = { ...services, ...jobs };
+Deno.serve(createHandler({ ...shared, ...createCleaner(shared), ...createClientRoutes(shared), ...createAdmin(shared) }));
