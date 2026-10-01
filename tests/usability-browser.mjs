@@ -28,7 +28,10 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    let m;
    if(path.startsWith('/api/admin/jobs?')||path==='/api/admin/jobs')return {jobs:structuredClone(jobs)};
    if(path==='/api/admin/cleaners')return {cleaners:[{id:1,full_name:'Test Cleaner',mode:'FLEX',reliability_score:95,active:true}]};
-   if(path==='/api/admin/clients')return {clients:[{id:5,full_name:'Manager',email:'m@test.invalid',account_type:'PROPERTY_MANAGER',user_active:true,language:'en'}]};
+   if(path==='/api/admin/clients'&&(opts.method||'GET')==='GET')return {clients:[{id:5,full_name:'Manager',email:'m@test.invalid',account_type:'PROPERTY_MANAGER',user_active:true,language:'en'},{id:4,full_name:'Olga Owner',company_name:'Demo stays',billing_name:'Demo stays s.r.o.',billing_address:'Hlavná 1, Bratislava',ico:'12345678',email:'o@test.invalid',account_type:'OWNER',user_active:true,language:'en'}]};
+   if((m=path.match(/^\/api\/admin\/(clients|cleaners|objects)\/(\d+)$/))&&['PATCH','DELETE'].includes(opts.method)){window.mutations=(window.mutations||[]).concat([{path,method:opts.method,body:opts.body}]);if(opts.method==='DELETE'&&m[2]==='11')throw Object.assign(Error('update or delete on table "st_objects" violates foreign key constraint on table "st_jobs"'),{status:409});return {ok:true}}
+   if(path.startsWith('/api/admin/finance?'))return {entries:[{id:1,client_id:4,entry_date:'2099-01-09',entry_type:'INCOME',category:'LAUNDRY',amount:12,description:'Towels'}]};
+   if(m=path.match(/^\/api\/objects\/11\/reference-photos(?:\/(\d+))?$/)){window.photos ||= [{id:1,caption:'Entrance',mime:'image/png'},{id:2,caption:'Door',mime:'image/png'}];if(opts.method==='DELETE'){photos=photos.filter(p=>p.id!==Number(m[1]));return {ok:true}}if(m[1])return {dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aBZkAAAAASUVORK5CYII='};return {photos:structuredClone(photos)}}
    if(path==='/api/admin/objects')return {objects:structuredClone(objects)};
    if(m=path.match(/^\/api\/admin\/clients\/5\/properties(?:\/(\d+))?$/)){
     if((opts.method||'GET')==='GET')return {objectIds:[...linked]};
@@ -51,7 +54,7 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
  });
  await page.addScriptTag({content:await readFile('assets/app.js','utf8')});
  await page.addScriptTag({content:await readFile('assets/property-photos.js','utf8')});
- for(const name of ['money.js','operations-extension.js'])await page.addScriptTag({content:await readFile('assets/'+name,'utf8')});
+ for(const name of ['money.js','operations-extension.js','finance-statements.js'])await page.addScriptTag({content:await readFile('assets/'+name,'utf8')});
  return {page,errors};
 }
 const lastCall=(page,re,method)=>page.evaluate(([src,m])=>calls.filter(c=>new RegExp(src).test(c.path)&&(!m||c.method===m)).at(-1),[re.source,method]);
@@ -155,6 +158,52 @@ try {
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS monthly batch settlement: approved-only notice, selection total, idempotent request');
+ }
+ // Admin: client statement with 12-month debt, CSV and printable report.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};location.hash='admin/statements';await new Promise(r=>setTimeout(r,100));await render()});
+  await page.getByRole('button',{name:'Statement',exact:true}).first().waitFor();
+  assert.match(await page.locator('#page').innerText(),/€906/,'12-month outstanding sums every month');
+  assert.match(await page.locator('#admin-sidebar').innerText(),/Statements/);
+  await page.getByRole('button',{name:'Statement',exact:true}).first().click();
+  await page.locator('.statement-head').waitFor();
+  const text=await page.locator('.modal').innerText();
+  assert.match(text,/Flat A/);assert.match(text,/Flat B/);assert.match(text,/€75\.50/);assert.match(text,/Towels/);
+  const [popup]=await Promise.all([page.waitForEvent('popup'),page.getByRole('button',{name:/Print/}).click()]);
+  await popup.waitForLoadState();
+  const report=await popup.content();
+  assert.match(report,/Demo stays s\.r\.o\./);assert.match(report,/IČO 12345678/);assert.match(report,/Amount due: €75\.50/);assert.doesNotMatch(report,/<script/i);
+  await popup.close();
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'CSV'}).click()]);
+  assert.match(download.suggestedFilename(),/^statement-Demo-stays-\d{4}-\d{2}\.csv$/);
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS client statement: 12-month debt, job lines, extras, printable report and CSV');
+ }
+ // Edit/delete controls: archive or delete property, deactivate accounts, delete reference photo.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={}});
+  await page.evaluate(()=>{setObjectActive(12,false)});await page.locator('#ask-ok').click();
+  await page.waitForFunction(()=>window.mutations?.length===1);
+  assert.deepEqual(await page.evaluate(()=>mutations[0]),{path:'/api/admin/objects/12',method:'PATCH',body:{active:false}});
+  await page.evaluate(()=>{deleteObject(11,'BA-101')});await page.locator('#ask-ok').click();
+  await page.waitForFunction(()=>document.querySelector('#toast-root')?.innerText.includes('Archive it instead'));
+  await page.evaluate(()=>{setCleanerActive(1,false)});await page.locator('#ask-ok').click();
+  await page.waitForFunction(()=>window.mutations?.some(m=>m.path==='/api/admin/cleaners/1'));
+  assert.deepEqual(await page.evaluate(()=>mutations.find(m=>m.path==='/api/admin/cleaners/1').body),{active:false});
+  await page.evaluate(()=>{document.querySelector('#app').innerHTML='<div id="page">'+propertyPhotoCard(11)+'</div>'});
+  await page.locator('.property-photo-card button').click();
+  await page.locator('#reference-gallery .photo-delete').first().waitFor();
+  assert.equal(await page.locator('#reference-gallery figure').count(),2);
+  await page.locator('#reference-gallery .photo-delete').first().click();
+  assert.match(await page.locator('#reference-gallery .photo-delete').first().innerText(),/Tap again/);
+  await page.locator('#reference-gallery .photo-delete').first().click();
+  await page.waitForFunction(()=>document.querySelectorAll('#reference-gallery figure').length===1);
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS archive/delete property, deactivate cleaner, delete reference photo');
  }
  // Language switch re-renders navigation, not only the page body.
  {

@@ -34,3 +34,11 @@ No authorization moved to the browser: every action uses an existing endpoint th
 ## Open
 
 Cleaner phone is visible to owners in job projections (pre-existing API behaviour); decide whether clients should see it. Service date change for an existing job needs an API command (not in this slice).
+
+## Addendum — edit/delete controls and finance statements (owner feedback 2026-10-01)
+
+- **Reference photos:** admins, operations managers and owners can delete a property photo (two-tap confirmation, existing `DELETE objects/{id}/reference-photos/{photoId}`).
+- **Properties:** Archive/Activate (`PATCH active`) and Delete. The database refuses to delete a property that has jobs (`st_jobs` FK is `restrict`); the UI then explains to archive it instead. Checklist, photo rows and manager links cascade with an empty property.
+- **Clients and cleaners:** one-click Activate/Deactivate with explanation; history and money stay untouched. Accounts are never hard-deleted.
+- **Statements** (`admin/statements`, ADMIN only; added to the operations-manager restricted set): per month and side (clients / cleaners) — charged, received, outstanding, plus outstanding over the last 12 months; per-party statement with every approved job (date, property, job #, amounts), the month's other finance entries for that client (informational), CSV export and a printable/PDF report with billing details (billing name, address, IČO, DIČ, IČ DPH). Data comes from `admin/settlements/monthly` (approved jobs only), `admin/clients|cleaners` and `admin/finance`.
+- Still not editable because the API has no command: finance entries (delete and re-enter), recurring schedule details (pause/resume only), reference-photo captions.

@@ -39,7 +39,7 @@
     }).filter(Boolean);
   }
 
-  const restrictedAdminRoutes = new Set(['owner', 'clients', 'cleaners', 'finance', 'settlements', 'settings']);
+  const restrictedAdminRoutes = new Set(['owner', 'clients', 'cleaners', 'finance', 'settlements', 'statements', 'settings']);
   function adminRouteAllowed(page, role) {
     return role === 'ADMIN' || (role === 'OPERATIONS_MANAGER' && !restrictedAdminRoutes.has(page));
   }

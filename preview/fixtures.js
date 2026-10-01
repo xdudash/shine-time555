@@ -61,6 +61,7 @@
     else if(resource==='/api/admin/issues')data={issues};
     else if(resource==='/api/admin/settings')data={settings};
     else if(resource==='/api/admin/recurring')data={schedules:[{id:1,st_objects:objects[0],weekdays:[1,3,5],planned_start:'10:00',start_date:today,end_date:null,active:true}]};
+    else if(resource==='/api/admin/settlements/monthly'){const side=url.searchParams.get('side')||'CLIENT';const party=url.searchParams.get('partyId');const rows=side==='CLIENT'?[{id:4,name:'Demo stays',count:2,chargedCents:8400,paidCents:4200,dueCents:4200},{id:5,name:'Demo stays Prague',count:1,chargedCents:4500,paidCents:0,dueCents:4500}]:[{id:3,name:'Demo cleaner',count:3,chargedCents:7300,paidCents:2400,dueCents:4900}];data={groups:rows,jobs:party?[{id:105,object_name:'Old Town apartment',service_date:yesterday,chargedCents:4200,paidCents:4200,dueCents:0},{id:106,object_name:'Riverside studio',service_date:yesterday,chargedCents:4200,paidCents:0,dueCents:4200}]:[],hasMore:false,waitingReviewJobs:1};}
     else if(/^\/api\/(admin|cleaner|client)\/settlements$/.test(resource))data=settlements();
     else if(resource==='/api/cleaner/dashboard'){
       const assigned=jobs.filter(j=>j.service_date===(url.searchParams.get('date')||today)&&j.cleaner_name);
