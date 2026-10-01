@@ -51,6 +51,7 @@ $publicConfig = [
   <script src="assets/app.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/app.js'), 0, 16) ?>"></script>
   <script src="assets/money.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/money.js'), 0, 16) ?>"></script>
   <script src="assets/operations-extension.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/operations-extension.js'), 0, 16) ?>"></script>
+  <script src="assets/finance-statements.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/finance-statements.js'), 0, 16) ?>"></script>
   <script src="assets/operations-validation.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/operations-validation.js'), 0, 16) ?>"></script>
   <script src="assets/monitoring-extension.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/monitoring-extension.js'), 0, 16) ?>"></script>
   <script src="assets/export.js?v=<?= substr(hash_file('sha256', __DIR__ . '/assets/export.js'), 0, 16) ?>"></script>
