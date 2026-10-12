@@ -4,8 +4,11 @@ import {createDatabase,seedDatabase} from './helpers/database.mjs';
 test('owner booking through assignment, proof, completion and both settlements',async()=>{
  const db=await createDatabase();await seedDatabase(db);
  try {
-  const {rows:[{job}]}=await db.query("select to_jsonb(st_create_job(4,jsonb_build_object('objectId',1,'serviceDate',current_date+1,'plannedStart','10:00'))) job");
-  assert.equal(job.status,'ACCEPTED');assert.equal(job.assigned_cleaner_id,1);
+  const {rows:[{job:booked}]}=await db.query("select to_jsonb(st_create_job(4,jsonb_build_object('objectId',1,'serviceDate',current_date+1,'earliestStart','09:00','deadline','15:00','note','Guests at 16:00'))) job");
+  // A client booking goes to the marketplace; the cleaner takes it and picks a start inside the window.
+  assert.equal(booked.status,'UNASSIGNED');assert.equal(booked.assigned_cleaner_id,null);assert.equal(booked.client_note,'Guests at 16:00');
+  const {rows:[{job}]}=await db.query("select to_jsonb(st_job_command(2,$1,'accept','{\"plannedStart\":\"10:00\"}',$2)) job",[booked.id,crypto.randomUUID()]);
+  assert.equal(job.status,'ACCEPTED');assert.equal(job.assigned_cleaner_id,1);assert.equal(String(job.planned_start).slice(0,5),'10:00');
   const command=(action,body={})=>db.query('select st_job_command(2,$1,$2,$3::jsonb,$4)',[job.id,action,JSON.stringify(body),crypto.randomUUID()]);
   for(const status of ['EN_ROUTE','ARRIVED','CLEANING'])await command('status',{status});
   await assert.rejects(command('complete'),/checklist/i);

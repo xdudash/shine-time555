@@ -63,7 +63,12 @@ test('settlement report separates review accrual from approved payable balance a
  for(const field of ['earnedCents','waitingReviewCents','payableCents','review_note']){assert.equal(field in owner.summary,false);assert.equal(field in owner.jobs[0],false)}
  const cleaner=await report(2);assert.equal('chargedCents' in cleaner.summary,false);assert.equal('dueCents' in cleaner.jobs[0],false);
  assert.equal((await report(3)).jobs.length,0);
- for(const actor of [5,6])await assert.rejects(report(actor),/Forbidden/);
+ await assert.rejects(report(6),/Forbidden/);
+ // A property manager reports on his own properties only, with client amounts and no payout or margin.
+ const unlinked=await report(5);assert.equal(unlinked.jobs.length,0);assert.equal(unlinked.summary.jobs,0);
+ await db.exec('insert into st_manager_properties(manager_client_id,object_id) values(2,1)');
+ const linked=await report(5);assert.equal(linked.summary.dueCents,4000);assert.equal(linked.jobs[0].chargedCents,4000);
+ for(const field of ['earnedCents','waitingReviewCents','payableCents','paidCents']){assert.equal(field in linked.summary,false);assert.equal(field in linked.jobs[0],false)}
  await db.exec('update st_users set active=false where id=2');await assert.rejects(report(2),/no rows|Forbidden/);await db.exec('update st_users set active=true where id=2');
  await review(db,id);
  assert.equal((await report(2)).summary.waitingReviewCents,0);assert.equal((await report(2)).summary.payableCents,2000);

@@ -45,6 +45,7 @@ export function availableBookingSlots({ object, cleaners, jobs, windows, duratio
 }
 
 export function riskForJob(job, currentTime) {
+  if (['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(job.status)) return { score: 0, level: 'GREEN', reasons: [] };
   const reasons = [];
   let score = 0;
   if (!job.assigned_cleaner_id && ['UNASSIGNED', 'AT_RISK', 'RESCUE'].includes(job.status)) {
@@ -220,35 +221,48 @@ export function cleanerStatusTransitionAllowed(from, to) {
   );
 }
 
+// The cleaner picks a start inside the client's window. A job is offered when some start
+// between now and (deadline - duration) fits the cleaner's day; availability is optional.
 export function marketplaceForCleaner({ cleaner, availability, assignedJobs, jobs, settings, now }) {
-  const from = clock(availability?.from_time || availability?.fromTime, '10:00');
-  const configuredEnd = clock(availability?.to_time || availability?.toTime, '15:00');
   const current = clock(now, '00:00');
+  const lead = current > 0 ? 15 : 0;
   const safetyBuffer = Number(settings?.safetyBuffer ?? 10);
   const travelBuffer = Number(settings?.travelBuffer ?? 15);
   const configuredMax = Number(cleaner?.max_jobs_day);
   const maxJobs = Number.isFinite(configuredMax) ? Math.max(0, configuredMax) : 5;
-  const activeAssigned = assignedJobs.filter((job) => job.status !== 'CANCELLED');
-  const assignedIntervals = activeAssigned.map((job) => {
+  const activeAssigned = assignedJobs.filter((job) => !['CANCELLED', 'EXPIRED'].includes(job.status));
+  const busy = activeAssigned.map((job) => {
     const start = clock(job.planned_start || job.earliest_start, '10:00');
     return { start, finish: start + Math.max(0, Number(job.duration_minutes || 0)) + safetyBuffer };
   });
+  const declaredOffline = availability && availability.online !== undefined && availability.online !== null && !online(availability.online) && availability.explicit === true;
 
   const resultJobs = jobs.map((job) => {
-    const start = clock(job.planned_start || job.earliest_start, '10:00');
-    const projectedFinish = start + Math.max(0, Number(job.duration_minutes || 0)) + safetyBuffer;
-    let feasibilityReason = null;
-    if (!online(availability?.online)) feasibilityReason = 'Cleaner is offline';
+    const duration = Math.max(0, Number(job.duration_minutes || 0));
+    const windowStart = clock(job.earliest_start, '10:00');
+    const deadline = clock(job.deadline, '23:59');
+    const latest = deadline - duration;
+    let feasibilityReason = null, chosen = null;
+    if (declaredOffline) feasibilityReason = 'You marked this day as off';
     else if (activeAssigned.length >= maxJobs) feasibilityReason = 'Daily limit reached';
-    else if (start < current) feasibilityReason = 'Job start has already passed';
-    else if (start < from || projectedFinish > configuredEnd) feasibilityReason = 'Outside cleaner availability';
-    else if (projectedFinish > clock(job.deadline, '23:59')) feasibilityReason = 'Outside object window';
-    else if (assignedIntervals.some((item) => start < item.finish + travelBuffer && projectedFinish + travelBuffer > item.start)) feasibilityReason = 'Conflicts with an assigned job';
+    else {
+      const first = Math.max(windowStart, current + lead);
+      if (first > latest) feasibilityReason = 'Not enough time left before the deadline';
+      else {
+        for (let start = first; start <= latest; start += 15) {
+          const finish = start + duration + safetyBuffer;
+          if (!busy.some((item) => start < item.finish + travelBuffer && finish + travelBuffer > item.start)) { chosen = start; break; }
+        }
+        if (chosen === null) feasibilityReason = 'Conflicts with your other jobs that day';
+      }
+    }
     return {
       ...job,
       feasible: !feasibilityReason,
       feasibility_reason: feasibilityReason,
-      projected_finish: time(projectedFinish),
+      earliest_feasible_start: chosen === null ? null : time(chosen),
+      latest_start: latest >= windowStart ? time(latest) : null,
+      projected_finish: chosen === null ? null : time(chosen + duration),
     };
   });
 

@@ -53,22 +53,41 @@ test('evening marketplace offer uses object and cleaner windows without global c
   assert.equal(jobs[0].feasible, true);
 });
 
-test('marketplace rejects an expired object window', () => {
+test('marketplace rejects a window that can no longer fit the cleaning', () => {
   const { jobs } = marketplaceForCleaner({
-    cleaner: { id: 1, max_jobs_day: 5 }, availability: { online: true, from_time: '10:00', to_time: '20:00' }, assignedJobs: [],
-    jobs: [{ planned_start: '18:30', deadline: '19:00', duration_minutes: 60, status: 'UNASSIGNED' }], settings, now: '12:00',
+    cleaner: { id: 1, max_jobs_day: 5 }, availability: null, assignedJobs: [],
+    jobs: [{ earliest_start: '10:00', deadline: '13:00', duration_minutes: 90, status: 'UNASSIGNED' }], settings, now: '12:00',
   });
   assert.equal(jobs[0].feasible, false);
-  assert.match(jobs[0].feasibility_reason, /object window/i);
+  assert.match(jobs[0].feasibility_reason, /deadline/i);
 });
 
-test('marketplace rejects a start in the past', () => {
+test('marketplace keeps a job open after its window started while time remains', () => {
   const { jobs } = marketplaceForCleaner({
-    cleaner: { id: 1, max_jobs_day: 5 }, availability: { online: true, from_time: '10:00', to_time: '20:00' }, assignedJobs: [],
-    jobs: [{ planned_start: '11:00', deadline: '19:00', duration_minutes: 60, status: 'UNASSIGNED' }], settings, now: '12:00',
+    cleaner: { id: 1, max_jobs_day: 5 }, availability: null, assignedJobs: [],
+    jobs: [{ earliest_start: '10:00', deadline: '17:00', duration_minutes: 90, status: 'UNASSIGNED' }], settings, now: '12:00',
+  });
+  assert.equal(jobs[0].feasible, true);
+  assert.equal(jobs[0].earliest_feasible_start, '12:15');
+  assert.equal(jobs[0].latest_start, '15:30');
+});
+
+test('marketplace skips past a conflicting job to the next free start', () => {
+  const { jobs } = marketplaceForCleaner({
+    cleaner: { id: 1, max_jobs_day: 5 }, availability: null,
+    assignedJobs: [{ planned_start: '10:00', duration_minutes: 60, status: 'ACCEPTED' }],
+    jobs: [{ earliest_start: '10:00', deadline: '15:00', duration_minutes: 60, status: 'UNASSIGNED' }], settings, now: '00:00',
+  });
+  assert.equal(jobs[0].feasible, true);
+  assert.ok(jobs[0].earliest_feasible_start >= '11:00');
+});
+
+test('a day the cleaner explicitly marked off hides nothing but blocks taking', () => {
+  const { jobs } = marketplaceForCleaner({
+    cleaner: { id: 1, max_jobs_day: 5 }, availability: { online: false, explicit: true }, assignedJobs: [],
+    jobs: [{ earliest_start: '10:00', deadline: '15:00', duration_minutes: 60, status: 'UNASSIGNED' }], settings, now: '00:00',
   });
   assert.equal(jobs[0].feasible, false);
-  assert.match(jobs[0].feasibility_reason, /passed/i);
 });
 
 test('marketplace projection omits access and commercial secrets', () => {

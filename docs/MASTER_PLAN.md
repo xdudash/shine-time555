@@ -142,3 +142,45 @@ These requirements are not represented as completed by the current source change
 ## User reprioritization — 2026-09-29
 
 - [x] Property reference-photo frontend and stale modal/completed-control fixes. Specification and verification scope: `docs/ssd/specs/012-property-reference-ui.md`. Uses existing production API; no backend deployment. Live customer write acceptance remains separate from synthetic browser coverage.
+
+## User reprioritization — 2026-10-01 (usability pass)
+
+- [x] Walk every role on desktop and at 390 px, surface server features that had no UI, add the missing edit/delete controls and finish the RU/UK/SK interface. Specification: `docs/ssd/specs/014-usability-pass.md` (incl. the owner-feedback addendum on reference photos, property archive/delete, account activation and the client/cleaner statements). Frontend only against the deployed `2026-09-28-quality1` API; no migration, no function deployment.
+
+## Approved audit programme — 2026-10-12
+
+The owner approved the full audit list ("Все делаем из списка") together with nine product decisions: marketplace dispatch with a 24 h manager warning and rescue 3 h out; clients book a **window**, the cleaner picks the start; the client sees the cleaner's name but not the phone; a property manager sees his own reports without cleaner payout and without margin; client self-registration with owner approval; no card payments; push and email notifications only; cancellation free for now; no split by city. The list is delivered in three stages.
+
+### Stage 1 — make it work (fixes 1–4, 6–11, 14, 19; needs a migration and an API deployment)
+
+- [x] Window bookings, marketplace-first dispatch with cleaner-chosen start, GPS check-in distance, cancellation and rescue rules, `st_dispatch_tick()`, operations-manager accounts and role restrictions, property-manager reports without payout or margin, 12-character passwords, re-approval only on a real address move, 52 new RU/UK/SK labels. Specification: `docs/ssd/specs/015-stage1-dispatch.md` · evidence: `docs/verification/2026-10-12-stage1.md`.
+- [ ] Fix 5 — push and email delivery (the decision is approved; notifications are still in-app rows).
+- [ ] Fix 12 — real analytics computed from `st_job_events` instead of placeholder cards.
+- [ ] Fix 13 — wire up or remove the settings that nothing reads.
+- [ ] Fix 18 — richer admin job creation (window, duration, bonus, marketplace visibility in one form).
+- [ ] Fix 20 — Supabase dashboard hardening: Redirect URLs and leaked-password protection (owner's own action).
+- [ ] Fix 26 — record the four hand-applied migrations in Supabase's migration history so future `supabase db push` runs are clean.
+
+**Deployment order for stage 1** (nothing below has been applied to production):
+
+1. Apply `supabase/migrations/20261012090000_stage1_dispatch.sql`.
+2. Run `deployment/stage1-schedule.sql` once in the SQL editor (registers the 15-minute `shine-time-dispatch` cron job; deliberately kept out of the migration).
+3. Deploy `st-api` (becomes v14, `apiBuild 2026-10-12-stage1`).
+4. Merge the PR so the Pages release serves the matching frontend. Until steps 1–3 are done the deployed frontend must stay on `2026-09-28-quality1`.
+
+### Stage 2 — make it complete (after stage 1 is live)
+
+- [ ] Fix 16 — client rating and complaint on a finished cleaning.
+- [ ] Fix 17 — client comment on a booking and a recurring booking the client can manage.
+- [ ] Fix 21 — reorganize the admin menu into the nine sections of the approved plan.
+- [ ] Fix 22 — the remaining inherited screens in all four locales.
+- [ ] Fix 23 — owner archive of past cleanings with filters and export.
+- [ ] Fix 24 — cleaner earnings cards (this week, this month, waiting for review, paid).
+- [ ] Fix 25 — editable finance entries and reference-photo captions (needs new API commands).
+
+### Stage 3 — open the front door
+
+- [ ] Client self-registration with owner approval (decision 5).
+- [ ] Fix 27 — retire `site-session` and the legacy tables it needs.
+- [ ] Fix 28 — remove the superseded photo-upload path.
+- [ ] Move the application from GitHub Pages to `shinetime.sk/app`.

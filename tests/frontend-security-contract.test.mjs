@@ -25,7 +25,8 @@ test('map coordinate parser rejects invalid and out-of-range coordinates', () =>
 
 test('operations manager navigation remains fail-closed for restricted areas', () => {
   const source = read('assets/operations-ui-core.js');
-  for (const route of ['owner', 'clients', 'cleaners', 'finance', 'settlements', 'settings']) {
+  // 'cleaners' (Team) is read-only for operations managers since stage 1; edits stay admin-only on the server.
+  for (const route of ['owner', 'clients', 'finance', 'settlements', 'statements', 'settings']) {
     assert.match(source, new RegExp(`['"]${route}['"]`), `restricted route ${route} missing`);
   }
 });

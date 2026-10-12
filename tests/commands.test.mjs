@@ -24,11 +24,11 @@ test('only an active cleaner can accept a feasible marketplace job', async () =>
   } finally { await db.close(); }
 });
 
-test('acceptance uses the cleaner and object windows after 15:00', async () => {
+test('cleaner picks a start inside the window after 15:00', async () => {
   const { db, jobId } = await fixture();
   try {
     await db.query("update st_jobs set planned_start='18:00', earliest_start='16:00', deadline='20:00' where id=$1", [jobId]);
-    const claimed = await command(db, 2, jobId, 'accept', { nowTime: '16:00', safetyBuffer: 0, travelBuffer: 0 });
+    const claimed = await command(db, 2, jobId, 'accept', { plannedStart: '18:00', nowTime: '16:00', safetyBuffer: 0, travelBuffer: 0 });
     assert.equal(String(claimed.rows[0].planned_start).slice(0, 5), '18:00');
   } finally { await db.close(); }
 });
@@ -70,11 +70,15 @@ test('stale cleaner cannot update a reassigned job', async () => {
   finally { await db.close(); }
 });
 
-test('assignment rejects overlapping jobs for the cleaner', async () => {
+test('assignment rejects an overlapping chosen start and otherwise shifts to the first free one', async () => {
   const { db, jobId } = await fixture();
   try {
     await db.exec("insert into st_jobs(object_id,client_id,service_date,earliest_start,deadline,duration_minutes,planned_start,status,assigned_cleaner_id) values(2,1,current_date+1,'10:30','20:00',60,'10:30','ACCEPTED',1)");
-    await assert.rejects(command(db, 1, jobId, 'assign', { cleanerId: 1, safetyBuffer: 0, travelBuffer: 0 }), /conflicts|overlap/i);
+    // An explicitly chosen start that overlaps is refused, never silently moved.
+    await assert.rejects(command(db, 1, jobId, 'assign', { cleanerId: 1, plannedStart: '10:00', safetyBuffer: 0, travelBuffer: 0 }), /conflicts|overlap/i);
+    // Without a chosen start the command takes the first free 15-minute start inside the window.
+    const assigned = await command(db, 1, jobId, 'assign', { cleanerId: 1, safetyBuffer: 0, travelBuffer: 0 });
+    assert.equal(String(assigned.rows[0].planned_start).slice(0, 5), '11:30');
   } finally { await db.close(); }
 });
 
