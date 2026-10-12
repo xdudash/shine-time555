@@ -3,9 +3,16 @@
 -- is applied and the function secrets are set. Safe to re-run.
 --
 -- Fill in the two values below first:
---   <SERVICE_ROLE_KEY>  Project settings → API → service_role key
+--   <SERVICE_ROLE_KEY>  Project settings → API. On this project that is the
+--                       secret key (sb_secret_…), not a JWT. Because it is not
+--                       a JWT, the platform's verify_jwt gate cannot accept it,
+--                       which is why st-api runs with verify_jwt = false
+--                       (supabase/config.toml) and authenticates callers
+--                       itself. Do not turn verify_jwt back on: the scheduled
+--                       call below would start failing with 401.
 --   <WORKER_SECRET>     the same value you set as ST_WORKER_SECRET in the
---                       Edge Function secrets
+--                       Edge Function secrets. This is what actually protects
+--                       the route, so treat it like a password.
 -- Nothing in this repository may contain either value: keep this file as the
 -- template it is and paste the filled-in version straight into the SQL editor.
 

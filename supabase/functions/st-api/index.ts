@@ -1050,8 +1050,11 @@ Deno.serve(async (req) => {
     const body = request.body && typeof request.body === 'object' ? request.body : {};
     if (route === 'bootstrap' && method === 'POST') return json(await bootstrap(req, body), 201);
     if (route === 'dispatch/outbox' && method === 'POST') {
-      // Called by the scheduled job, never by a browser: a service-role token is
-      // not enough, the shared worker secret has to match as well.
+      // Called by the scheduled job, never by a browser. The platform's JWT gate
+      // is off for this function (supabase/config.toml: the project uses the new
+      // sb_secret_* API keys, which are not JWTs, so pg_net cannot satisfy it),
+      // which makes this check and authOnly() below the only gates. An API key
+      // is therefore not enough on its own: the shared worker secret must match.
       if (!notificationConfig.secret) throw new ApiError('The notification worker is not configured', 503);
       if (!secretMatches(notificationConfig.secret, req.headers.get('x-st-worker-secret'))) throw new ApiError('Forbidden', 403);
       const summary = await drainOutbox({

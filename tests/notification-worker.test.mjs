@@ -174,7 +174,9 @@ test('no secret value is committed anywhere in the repository', () => {
   for (const path of ['deployment/notifications-schedule.sql', 'supabase/functions/st-api/notification-worker.mjs', 'supabase/migrations/20261012120000_notification_delivery.sql']) {
     const source = read(path);
     assert.ok(!/eyJ[A-Za-z0-9_-]{20,}/.test(source), `${path} must not contain a JWT`);
-    assert.ok(!/sb_secret|service_role_key\s*=\s*['"][^'"]+/.test(source), `${path} must not contain a service key`);
+    // A real key, not the words: the deployment notes name the key format on purpose.
+    assert.ok(!/sb_secret_[A-Za-z0-9_-]{10,}/.test(source), `${path} must not contain a secret API key`);
+    assert.ok(!/service_role_key\s*=\s*['"][^'"]{10,}/i.test(source), `${path} must not contain a service key`);
   }
   const schedule = read('deployment/notifications-schedule.sql');
   assert.match(schedule, /<SERVICE_ROLE_KEY>/);

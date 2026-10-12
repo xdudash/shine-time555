@@ -4,5 +4,5 @@
   "apiBuild": "2026-10-12-stage1",
   "frontendBuild": "2026-10-12-stage1",
   "qualityReview": true,
-  "edgeVersion": 14
+  "edgeVersion": 28
 }
