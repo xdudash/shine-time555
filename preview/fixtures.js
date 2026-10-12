@@ -37,7 +37,15 @@
   const cleanerJob=j=>omit(j,['client_price','client_name','client_id']);
   const dashboard=()=>({kpis:{total:3,completed:1,cleaning:1,assigned:1,unassigned:1,atRisk:1,rescue:0},sla:{projectedReadyPct:50,health:'ORANGE'},capacity:{reservePct:25,health:'GREEN',cleaners:1},jobs:current()});
   const capacity=date=>({jobs:jobs.filter(j=>j.service_date===date),capacity:{cleaners:1,demandMinutes:210,capacityMinutes:390,freeMinutes:180,reservePct:46,health:'GREEN'},cleaners:cleaners.map(c=>({...c,available:true,availability:{fromTime:'08:00',toTime:'16:00'}}))});
-  const analytics=()=>({summary:{jobs:5,completed:1,onTimePct:100,issues:1,rescue:0},cleanerRanking:cleaners,objectPerformance:objects.map(o=>({...o,jobs:1,avg_duration:o.duration_minutes})),jobsToday:2,completedToday:0,risk:1});
+  const isoDays=offset=>{const d=new Date();d.setDate(d.getDate()+offset);return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Bratislava'}).format(d)};
+  const analytics=()=>({from:isoDays(-29),to:isoDays(0),
+    summary:{jobs:5,completed:1,expired:1,cancelled:1,cancelledBy:{client:1,operations:0,other:0},rescue:1,escalated:1,issues:1,
+      onTimePct:100,onTimeOf:1,medianOverrunMinutes:null,medianMinutesToAccept:75,acceptedOf:3,unassignedRatePct:20,
+      reworkPct:0,reworkOf:1,outsideRadius:0,lateReleases:1},
+    funnel:[{step:'booked',jobs:5},{step:'taken',jobs:3},{step:'arrived',jobs:2},{step:'completed',jobs:1},{step:'approved',jobs:1}],
+    byDate:[{date:isoDays(-2),jobs:2,completed:1,expired:0,rescue:0,onTimePct:100},{date:isoDays(-1),jobs:1,completed:0,expired:1,rescue:1,onTimePct:null},{date:isoDays(0),jobs:2,completed:0,expired:0,rescue:0,onTimePct:null}],
+    cleanerRanking:cleaners,
+    objectPerformance:objects.map((o,i)=>({id:o.id,code:o.code,name:o.name,duration_minutes:o.duration_minutes,jobs:i?0:3,completed:i?0:1,expired:i?0:1,avg_worked_minutes:i?null:o.duration_minutes+12,over_standard_minutes:i?null:12}))});
   const finance=month=>({month,from:month+'-01',to:today,summary:{completedJobs:1,totalRevenue:42,cleaningRevenue:42,manualIncome:0,cleanerPayouts:24,cleanerBonuses:0,jobExtraCosts:0,manualExpenses:0,totalExpenses:24,profit:18,marginPct:43,avgProfitPerJob:18,avgRevenuePerJob:42},trend:[{month,revenue:42,expenses:24,profit:18}],byObject:[{code:'BA-001',name:'Old Town apartment',jobs:1,revenue:42,cost:24,profit:18}],byClient:[{id:4,name:'Demo stays',jobs:1,revenue:42,cost:24,profit:18}],entries:[]});
   const settlements=()=>({summary:{chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400},jobs:[{id:105,object_code:'BA-001',object_name:'Old Town apartment',service_date:yesterday,review_status:'APPROVED',waitingReviewCents:0,chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400}],hasMore:false});
   function request(path,options={}){

@@ -1,9 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.4';
-import { activeAssignmentStatuses, availableBookingSlots, cleanerEarningsSummary, clientAccountRows, coordinatesForStorage, financeBoardReport, marketplaceForCleaner, riskForJob, roleCapabilities, settingsFromRows } from './logic.mjs';
+import { activeAssignmentStatuses, cleanerEarningsSummary, clientAccountRows, coordinatesForStorage, financeBoardReport, marketplaceForCleaner, riskForJob, roleCapabilities, settingsFromRows } from './logic.mjs';
 import { marketplaceJobs, projectResponse, isStrongPassword } from './security.mjs';
+import { operationsAnalytics, objectAnalytics, zoneOffsetMinutes } from './analytics.mjs';
 import { operationsRoute } from './operations.mjs';
 import { propertyPhotosRoute } from './property-photos.mjs';
 import { validatePhoto, validateMedia } from './media.mjs';
+import { drainOutbox, workerConfigFromEnv, secretMatches, channelReadiness } from './notification-worker.mjs';
+import { sendMail } from './smtp.mjs';
+import { deliverPush } from './webpush.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -12,6 +16,7 @@ const MEDIA_BUCKET = 'st-cleaning-media';
 const APP_BUILD = '2026-10-12-stage1';
 const COMPATIBLE_BUILDS = new Set([APP_BUILD]);
 const service = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+const notificationConfig = workerConfigFromEnv(Deno.env);
 
 type AnyRow = Record<string, any>;
 
@@ -69,11 +74,16 @@ async function one<T>(query: PromiseLike<{ data: T; error: any }>): Promise<T> {
 async function settings() {
   const rows = await result(service.from('st_settings').select('setting_key,value_json')) as AnyRow[];
   return {
-    windowStart: '10:00', windowEnd: '15:00', travelBuffer: 15, sameZoneTravelBuffer: 10, safetyBuffer: 10,
-    rescueStart: '13:30', surge2Start: '11:30', surge4Start: '12:30', surge6Start: '13:30',
-    checkinRadiusMeters: 250, reserveTargetPct: 20, cleanerCancellationCutoffMinutes: 90,
-    companyName: 'Shine Time Operations', timezone: 'Europe/Bratislava', clientBookingStepMinutes: 30,
-    clientCancellationCutoffHours: 12, defaultLanguage: 'ru', ...settingsFromRows(rows),
+    // Every key here is read somewhere on the server, and every key here is
+    // editable in admin → Settings. tests/settings-contract.test.mjs keeps the
+    // three in step, so a setting can no longer sit in the UI doing nothing.
+    companyName: 'Shine Time Operations', timezone: 'Europe/Bratislava',
+    windowStart: '10:00', travelBuffer: 15, safetyBuffer: 10, reserveTargetPct: 20,
+    checkinRadiusMeters: 250,
+    cleanerCancellationCutoffMinutes: 180, rescueBonus: 6, managerEscalationHours: 24, rescueHours: 3,
+    emailNotificationTypes: ['CLIENT_BOOKING', 'ASSIGNED', 'RESCUE', 'EXPIRED', 'ESCALATION', 'REVIEW_REJECTED', 'SETTLEMENT'],
+    notificationRetryLimit: 5, notificationBatchSize: 25,
+    ...settingsFromRows(rows),
   };
 }
 
@@ -113,6 +123,8 @@ async function publicUser(ctx: any) {
     full_name: ctx.appUser.full_name,
     phone: ctx.appUser.phone || '',
     language: ctx.appUser.language,
+    notify_push: ctx.appUser.notify_push !== false,
+    notify_email: ctx.appUser.notify_email !== false,
     cleaner_id: ctx.cleaner?.id ?? null,
     cleaner_mode: ctx.cleaner?.mode ?? null,
     reliability_score: ctx.cleaner?.reliability_score ?? null,
@@ -532,13 +544,8 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
             const object = await clientObject(ctx, objectId);
             if (!object.active || object.approval_status !== 'APPROVED')
                 throw new ApiError('Object is not approved for booking', 404);
-            const [jobs, availability, appSettings, cleaners] = await Promise.all([
-                result(service.from('st_jobs').select('*').eq('service_date', date)) as Promise<AnyRow[]>,
-                result(service.from('st_cleaner_availability').select('*').eq('service_date', date)) as Promise<AnyRow[]>,
-                settings(), activeCleaners(date),
-            ]);
-            const windows = availability;
-            return { date, object, window: { from: String(object.checkout_time || '10:00').slice(0, 5), to: String(object.deadline_time || '15:00').slice(0, 5), durationMinutes: object.duration_minutes }, slots: availableBookingSlots({ object, jobs, windows, cleaners, durationMinutes: object.duration_minutes, settings: appSettings, stepMinutes: number(appSettings.clientBookingStepMinutes, 30) }).filter(slot => date !== today() || slot > currentTime()), capacity: cleaners.filter((cleaner) => cleaner.available).length };
+            const cleaners = await activeCleaners(date);
+            return { date, object, window: { from: String(object.checkout_time || '10:00').slice(0, 5), to: String(object.deadline_time || '15:00').slice(0, 5), durationMinutes: object.duration_minutes }, capacity: cleaners.filter((cleaner) => cleaner.available).length };
         }
         if (route === 'client/bookings' && method === 'GET') {
             const objects = await clientPortfolioObjects(ctx);
@@ -924,16 +931,22 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             return { date, capacity: capacity(cleaners, raw, appSettings), cleaners, jobs: await hydrateJobs(raw) };
         }
         if (route === 'admin/analytics' && method === 'GET') {
-            const from = String(query.from || '2000-01-01'), to = String(query.to || '2099-12-31');
-            const [raw, issues, cleaners] = await Promise.all([
-                result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as Promise<AnyRow[]>,
+            const to = /^\d{4}-\d{2}-\d{2}$/.test(String(query.to || '')) ? String(query.to) : today();
+            const from = /^\d{4}-\d{2}-\d{2}$/.test(String(query.from || '')) ? String(query.from) : to;
+            if (from > to) throw new ApiError('The period starts after it ends');
+            const jobs = await result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as AnyRow[];
+            const [events, issues, cleaners, objects] = await Promise.all([
+                jobs.length
+                    ? result(service.from('st_job_events').select('job_id,event_type,created_at').in('job_id', jobs.map((job) => job.id))) as Promise<AnyRow[]>
+                    : Promise.resolve([] as AnyRow[]),
                 result(service.from('st_issues').select('id').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`)) as Promise<AnyRow[]>,
                 activeCleaners(date),
+                result(service.from('st_objects').select('id,code,name,duration_minutes').order('code')) as Promise<AnyRow[]>,
             ]);
-            const completed = raw.filter((job) => job.status === 'COMPLETED');
-            const onTime = completed.filter((job) => job.completed_at && new Date(job.completed_at).getHours() <= 15);
-            const objects = await result(service.from('st_objects').select('*').order('code')) as AnyRow[];
-            return { summary: { jobs: raw.length, completed: completed.length, onTimePct: completed.length ? Math.round(onTime.length / completed.length * 1000) / 10 : 100, rescue: raw.filter((job) => job.rescue_state !== 'NONE').length, cancelled: raw.filter((job) => job.status === 'CANCELLED').length, issues: issues.length }, byDate: [], cleanerRanking: cleaners, objectPerformance: objects.map((object) => ({ ...object, jobs: raw.filter((job) => same(job.object_id, object.id)).length, avg_duration: raw.filter((job) => same(job.object_id, object.id)).length ? Math.round(raw.filter((job) => same(job.object_id, object.id)).reduce((sum, job) => sum + number(job.duration_minutes), 0) / raw.filter((job) => same(job.object_id, object.id)).length) : null })) };
+            // A deadline is a wall-clock time, so it is compared in Bratislava
+            // time rather than UTC — including across the DST change.
+            const computed = operationsAnalytics({ jobs, events, issues, offsetMinutes: zoneOffsetMinutes(to) });
+            return { from, to, ...computed, cleanerRanking: cleaners, objectPerformance: objectAnalytics({ objects, jobs }) };
         }
         if (route === 'admin/settings' && method === 'GET')
             return { settings: await settings() };
@@ -974,6 +987,43 @@ async function account(ctx: any, route: string, method: string, body: AnyRow) {
     await result(service.from('st_users').update({ language }).eq('id', ctx.appUser.id));
     return { language };
   }
+  if (route === 'account/notifications' && method === 'PATCH') {
+    const user = await one(service.rpc('st_set_notification_preferences', {
+      p_actor_id: ctx.appUser.id,
+      p_body: { push: body.push === undefined ? null : truthy(body.push), email: body.email === undefined ? null : truthy(body.email) },
+    })) as AnyRow;
+    return { push: user.notify_push, email: user.notify_email };
+  }
+  if (route === 'account/push' && method === 'POST') {
+    const subscription = {
+      endpoint: String(body.endpoint || ''),
+      p256dh: String(body.p256dh || ''),
+      auth: String(body.auth || ''),
+      userAgent: String(body.userAgent || ''),
+    };
+    if (!/^https:\/\//.test(subscription.endpoint)) throw new ApiError('A push endpoint must be an https URL');
+    const saved = await one(service.rpc('st_save_push_subscription', { p_actor_id: ctx.appUser.id, p_body: subscription })) as AnyRow;
+    return { subscription: { id: saved.id, endpoint: saved.endpoint, created_at: saved.created_at } };
+  }
+  if (route === 'account/push' && method === 'DELETE') {
+    const removed = await result(service.rpc('st_delete_push_subscription', { p_actor_id: ctx.appUser.id, p_endpoint: String(body.endpoint || '') }));
+    return { removed: number(removed, 0) };
+  }
+  if (route === 'account/push/test' && method === 'POST') {
+    if (!channelReadiness(notificationConfig).push) throw new ApiError('Push notifications are not configured on the server', 503);
+    const subscriptions = await result(service.from('st_push_subscriptions')
+      .select('id,endpoint,p256dh,auth').eq('user_id', ctx.appUser.id)) as AnyRow[];
+    if (!subscriptions.length) throw new ApiError('This browser is not subscribed to notifications yet');
+    const outcome = await deliverPush({
+      row: { id: 0, title: 'Shine Time', message: 'Test notification', type: 'TEST', language: ctx.appUser.language, subscriptions },
+      vapid: notificationConfig.vapid,
+    });
+    if (outcome.goneSubscriptionIds?.length) {
+      await result(service.from('st_push_subscriptions').delete().in('id', outcome.goneSubscriptionIds));
+    }
+    if (!outcome.ok) throw new ApiError(outcome.error || 'The push service refused the message', 502);
+    return { ok: true, browsers: subscriptions.length, removed: outcome.goneSubscriptionIds?.length ?? 0 };
+  }
   if (route === 'account/password' && method === 'POST') {
     const currentPassword = String(body.currentPassword || ''), newPassword = String(body.newPassword || '');
     if (!currentPassword || !isStrongPassword(newPassword)) throw new ApiError('Current password and a new password of at least 12 characters are required');
@@ -999,8 +1049,25 @@ Deno.serve(async (req) => {
     const query = request.query && typeof request.query === 'object' ? request.query : {};
     const body = request.body && typeof request.body === 'object' ? request.body : {};
     if (route === 'bootstrap' && method === 'POST') return json(await bootstrap(req, body), 201);
+    if (route === 'dispatch/outbox' && method === 'POST') {
+      // Called by the scheduled job, never by a browser: a service-role token is
+      // not enough, the shared worker secret has to match as well.
+      if (!notificationConfig.secret) throw new ApiError('The notification worker is not configured', 503);
+      if (!secretMatches(notificationConfig.secret, req.headers.get('x-st-worker-secret'))) throw new ApiError('Forbidden', 403);
+      const summary = await drainOutbox({
+        config: notificationConfig,
+        limit: body.limit === undefined ? null : number(body.limit, 25),
+        claim: (limit: number | null) => one(service.rpc('st_claim_notifications', { p_limit: limit })),
+        report: (results: AnyRow[]) => one(service.rpc('st_report_notifications', { p_results: { results } })),
+        sendMailImpl: sendMail,
+      });
+      return json({ ...summary, results: undefined, channels: channelReadiness(notificationConfig) });
+    }
     const ctx = await context(req);
-    if (route === 'me' && method === 'GET') return json({ user: await publicUser(ctx), settings: await settings(), csrf: 'supabase', apiVersion: APP_BUILD });
+    if (route === 'me' && method === 'GET') return json({
+      user: await publicUser(ctx), settings: await settings(), csrf: 'supabase', apiVersion: APP_BUILD,
+      push: { publicKey: notificationConfig.vapid.publicKey || '', enabled: channelReadiness(notificationConfig).push },
+    });
     if (route === 'health' && method === 'GET') return json({ ok: true, service: 'Shine Time Operations', date: today(), time: currentTime(), apiVersion: APP_BUILD });
     if (route === 'notifications' && method === 'GET') {
       const notifications = await result(service.from('st_notifications').select('*').eq('user_id', ctx.appUser.id).order('id', { ascending: false }).limit(50)) as AnyRow[];

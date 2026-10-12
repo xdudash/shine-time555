@@ -8,41 +8,9 @@ const minutes = (value) => {
 
 const time = (value) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
 
-export function availableBookingSlots({ object, cleaners, jobs, windows, durationMinutes, settings, stepMinutes }) {
-  const safety = Math.max(0, Number(settings?.safetyBuffer ?? 10));
-  const buffer = safety + Math.max(0, Number(settings?.travelBuffer ?? 15));
-  const duration = Number(durationMinutes);
-  const step = Number(stepMinutes);
-  if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(step) || step <= 0) return [];
-  const cleanerRows = cleaners?.length ? cleaners.filter((item) => item.active !== false) : windows.map((window) => ({ id: window.cleaner_id, active: true }));
-  const objectStart = minutes(object?.checkout_time ?? object?.earliest_start ?? '00:00');
-  const objectEnd = minutes(object?.deadline_time ?? object?.deadline ?? '23:59');
-  if (objectStart === null || objectEnd === null || objectStart >= objectEnd) return [];
-  const output = new Set();
-  for (const cleaner of cleanerRows) {
-    const window = windows.find((item) => String(item.cleaner_id ?? item.cleanerId) === String(cleaner.id))
-      ?? (!cleaners?.length ? windows.find((item) => item.online) : null);
-    if (!window?.online) continue;
-    const assigned = jobs.filter((job) => job.status !== 'CANCELLED' && String(job.assigned_cleaner_id) === String(cleaner.id));
-    const max = Number(cleaner.max_jobs_day);
-    if (Number.isFinite(max) && assigned.length >= max) continue;
-    const occupied = assigned.map((job) => {
-      const start = minutes(job.planned_start || job.earliest_start);
-      return start === null ? null : { start, end: start + Number(job.duration_minutes || 0) };
-    }).filter(Boolean);
-    const from = minutes(window.from_time ?? window.fromTime);
-    const to = minutes(window.to_time ?? window.toTime);
-    if (from === null || to === null || from >= to) continue;
-    const start = Math.max(from, objectStart);
-    const end = Math.min(to, objectEnd);
-    for (let candidate = start; candidate + duration + safety <= end; candidate += step) {
-      const candidateEnd = candidate + duration;
-      const clashes = occupied.some((item) => candidate < item.end + buffer && candidateEnd + buffer > item.start);
-      if (!clashes) output.add(time(candidate));
-    }
-  }
-  return [...output].sort();
-}
+// The fixed-slot booking helper that used to live here was removed with the
+// window booking of 2026-10-12: a client now books a window and the cleaner
+// picks the start, so nothing computed per-cleaner slot lists any more.
 
 export function riskForJob(job, currentTime) {
   if (['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(job.status)) return { score: 0, level: 'GREEN', reasons: [] };

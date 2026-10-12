@@ -154,12 +154,12 @@ The owner approved the full audit list ("Все делаем из списка")
 ### Stage 1 — make it work (fixes 1–4, 6–11, 14, 19; needs a migration and an API deployment)
 
 - [x] Window bookings, marketplace-first dispatch with cleaner-chosen start, GPS check-in distance, cancellation and rescue rules, `st_dispatch_tick()`, operations-manager accounts and role restrictions, property-manager reports without payout or margin, 12-character passwords, re-approval only on a real address move, 52 new RU/UK/SK labels. Specification: `docs/ssd/specs/015-stage1-dispatch.md` · evidence: `docs/verification/2026-10-12-stage1.md`.
-- [ ] Fix 5 — push and email delivery (the decision is approved; notifications are still in-app rows).
-- [ ] Fix 12 — real analytics computed from `st_job_events` instead of placeholder cards.
-- [ ] Fix 13 — wire up or remove the settings that nothing reads.
-- [ ] Fix 18 — richer admin job creation (window, duration, bonus, marketplace visibility in one form).
-- [ ] Fix 20 — Supabase dashboard hardening: Redirect URLs and leaked-password protection (owner's own action).
-- [ ] Fix 26 — record the four hand-applied migrations in Supabase's migration history so future `supabase db push` runs are clean.
+- [x] Fix 5 — push and email delivery. Web Push on our own VAPID keys and the domain's own SMTP, driven by an outbox that hangs off `st_notifications`, drained by `st-api` on a one-minute schedule. Specification: `docs/ssd/specs/016-notification-delivery.md` · evidence: `docs/verification/2026-10-12-notifications.md`. **Deployment:** apply `supabase/migrations/20261012120000_notification_delivery.sql`, set the function secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `ST_APP_URL`, `ST_WORKER_SECRET`), deploy `st-api`, then run the filled-in `deployment/notifications-schedule.sql` once. Until the secrets are set the worker answers 503 and nothing is sent; nothing else in the application is affected.
+- [x] Fix 12 — analytics measured from the jobs and their event trail: on time against each job's own deadline, median time to take, expiry/rescue/escalation/rework, check-ins outside the property, late releases, a daily trend and the booking funnel. Specification: `docs/ssd/specs/017-analytics-settings-job-form.md` · evidence: `docs/verification/2026-10-12-stage1-closeout.md`.
+- [x] Fix 13 — nine settings that nothing read are removed (and their rows deleted by `20261012140000_settings_cleanup.sql`); the four dispatch and three notification settings that the server reads are now editable. `tests/settings-contract.test.mjs` fails if the server, the form and the readers ever drift apart again.
+- [x] Fix 18 — admin job creation carries the whole cleaning (window, duration, payout, price, bonus, marketplace visibility, note), prefilled from the property and validated by the server's own rule.
+- [ ] Fix 20 — Supabase dashboard hardening: Redirect URLs and leaked-password protection. This is a dashboard action and the only stage 1 item that cannot be done from the repository: Authentication → URL Configuration (allow only the application's own origins) and Authentication → Policies (turn on leaked-password protection).
+- [x] Fix 26 — `deployment/record-applied-migrations.sql` records the hand-applied migrations in `supabase_migrations.schema_migrations`. **Run it once in the SQL editor after the stage 1 migrations are applied.**
 
 **Deployment order for stage 1** (nothing below has been applied to production):
 
