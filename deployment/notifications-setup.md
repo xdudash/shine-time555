@@ -51,6 +51,14 @@ otherwise mail from an unfamiliar sender lands in spam.
 
 ## 4. The schedule
 
+> **Do not set `verify_jwt = true` for `st-api`.** This project uses the new
+> API key format (`sb_publishable_…` / `sb_secret_…`), and those keys are not
+> JWTs, so the platform's gate rejects the scheduled call with 401. The
+> function authenticates every request itself (`authOnly()` for user routes,
+> `ST_WORKER_SECRET` for the outbox route) — `tests/auth-boundary-contract.test.mjs`
+> is what keeps that true.
+
+
 Deploy `st-api` first, then take `deployment/notifications-schedule.sql`,
 replace `<SERVICE_ROLE_KEY>` (Project settings → API → `service_role`) and
 `<WORKER_SECRET>` (the same value as `ST_WORKER_SECRET`), and run it once in the
