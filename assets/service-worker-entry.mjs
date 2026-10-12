@@ -1,5 +1,5 @@
 import {staticCacheAllowed} from './live-updates.mjs';
-const BUILD='2026-10-12-stage1';
+const BUILD='2026-10-12-stage2';
 const CACHE=`shinetime-shell-${BUILD}`;
 const BASE=new URL(self.registration.scope).pathname;
 const SHELL=['assets/styles.css','assets/ui-system.css','assets/mobile-ui.css','assets/job-lifecycle.css','assets/i18n.js','assets/supabase-client.js','assets/operations-ui-core.js','assets/live-updates.js','assets/operations-board.js','assets/checklist-drafts.js','assets/workspace-i18n.js','assets/operations-workspace.css','assets/app.js','assets/property-photos.js','assets/money.js','assets/operations-extension.js','assets/monitoring-extension.js','assets/export.js','manifest.webmanifest','assets/icon-192.png','assets/icon-512.png'];

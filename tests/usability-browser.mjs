@@ -44,7 +44,6 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(m=path.match(/^\/api\/(?:admin|cleaner)\/jobs\/(\d+)$/))return structuredClone(job(m[1]));
    if(m=path.match(/^\/api\/cleaner\/jobs\/(\d+)\/cancel$/)){Object.assign(job(m[1]),{status:'UNASSIGNED',assigned_cleaner_id:null});return {job:structuredClone(job(m[1]))}}
    if(path.startsWith('/api/cleaner/dashboard'))return {availability:{online:true,fromTime:'08:00',toTime:'20:00'},jobs:[],total:0,earnings:0};
-   if(m=path.match(/^\/api\/client\/bookings\/(\d+)$/))return {booking:structuredClone(job(m[1])),photos:[],issues:[]};
    if(path.startsWith('/api/admin/settlements/monthly')){const q=new URL(path,'https://x.test').searchParams;window.monthlyCalls=(window.monthlyCalls||0)+1;if(q.get('partyId'))return {jobs:window.batchDone?[]:[{id:201,object_name:'Flat A',service_date:'2099-01-05',chargedCents:4000,paidCents:0,dueCents:4000},{id:202,object_name:'Flat B',service_date:'2099-01-06',chargedCents:3550,paidCents:0,dueCents:3550}],hasMore:false};return {groups:[{id:4,name:'Demo stays',count:2,chargedCents:7550,paidCents:window.batchDone?7550:0,dueCents:window.batchDone?0:7550}],jobs:[],hasMore:false,waitingReviewJobs:1}}
    if(path==='/api/admin/settlements/batch'){window.batchBodies=(window.batchBodies||[]).concat([opts.body]);window.batchDone=true;return {count:opts.body.items.length,amountCents:opts.body.items.reduce((n,i)=>n+i.amountCents,0)}}
    if(path.startsWith('/api/admin/settlements'))return {summary:{},jobs:[],hasMore:false};
@@ -56,6 +55,25 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(path==='/api/admin/managers'&&(opts.method||'GET')==='GET')return {managers:[{id:7,full_name:'Dispatcher One',email:'d1@test.invalid',phone:'',language:'en',active:true}]};
    if(path==='/api/admin/managers'&&opts.method==='POST'){window.createdManager=opts.body;return {manager:{id:8}}}
    if(path==='/api/notifications')return {notifications:[],unread:0};
+   if(m=path.match(/^\/api\/client\/bookings\/(\d+)$/)){
+    const b=job(m[1])||{id:Number(m[1]),object_code:'BA-101',object_name:'Dunajská apartment',address:'Dunajská 15',status:'COMPLETED',service_date:'2099-01-01',earliest_start:'10:00',deadline:'15:00',client_price:40,extra_revenue:0,client_note:window.bookingNote??'Guests at 16:00',completed_at:'2099-01-01T12:00:00Z',financial_status:'PENDING'};
+    return {booking:structuredClone({...b,client_note:window.bookingNote??b.client_note}),photos:[],issues:[],feedback:window.savedFeedback||null,rating:{canRate:true,windowDays:14,closesAt:'2099-01-15T12:00:00Z'}};
+   }
+   if(m=path.match(/^\/api\/client\/bookings\/(\d+)\/feedback$/)){window.sentFeedback=opts.body;window.savedFeedback={job_id:Number(m[1]),...opts.body,created_at:'2099-01-02T10:00:00Z',updated_at:'2099-01-02T10:00:00Z'};return {feedback:window.savedFeedback}}
+   if(m=path.match(/^\/api\/client\/bookings\/(\d+)\/note$/)){window.bookingNote=opts.body.note;return {booking:{id:Number(m[1])}}}
+   if(path==='/api/client/recurring'&&(opts.method||'GET')==='GET')return {schedules:structuredClone(window.schedules||[])};
+   if(path==='/api/client/recurring'&&opts.method==='POST'){
+    window.savedSchedule=opts.body;
+    window.schedules=window.schedules||[];
+    const existing=window.schedules.find(r=>String(r.id)===String(opts.body.id));
+    if(existing)Object.assign(existing,{weekdays:opts.body.weekdays,planned_start:opts.body.plannedStart,active:opts.body.active===undefined?existing.active:opts.body.active});
+    else window.schedules.push({id:9,object_id:opts.body.objectId,object_code:'BA-101',object_name:'Dunajská apartment',weekdays:opts.body.weekdays,planned_start:opts.body.plannedStart,start_date:opts.body.startDate,end_date:opts.body.endDate,active:true,generated:2});
+    return {schedule:{id:9}};
+   }
+   if(m=path.match(/^\/api\/client\/recurring\/(\d+)$/)){window.deletedSchedule=Number(m[1]);return {deleted:0,deactivated:1,generatedJobs:2}}
+   if(path.startsWith('/api/cleaner/settlements'))return {month:'2099-01',summary:{earnedCents:12800,paidCents:1500,payableCents:500,waitingReviewCents:3100,jobs:5},jobs:[],hasMore:false};
+   if(path==='/api/cleaner/earnings')return {jobs:[{id:201,object_code:'BA-101',object_name:'Dunajská apartment',zone:'Staré Mesto',service_date:'2099-01-05',payout:20,bonus:6,review_status:'APPROVED',feedback_rating:5}],
+    earnings:{today:2600,week:5100,month:12800,waitingReview:3100,payable:500,paid:1500,completedWeek:2,completedMonth:5,rating:4.75,reliability:95,weekStart:'2099-01-05',monthStart:'2099-01-01'}};
    if(path.startsWith('/api/admin/analytics')){
     const q=new URL(path,'https://x.test').searchParams;
     window.analyticsCalls=(window.analyticsCalls||[]).concat([{from:q.get('from'),to:q.get('to')}]);
@@ -427,6 +445,108 @@ try {
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS admin creates a cleaning with window, duration, money, visibility and a note');
+ }
+ // The client's voice: a rating, a complaint that goes to operations, and an editable note.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(async()=>{
+   state.me={id:4,role:'OWNER',full_name:'Olga Owner',language:'en',client_id:4};state.settings={};
+   Object.assign(jobs[0],{status:'COMPLETED',review_status:'APPROVED',completed_at:'2099-01-01T12:00:00Z',client_note:'Guests at 16:00'});
+   location.hash='client/bookings';await new Promise(r=>setTimeout(r,100));await render();
+  });
+  await page.evaluate(()=>clientBookingDetail(101));
+  await page.locator('#rating-stars').waitFor();
+  // innerText applies text-transform, and the card heading is uppercased by CSS.
+  assert.match(await page.locator('#page').innerText(),/rate this cleaning/i);
+  assert.match(await page.locator('#page').innerText(),/You can rate a cleaning within 14 days/);
+  // A rating needs stars.
+  await page.getByRole('button',{name:'Send the rating'}).click();
+  await page.waitForFunction(()=>document.querySelector('#toast-root')?.textContent.includes('one to five'));
+  assert.equal(await page.evaluate(()=>window.sentFeedback),undefined);
+  // A complaint needs words.
+  await page.locator('.star[data-rating="2"]').click();
+  assert.equal(await page.locator('.star.on').count(),2);
+  assert.match(await page.locator('#rating-word').innerText(),/Bad/);
+  await page.locator('#rating-complaint').check();
+  await page.getByRole('button',{name:'Send the rating'}).click();
+  await page.waitForFunction(()=>document.querySelector('#toast-root')?.textContent.includes('complaint needs a description'));
+  assert.equal(await page.evaluate(()=>window.sentFeedback),undefined);
+  // With both, it goes.
+  await page.fill('#rating-comment','Bathroom was not cleaned');
+  await page.getByRole('button',{name:'Send the rating'}).click();
+  await page.waitForFunction(()=>window.sentFeedback);
+  assert.deepEqual(await page.evaluate(()=>sentFeedback),{rating:2,comment:'Bathroom was not cleaned',complaint:true});
+  await page.waitForFunction(()=>/update the rating/i.test(document.querySelector('#page')?.innerText||''));
+  // Still inside the window, so the card stays editable with what was sent.
+  assert.equal(await page.locator('#rating-comment').inputValue(),'Bathroom was not cleaned');
+  assert.equal(await page.locator('#rating-complaint').isChecked(),true);
+  assert.equal(await page.locator('.star.on').count(),2);
+
+  // The note can be changed while the cleaner has not arrived.
+  await page.evaluate(async()=>{window.bookingNote='Guests at 16:00';Object.assign(jobs[0],{status:'EN_ROUTE'});window.savedFeedback=null;await clientBookingDetail(101)});
+  await page.getByRole('button',{name:'Change the note'}).click();
+  await page.fill('#ask-input','Code changed to 4455');
+  await page.getByRole('button',{name:'Save'}).click();
+  await page.waitForFunction(()=>window.bookingNote==='Code changed to 4455');
+  await page.waitForFunction(()=>document.querySelector('#booking-note-text')?.textContent.includes('4455'));
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS client rates a cleaning, files a complaint with words, and edits the note');
+ }
+ // Recurring bookings the client manages.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(async()=>{state.me={id:4,role:'OWNER',full_name:'Olga Owner',language:'en',client_id:4};state.settings={};window.schedules=[];location.hash='client/recurring';await render()});
+  await page.locator('.section-head').waitFor();
+  assert.match(await page.locator('#page').innerText(),/No repeating cleanings yet/);
+  await page.evaluate(()=>clientRecurringModal());
+  await page.locator('#recurring-form').waitFor();
+  // Nothing chosen but the default Monday: unchecking everything is refused.
+  await page.locator('#rc-days input[value="1"]').uncheck();
+  await page.getByRole('button',{name:'Save'}).click();
+  await page.waitForFunction(()=>document.querySelector('#toast-root')?.textContent.includes('at least one weekday'));
+  for(const day of ['1','3','5'])await page.locator(`#rc-days input[value="${day}"]`).check();
+  await page.fill('#rc-start','11:00');
+  await page.getByRole('button',{name:'Save'}).click();
+  await page.waitForFunction(()=>window.savedSchedule);
+  const saved=await page.evaluate(()=>savedSchedule);
+  assert.deepEqual(saved.weekdays,[1,3,5]);
+  assert.equal(saved.plannedStart,'11:00');
+  assert.equal(saved.objectId,11);
+  await page.waitForFunction(()=>document.querySelector('#page')?.innerText.includes('Mon'));
+  assert.match(await page.locator('#page').innerText(),/Mon · Wed · Fri · 11:00/);
+  assert.match(await page.locator('#page').innerText(),/2 cleanings created/);
+  // Pausing keeps the schedule and says so.
+  await page.getByRole('button',{name:'Pause'}).click();
+  await page.waitForFunction(()=>document.querySelector('#page')?.innerText.includes('Paused'));
+  assert.equal((await page.evaluate(()=>savedSchedule)).active,false);
+  // Deleting one that already created cleanings reports the honest outcome.
+  await page.getByRole('button',{name:'Delete'}).click();
+  await page.getByRole('button',{name:'Delete',exact:true}).last().click();
+  await page.waitForFunction(()=>window.deletedSchedule===9);
+  await page.waitForFunction(()=>document.querySelector('#toast-root')?.textContent.includes('already created cleanings'));
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS client creates, corrects, pauses and removes a repeating cleaning');
+ }
+ // The cleaner's earnings cards come from the server.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(async()=>{state.me={id:2,role:'CLEANER',full_name:'Test Cleaner',language:'en',cleaner_id:1};state.settings={};location.hash='cleaner/earnings';await render()});
+  await page.locator('.earnings-kpis').waitFor();
+  const text=await page.locator('.earnings-kpis').innerText();
+  // Cents from the server, euro on screen; whole amounts render without decimals.
+  assert.match(text,/€51\b[\s\S]*This week[\s\S]*2 cleanings/,'this week is the server amount in euro');
+  assert.match(text,/€128\b[\s\S]*This month[\s\S]*5 cleanings/);
+  assert.match(text,/€31\b[\s\S]*Waiting for review/);
+  assert.match(text,/€5\b[\s\S]*Ready to be paid/);
+  assert.match(text,/€15\b[\s\S]*Already paid/);
+  assert.match(text,/4\.75[\s\S]*Rating/);
+  assert.match(await page.locator('#page').innerText(),/★ 5/,'the client rating of a cleaning is shown to the cleaner');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS cleaner earnings: week, month, waiting for review, payable, paid and rating');
  }
  // Language switch re-renders navigation, not only the page body.
  {

@@ -76,3 +76,14 @@ tfoot th{border-top:2px solid var(--line)}
 .funnel-label{flex:0 0 94px;color:var(--muted,#6b7a90);text-transform:capitalize}
 .funnel-bar{flex:1;height:10px;border-radius:6px;background:var(--line,#eef1f5);overflow:hidden}
 .funnel-bar>span{display:block;height:100%;border-radius:6px;background:var(--brand,#1f6feb)}
+.star-row{display:flex;align-items:center;gap:4px;margin:4px 0 10px}
+.star-row .star{background:none;border:0;font-size:26px;line-height:1;color:var(--line,#d7dde7);cursor:pointer;padding:0 2px}
+.star-row .star.on{color:#f0a92b}
+.star-row .subtle{margin-left:8px;font-size:13px}
+.stars{color:#f0a92b;letter-spacing:1px}
+.chip-toggle{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line,#dde3ec);border-radius:999px;padding:5px 10px;font-size:13px;cursor:pointer}
+.chip-toggle input{margin:0}
+.earnings-kpis{grid-template-columns:repeat(2,1fr)}
+.earnings-kpis .mobile-kpi small{display:block;color:var(--muted,#6b7a90);font-size:11px;margin-top:2px}
+.feedback-note{border:1px solid var(--line,#dde3ec);border-left:3px solid #f0a92b;border-radius:8px;padding:10px 12px;margin-bottom:10px;background:var(--surface-2,#fafbfd)}
+.feedback-note p{margin:6px 0 4px;font-size:14px}

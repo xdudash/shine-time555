@@ -1,8 +1,8 @@
 {
   "projectRef": "qbbtroiqioufuucrqair",
   "publishableKey": "sb_publishable_orOkvZF6ppJH8ObXcgfSMw_D4l8lrKs",
-  "apiBuild": "2026-10-12-stage1",
-  "frontendBuild": "2026-10-12-stage1",
+  "apiBuild": "2026-10-12-stage2",
+  "frontendBuild": "2026-10-12-stage2",
   "qualityReview": true,
   "edgeVersion": 28
 }

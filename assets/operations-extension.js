@@ -6,7 +6,10 @@ adminNav.splice(adminNav.findIndex(x=>x[0]==='finance')+1,0,['settlements','↔'
 const originalAdminRenderer=renderAdmin;
 renderAdmin=async function(page){if(!window.ShineTimeUi.adminRouteAllowed(page,state.me.role)){navTo('admin/live');return originalAdminRenderer('live')}if(page==='schedule')return scheduleScreen();if(page==='settlements')return settlementScreen();return originalAdminRenderer(page)};
 const originalCleanerRenderer=renderCleaner;
-renderCleaner=async function(page){if(page==='earnings')return settlementScreen();return originalCleanerRenderer(page)};
+/* The cleaner's Earnings page is the summary in app.js (this week, this month,
+   awaiting review, payable, paid); the month-by-month settlement list is one tap
+   away from it rather than replacing it. */
+renderCleaner=async function(page){if(page==='settlements')return settlementScreen();return originalCleanerRenderer(page)};
 clientFinance=async function(){return settlementScreen()};
 
 async function scheduleScreen(){

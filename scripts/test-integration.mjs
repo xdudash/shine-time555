@@ -13,7 +13,7 @@ const clients=[];
 const channels=[];
 async function api(index,route,method='GET',body={},query={}){
  const {data:{session}}=await clients[index].auth.getSession();
- const res=await fetch(`${config.API_URL}/functions/v1/st-api`,{method:'POST',headers:{apikey:config.ANON_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({route,method,body,query,clientBuild:'2026-10-12-stage1'})});
+ const res=await fetch(`${config.API_URL}/functions/v1/st-api`,{method:'POST',headers:{apikey:config.ANON_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({route,method,body,query,clientBuild:'2026-10-12-stage2'})});
  const data=await res.json();
  assert.ok(res.ok,`${route}: ${res.status} ${JSON.stringify(data)}`);return data;
 }

@@ -116,6 +116,15 @@ navigator.serviceWorker?.addEventListener?.('message',event=>{
   liveUpdates?.invalidate();
   if(state.me)notificationModal();
 });
+
+/* What the client said about a finished cleaning, shown to operations in the
+   job modal. The cleaner never sees these words, only the rating. */
+function clientFeedbackNote(feedback){
+ if(!feedback)return '';
+ const colour=Number(feedback.rating)>=4?'green':Number(feedback.rating)>=3?'orange':'red';
+ return `<div class="feedback-note"><strong>${t('Client rating','Client rating')}: <span class="pill ${colour}">★ ${feedback.rating}/5</span></strong>${feedback.complaint?` <span class="pill red">${t('Complaint','Complaint')}</span>`:''}${feedback.comment?`<p>${esc(feedback.comment)}</p>`:''}<small class="subtle">${fmtStamp(feedback.updated_at||feedback.created_at)}</small></div>`;
+}
+window.clientFeedbackNote=clientFeedbackNote;
 function statusPill(s){const map={COMPLETED:'green',CLEANING:'blue',ARRIVED:'blue',EN_ROUTE:'blue',ACCEPTED:'violet',UNASSIGNED:'orange',OFFERED:'orange',AT_RISK:'red',RESCUE:'red',CANCELLED:'gray',EXPIRED:'gray'};const label=(s||'UNKNOWN').replaceAll('_',' ');return `<span class="pill ${map[s]||'gray'}"><span class="dot"></span>${esc(t(label,label))}</span>`}
 function riskPill(level,score){const c=level==='RED'?'red':level==='ORANGE'?'orange':'green';return `<span class="pill ${c}">${esc(t(level||'GREEN',level||'GREEN'))} ${score??0}</span>`}
 function shellTitle(title,subtitle=''){ document.title=`${title} · ${state.settings?.companyName||'Shine Time'}`; $('.page-title h1')?.replaceChildren(document.createTextNode(title)); $('.page-title p')?.replaceChildren(document.createTextNode(subtitle)); }
@@ -200,7 +209,7 @@ window.setAppLanguage=async locale=>{state.locale=ST_I18N.setLocale(locale);last
 
 const adminNav=[['owner','◆','Owner board'],['live','⌁','Live Operations'],['map','◎','Map'],['tomorrow','◫','Tomorrow'],['jobs','☷','Jobs'],['objects','▣','Objects'],['clients','♧','Clients'],['cleaners','♙','Team'],['finance','€','Finance'],['issues','⚠','Issues'],['analytics','▥','Analytics'],['settings','⚙','Settings']];
 const cleanerNav=[['home','⌂','Home'],['jobs','☷','Jobs'],['myday','◷','My Day'],['earnings','€','Earnings'],['profile','○','Profile']];
-const clientNav=[['home','⌂','Home'],['book','＋','Book Cleaning'],['objects','▣','Objects'],['bookings','◷','Bookings'],['finance','€','Finance'],['profile','○','Profile']];
+const clientNav=[['home','⌂','Home'],['book','＋','Book Cleaning'],['recurring','↻','Repeat'],['objects','▣','Objects'],['bookings','◷','Bookings'],['finance','€','Finance'],['profile','○','Profile']];
 function renderAdminShell(){const current=route().split('/')[1];app.innerHTML=`<div class="app-shell"><div class="mobile-menu-backdrop" onclick="closeAdminMenu()"></div><aside id="admin-sidebar" class="sidebar" aria-label="Operations navigation"><div class="side-brand"><div class="brand-mark">ST</div><div><strong>${esc(String(state.settings?.companyName||'Shine Time'))}</strong><small>${esc(t('Operations','Operations'))}</small></div><button class="mobile-menu-close" aria-label="Close menu" onclick="closeAdminMenu()">×</button></div><nav class="nav">${window.ShineTimeUi.adminNavigationForRole(adminNav,state.me.role).map(([r,i,l])=>`<button data-route="admin/${r}" class="${current===r?'active':''}" onclick="navTo('admin/${r}');closeAdminMenu()"><span class="nav-icon">${i}</span><span class="nav-label">${l}</span></button>`).join('')}</nav><div class="side-footer"><div class="profile-mini"><div class="avatar">${initials(state.me.full_name)}</div><div><strong>${esc(state.me.full_name)}</strong><small>${state.me.role==='OPERATIONS_MANAGER'?'Operations manager':'Administrator'}</small></div></div>${ST_I18N.selector()}<button class="btn ghost sm full" style="color:#d7deea;border-color:#384458;margin-top:6px" onclick="logout()">Sign out</button></div></aside><main class="main"><header class="topbar"><button class="mobile-menu-trigger" aria-label="Open menu" aria-controls="admin-sidebar" aria-expanded="false" onclick="toggleAdminMenu()">☰</button><div class="page-title"><h1>Operations</h1><p>Loading…</p></div><div class="top-actions"><button class="btn sm" aria-label="Notifications" onclick="notificationModal()">🔔</button><span class="pill green"><span class="dot"></span>Bratislava</span><button class="btn sm" aria-label="Refresh" onclick="render()"><span aria-hidden="true">↻</span><span class="refresh-label">Refresh</span></button></div></header><div id="page" class="content"></div></main></div>`}
 function renderCleanerShell(){const current=route().split('/')[1];app.innerHTML=`<div class="cleaner-shell"><header class="cleaner-top"><div class="row"><div><h1>${esc(state.me.full_name)}</h1><small>Shine Time Cleaner</small></div><div style="display:flex;gap:8px;align-items:center">${ST_I18N.selector(true)}<button class="btn sm" onclick="notificationModal()">🔔</button><button id="online-toggle" class="online-toggle">Loading…</button></div></div></header><main id="page" class="cleaner-content"></main><nav class="bottom-nav">${cleanerNav.map(([r,i,l])=>`<button data-route="cleaner/${r}" class="${current===r?'active':''}" onclick="navTo('cleaner/${r}')"><span>${i}</span>${l}</button>`).join('')}</nav></div>`}
 function renderClientShell(){
@@ -458,7 +467,7 @@ window.useDeviceLocation=button=>{
 function reviewPanel(j){
   if(!qualityReviewEnabled())return '';
   const pending=j.status==='COMPLETED'&&j.review_status==='PENDING';
-  return `<section class="review-panel"><h4>${t('Quality review','Quality review')}</h4>${reviewPill(j)}${j.review_note?`<p>${esc(j.review_note)}</p>`:''}${pending?`<p>${t('Inspect the checklist and proof before accepting this report.','Inspect the checklist and proof before accepting this report.')}</p><ul class="review-checklist">${(j.checklist||[]).map(i=>`<li>${i.completed?'✓':'○'} ${esc(i.label)}</li>`).join('')}</ul><label for="review-note">${t('Feedback for the cleaner','Feedback for the cleaner')}</label><textarea id="review-note" class="input" maxlength="2000" rows="3"></textarea><div class="job-actions"><button class="btn green" data-review-action onclick="reviewJob(${Number(j.id)},'APPROVED',${Number(j.review_version)})">${t('Approve report','Approve report')}</button><button class="btn orange" data-review-action onclick="reviewJob(${Number(j.id)},'REWORK_REQUIRED',${Number(j.review_version)})">${t('Request rework','Request rework')}</button></div>`:''}</section>`;
+  return `<section class="review-panel"><h4>${t('Quality review','Quality review')}</h4>${clientFeedbackNote(j.feedback)}${reviewPill(j)}${j.review_note?`<p>${esc(j.review_note)}</p>`:''}${pending?`<p>${t('Inspect the checklist and proof before accepting this report.','Inspect the checklist and proof before accepting this report.')}</p><ul class="review-checklist">${(j.checklist||[]).map(i=>`<li>${i.completed?'✓':'○'} ${esc(i.label)}</li>`).join('')}</ul><label for="review-note">${t('Feedback for the cleaner','Feedback for the cleaner')}</label><textarea id="review-note" class="input" maxlength="2000" rows="3"></textarea><div class="job-actions"><button class="btn green" data-review-action onclick="reviewJob(${Number(j.id)},'APPROVED',${Number(j.review_version)})">${t('Approve report','Approve report')}</button><button class="btn orange" data-review-action onclick="reviewJob(${Number(j.id)},'REWORK_REQUIRED',${Number(j.review_version)})">${t('Request rework','Request rework')}</button></div>`:''}</section>`;
 }
 const reviewRequests=new Map();
 window.reviewJob=async(id,decision,expectedVersion)=>{
@@ -717,7 +726,24 @@ window.takeBundle=async(ids,date=today())=>{for(const id of String(ids).split(',
 
 async function cleanerMyDay(){const date=state.myDayDate||today();const d=await cleanerHeaderAvailability(date);const dayName=date===today()?'Today':'Tomorrow';$('#page').innerHTML=`<div class="toolbar" style="margin-bottom:12px"><button class="btn sm ${date===today()?'primary':''}" onclick="setMyDayDate('${today()}')">Today</button><button class="btn sm ${date===tomorrow()?'primary':''}" onclick="setMyDayDate('${tomorrow()}')">Tomorrow</button></div><div class="section-head"><div><h2>${dayName} · My Day</h2><p>${t('Projected finish','Projected finish')} ${esc(d.projectedFinish||'—')}${d.jobs.length?` · ${t('latest deadline','latest deadline')} ${esc(d.jobs.map(j=>String(j.deadline||'').slice(0,5)).filter(Boolean).sort().at(-1)||'—')}`:''}</p></div></div>${miniDay(d.jobs)}<div class="job-card"><div class="detail-grid"><div class="detail-item"><div class="k">Jobs</div><div class="v">${d.total}</div></div><div class="detail-item"><div class="k">Earned completed</div><div class="v">${money(d.earnings)}</div></div></div></div>`}
 window.setMyDayDate=date=>{state.myDayDate=date;cleanerMyDay()};
-async function cleanerEarnings(){await cleanerHeaderAvailability();const d=await api('/api/cleaner/earnings');$('#page').innerHTML=`<div class="mobile-kpis"><div class="mobile-kpi" style="grid-column:span 2"><div class="v">${money(d.today)}</div><div class="k">TODAY</div></div><div class="mobile-kpi"><div class="v">${d.jobs.length}</div><div class="k">COMPLETED</div></div></div><div class="section-head" style="margin-top:18px"><div><h2>Completed cleanings</h2><p>Base payout + rescue / surge bonus</p></div></div>${d.jobs.map(j=>`<div class="job-card"><div class="head"><div><h3>${esc(j.object_code)} · ${esc(j.object_name)}</h3><div class="address">${fmtDate(j.service_date)} · ${esc(j.zone)}</div>${reviewPill(j)}</div><div style="text-align:right"><div class="price">${money(Number(j.payout)+Number(j.bonus))}</div>${j.bonus?`<div class="bonus">+${money(j.bonus)} bonus</div>`:''}</div></div></div>`).join('')||'<div class="job-card"><div class="empty">No completed jobs yet.</div></div>'}`}
+async function cleanerEarnings(){
+ await cleanerHeaderAvailability();
+ const d=await api('/api/cleaner/earnings');
+ const e=d.earnings||{};
+ const cents=v=>money(Number(v||0)/100);
+ $('#page').innerHTML=`<div class="mobile-kpis earnings-kpis">
+  <div class="mobile-kpi"><div class="v">${cents(e.week)}</div><div class="k">${t('This week','This week')}</div><small>${e.completedWeek||0} ${t('cleanings','cleanings')}</small></div>
+  <div class="mobile-kpi"><div class="v">${cents(e.month)}</div><div class="k">${t('This month','This month')}</div><small>${e.completedMonth||0} ${t('cleanings','cleanings')}</small></div>
+  <div class="mobile-kpi"><div class="v">${cents(e.waitingReview)}</div><div class="k">${t('Waiting for review','Waiting for review')}</div><small>${t('paid after approval','paid after approval')}</small></div>
+  <div class="mobile-kpi"><div class="v">${cents(e.payable)}</div><div class="k">${t('Ready to be paid','Ready to be paid')}</div><small>${t('approved, not paid yet','approved, not paid yet')}</small></div>
+  <div class="mobile-kpi"><div class="v">${cents(e.paid)}</div><div class="k">${t('Already paid','Already paid')}</div></div>
+  <div class="mobile-kpi"><div class="v">★ ${Number(e.rating||0).toFixed(2)}</div><div class="k">${t('Rating','Rating')}</div><small>${t('Reliability','Reliability')} ${Math.round(Number(e.reliability||0))}</small></div>
+ </div>
+ <small class="subtle">${t('This week from','This week from')} ${fmtDate(e.weekStart)} · ${t('this month from','this month from')} ${fmtDate(e.monthStart)}. ${t('Amounts are base payout plus bonus.','Amounts are base payout plus bonus.')}</small>
+ <button class="btn full" style="margin-top:12px" onclick="navTo('cleaner/settlements')">${t('Payments by month','Payments by month')}</button>
+ <div class="section-head" style="margin-top:18px"><div><h2>${t('Completed cleanings','Completed cleanings')}</h2><p>${t('Base payout + rescue bonus','Base payout + rescue bonus')}</p></div></div>
+ ${d.jobs.map(j=>`<div class="job-card"><div class="head"><div><h3>${esc(j.object_code)} · ${esc(j.object_name)}</h3><div class="address">${fmtDate(j.service_date)} · ${esc(j.zone||'')}</div>${reviewPill(j)}${j.feedback_rating?` <span class="pill ${Number(j.feedback_rating)>=4?'green':Number(j.feedback_rating)>=3?'orange':'red'}">★ ${j.feedback_rating}</span>`:''}</div><div style="text-align:right"><div class="price">${money(Number(j.payout)+Number(j.bonus))}</div>${j.bonus?`<div class="bonus">+${money(j.bonus)} ${t('bonus','bonus')}</div>`:''}</div></div></div>`).join('')||`<div class="job-card"><div class="empty">${t('No completed cleanings yet.','No completed cleanings yet.')}</div></div>`}`;
+}
 async function cleanerProfile(){const d=await cleanerHeaderAvailability();$('#page').innerHTML=`<div class="job-card"><div style="display:flex;align-items:center;gap:12px"><div class="avatar" style="width:52px;height:52px;font-size:17px">${initials(state.me.full_name)}</div><div><h2 style="margin:0">${esc(state.me.full_name)}</h2><div class="address">${esc(state.me.email)}</div></div></div><div class="detail-grid" style="margin-top:15px"><div class="detail-item"><div class="k">Mode</div><div class="v">${esc(state.me.cleaner_mode)}</div></div><div class="detail-item"><div class="k">Reliability</div><div class="v">${Math.round(state.me.reliability_score||0)}/100</div></div><div class="detail-item"><div class="k">Rating</div><div class="v">★ ${state.me.rating||'—'}</div></div><div class="detail-item"><div class="k">Transport</div><div class="v">${esc(state.me.transport||'—')}</div></div><div class="detail-item wide"><div class="k">Preferred zones</div><div class="v">${(state.me.preferred_zones||[]).map(x=>`<span class="pill gray">${esc(x)}</span>`).join(' ')||'—'}</div></div></div></div><div class="job-card"><strong>Availability today</strong><p class="subtle">${d.availability.fromTime}–${d.availability.toTime} · ${d.availability.online?'ONLINE':'OFFLINE'}</p><button class="btn full" onclick="editAvailability('${d.availability.fromTime}','${d.availability.toTime}',${d.availability.online})">Edit availability</button></div>${notificationCard()}<div class="job-card"><strong>Account security</strong><p class="subtle">Use a personal password instead of the initial password sent by operations.</p><button class="btn full" onclick="passwordModal()">Change password</button></div><button class="btn red full" onclick="logout()">Sign out</button>`}
 async function cleanerMap(){const [d,m]=await Promise.all([cleanerHeaderAvailability(),api('/api/cleaner/marketplace')]);const points=[...d.jobs.map(j=>({lat:j.lat,lng:j.lng,name:`${j.object_code} · ${j.status}`,detail:j.address,id:j.id,assigned:true})),...m.jobs.map(j=>({lat:j.lat,lng:j.lng,name:`${j.object_code} · available`,detail:`${j.zone} · ${money(Number(j.payout)+Number(j.bonus))}`,id:j.id,assigned:false}))];$('#page').innerHTML=`<div id="cleaner-map" class="map compact"></div><div style="height:10px"></div><div class="job-card"><strong>Map legend</strong><p class="subtle">Assigned jobs include full address. Marketplace access instructions remain hidden until you take the cleaning.</p></div>`;setTimeout(()=>renderLeaflet('cleaner-map',points,p=>p.assigned?navTo(`cleaner/job/${p.id}`):null),20)}
 
@@ -762,6 +788,7 @@ async function renderClient(page){
     if(page==='book')return clientBook();
     if(page==='objects')return clientObjects();
     if(page==='bookings')return clientBookings();
+    if(page==='recurring')return clientRecurring();
     if(page==='finance'){
       return clientFinance();
     }
@@ -781,6 +808,91 @@ window.loadClientSlots=async()=>{const f=$('#client-book-form');if(!f)return;con
 window.selectClientSlot=()=>{};
 window.reserveClientCleaning=async()=>{const f=$('#client-book-form'),from=$('#window-from')?.value,to=$('#window-to')?.value;if(!from||!to||from>=to)return toast(t('Ready-by time must be after the start','Ready-by time must be after the start'),'error');const btn=$('#reserve-cleaning-btn');btn.disabled=true;try{const d=await api('/api/client/bookings',{method:'POST',body:{objectId:Number(f.objectId.value),serviceDate:f.serviceDate.value,windowFrom:from,windowTo:to,note:$('#booking-note')?.value||''}});toast(t('Reservation created','Reservation created'),'success');navTo(`client/booking/${d.booking.id}`)}catch(e){toast(e.message,'error');btn.disabled=false}};
 
+
+/* The client's own voice: a rating on a finished cleaning, and a complaint that
+   goes to operations rather than to the cleaner. */
+const STAR_WORDS=['Very bad','Bad','Acceptable','Good','Excellent'];
+function ratingBlock(d){
+ const j=d.booking,f=d.feedback,can=d.rating?.canRate;
+ if(j.status!=='COMPLETED'&&!f)return '';
+ if(f&&!can)return `<div class="instruction"><h4>${t('Your rating','Your rating')}</h4><p>${stars(f.rating)} ${f.complaint?`<span class="pill red">${t('Complaint','Complaint')}</span>`:''}</p>${f.comment?`<p class="subtle">${esc(f.comment)}</p>`:''}<small class="subtle">${t('The rating window has closed.','The rating window has closed.')}</small></div>`;
+ if(!can)return '';
+ const current=f?.rating||0;
+ return `<div class="instruction"><h4>${f?t('Your rating','Your rating'):t('Rate this cleaning','Rate this cleaning')}</h4>
+  <div class="star-row" id="rating-stars">${[1,2,3,4,5].map(n=>`<button type="button" class="star ${n<=current?'on':''}" data-rating="${n}" aria-label="${n}" onclick="pickRating(${n})">★</button>`).join('')}<span class="subtle" id="rating-word">${current?t(STAR_WORDS[current-1],STAR_WORDS[current-1]):''}</span></div>
+  <textarea class="textarea" id="rating-comment" rows="2" maxlength="1000" placeholder="${esc(t('What went well, what did not (optional)','What went well, what did not (optional)'))}">${f?esc(f.comment||''):''}</textarea>
+  <label class="switch-row"><input type="checkbox" id="rating-complaint" ${f?.complaint?'checked':''}><span>${t('This is a complaint — operations should look at it','This is a complaint — operations should look at it')}</span></label>
+  <button class="btn primary full" onclick="submitRating(${j.id})">${f?t('Update the rating','Update the rating'):t('Send the rating','Send the rating')}</button>
+  <small class="subtle">${t('You can rate a cleaning within','You can rate a cleaning within')} ${d.rating.windowDays} ${t('days','days')}.</small></div>`;
+}
+const stars=n=>`<span class="stars" aria-label="${n}/5">${'★'.repeat(Math.round(n))}${'☆'.repeat(5-Math.round(n))}</span>`;
+window.pickRating=n=>{
+ state.pickedRating=n;
+ document.querySelectorAll('#rating-stars .star').forEach(el=>el.classList.toggle('on',Number(el.dataset.rating)<=n));
+ const word=document.getElementById('rating-word');if(word)word.textContent=t(STAR_WORDS[n-1],STAR_WORDS[n-1]);
+};
+window.submitRating=async id=>{
+ const rating=state.pickedRating||Number(document.querySelector('#rating-stars .star.on:last-of-type')?.dataset.rating||0);
+ const comment=document.getElementById('rating-comment')?.value.trim()||'';
+ const complaint=Boolean(document.getElementById('rating-complaint')?.checked);
+ if(!rating){toast(t('Choose from one to five stars','Choose from one to five stars'),'error');return}
+ if(complaint&&!comment){toast(t('A complaint needs a description','A complaint needs a description'),'error');return}
+ try{
+  await api(`/api/client/bookings/${id}/feedback`,{method:'POST',body:{rating,comment,complaint}});
+  state.pickedRating=null;
+  toast(complaint?t('Operations notified','Operations notified'):t('Thank you','Thank you'),'success');
+  await clientBookingDetail(id);
+ }catch(e){toast(e.message,'error')}
+};
+window.editBookingNote=async id=>{
+ const current=document.getElementById('booking-note-text')?.textContent?.trim()||'';
+ const value=await askDialog({title:'Note for the cleaner',label:'Note',value:current==='No note yet.'?'':current,multiline:true,confirmLabel:'Save'});
+ if(value===null)return;
+ try{await api(`/api/client/bookings/${id}/note`,{method:'PATCH',body:{note:value}});toast(t('Note saved','Note saved'),'success');await clientBookingDetail(id)}catch(e){toast(e.message,'error')}
+};
+
+/* Recurring bookings the client manages: the worker that turns them into
+   cleanings already runs every night. */
+const WEEKDAYS=[[1,'Mon'],[2,'Tue'],[3,'Wed'],[4,'Thu'],[5,'Fri'],[6,'Sat'],[7,'Sun']];
+async function clientRecurring(){
+ shellTitle(t('Repeat','Repeat'),t('Cleanings that repeat every week','Cleanings that repeat every week'));
+ const [d,objects]=await Promise.all([api('/api/client/recurring'),api('/api/client/objects')]);
+ state.recurringObjects=objects.objects.filter(o=>o.active&&o.approval_status==='APPROVED');
+ $('#page').innerHTML=`<div class="section-head client-section"><div><h2>${t('Repeating cleanings','Repeating cleanings')}</h2><p>${d.schedules.length} ${t('schedules','schedules')}</p></div><button class="btn primary" onclick="clientRecurringModal()">${t('New schedule','New schedule')}</button></div>
+ ${d.schedules.map(r=>`<div class="job-card"><div class="head"><div><h3>${esc(r.object_code)} · ${esc(r.object_name)}</h3><div class="address">${WEEKDAYS.filter(([n])=>r.weekdays.includes(n)).map(([,label])=>t(label,label)).join(' · ')} · ${esc(String(r.planned_start).slice(0,5))}</div><small class="subtle">${t('From','From')} ${fmtDate(r.start_date)}${r.end_date?` ${t('to','to')} ${fmtDate(r.end_date)}`:''} · ${r.generated} ${t('cleanings created','cleanings created')}</small></div><div>${r.active?`<span class="pill green"><span class="dot"></span>${t('Active','Active')}</span>`:`<span class="pill gray">${t('Paused','Paused')}</span>`}</div></div>
+  <div class="row-actions"><button class="btn sm" onclick='clientRecurringModal(${JSON.stringify(r).replace(/'/g,"&#39;")})'>${t('Edit','Edit')}</button><button class="btn sm" onclick="toggleClientRecurring(${r.id},${!r.active})">${r.active?t('Pause','Pause'):t('Resume','Resume')}</button><button class="btn sm red" onclick="removeClientRecurring(${r.id})">${t('Delete','Delete')}</button></div></div>`).join('')||`<div class="job-card"><div class="empty">${t('No repeating cleanings yet.','No repeating cleanings yet.')}</div></div>`}`;
+}
+window.clientRecurringModal=(schedule=null)=>{
+ const objects=state.recurringObjects||[];
+ if(!objects.length){toast(t('No approved property to book','No approved property to book'),'error');return}
+ const days=schedule?schedule.weekdays:[1];
+ modal(esc(schedule?t('Edit schedule','Edit schedule'):t('New schedule','New schedule')),`<form id="recurring-form" class="form-grid">
+  <input type="hidden" name="id" value="${schedule?schedule.id:''}">
+  <div class="field wide"><label for="rc-object">${t('Property','Property')}</label><select class="select" id="rc-object" name="objectId" ${schedule?'disabled':''}>${objects.map(o=>`<option value="${o.id}" ${schedule&&String(schedule.object_id)===String(o.id)?'selected':''}>${esc(o.code)} — ${esc(o.name)}</option>`).join('')}</select>${schedule?`<small class="subtle">${t('A schedule stays with its property.','A schedule stays with its property.')}</small>`:''}</div>
+  <div class="field wide"><label>${t('Weekdays','Weekdays')}</label><div class="row-actions" id="rc-days">${WEEKDAYS.map(([n,label])=>`<label class="chip-toggle"><input type="checkbox" name="weekday" value="${n}" ${days.includes(n)?'checked':''}><span>${t(label,label)}</span></label>`).join('')}</div></div>
+  <div class="field"><label for="rc-start">${t('Start time','Start time')}</label><input class="input" id="rc-start" name="plannedStart" type="time" step="900" value="${schedule?String(schedule.planned_start).slice(0,5):'10:00'}"></div>
+  <div class="field"><label for="rc-from">${t('First day','First day')}</label><input class="input" id="rc-from" name="startDate" type="date" value="${schedule?schedule.start_date:today()}"></div>
+  <div class="field"><label for="rc-to">${t('Last day (optional)','Last day (optional)')}</label><input class="input" id="rc-to" name="endDate" type="date" value="${schedule?.end_date||''}"></div>
+ </form>`,`<button class="btn" onclick="closeModal()">${t('Cancel','Cancel')}</button><button class="btn primary" onclick="saveClientRecurring()">${t('Save','Save')}</button>`);
+};
+window.saveClientRecurring=async()=>{
+ const form=$('#recurring-form');
+ const weekdays=[...form.querySelectorAll('input[name=weekday]:checked')].map(el=>Number(el.value));
+ if(!weekdays.length){toast(t('Choose at least one weekday','Choose at least one weekday'),'error');return}
+ const f=new FormData(form);
+ const body={id:f.get('id')||null,objectId:Number(f.get('objectId')||$('#rc-object').value),weekdays,plannedStart:f.get('plannedStart'),startDate:f.get('startDate'),endDate:f.get('endDate')||null};
+ try{await api('/api/client/recurring',{method:'POST',body});closeModal();toast(t('Schedule saved','Schedule saved'),'success');await clientRecurring()}catch(e){toast(e.message,'error')}
+};
+window.toggleClientRecurring=async(id,active)=>{
+ const schedule=(await api('/api/client/recurring')).schedules.find(r=>String(r.id)===String(id));
+ if(!schedule)return;
+ try{await api('/api/client/recurring',{method:'POST',body:{id,objectId:schedule.object_id,weekdays:schedule.weekdays,plannedStart:String(schedule.planned_start).slice(0,5),startDate:schedule.start_date,endDate:schedule.end_date,active}});toast(active?t('Schedule resumed','Schedule resumed'):t('Schedule paused','Schedule paused'),'success');await clientRecurring()}catch(e){toast(e.message,'error')}
+};
+window.removeClientRecurring=async id=>{
+ if(!await askConfirm('Delete this schedule?','Cleanings it already created stay as they are.','Delete'))return;
+ try{const r=await api(`/api/client/recurring/${id}`,{method:'DELETE'});toast(r.deleted?t('Schedule deleted','Schedule deleted'):t('Schedule paused because it already created cleanings','Schedule paused because it already created cleanings'),'success');await clientRecurring()}catch(e){toast(e.message,'error')}
+};
+
 async function clientBookings(){const d=await api('/api/client/bookings');const rows=d.bookings;$('#page').innerHTML=`<div class="section-head client-section"><div><h2>Booking history</h2><p>${rows.length} bookings</p></div><button class="btn primary" onclick="navTo('client/book')">Book Cleaning</button></div><div class="booking-list">${rows.map(b=>`<button class="job-card compact-card" onclick="navTo('client/booking/${b.id}')"><div><strong>${fmtDate(b.service_date)} · ${esc(b.object_code)} · ${esc(b.object_name)}</strong><span>${esc(b.planned_start||b.earliest_start)} · ${esc(b.address)}</span><small>${money(Number(b.client_price)+Number(b.extra_revenue||0))}</small></div>${deliveryPill(b)}</button>`).join('')||'<div class="job-card"><div class="empty">No bookings yet.</div></div>'}</div>`}
 
 function progressTracker(j){
@@ -793,7 +905,7 @@ function progressTracker(j){
 }
 const FINANCIAL_LABELS={PENDING:'Not invoiced',INVOICED:'Invoiced',PAID:'Paid',CANCELLED:'Cancelled'};
 function financialLabel(v){const l=FINANCIAL_LABELS[v||'PENDING']||String(v);return t(l,l)}
-async function clientBookingDetail(id){try{const d=await api(`/api/client/bookings/${id}`),j=d.booking;$('#page').innerHTML=`<div class="active-job-head client-detail-head"><button class="back" onclick="navTo('client/bookings')">← Bookings</button><h2>${esc(j.object_code)} · ${esc(j.object_name)}</h2><div class="address" style="color:#b7c0cf">${esc(j.address)}</div><div class="job-meta">${deliveryPill(j)} <span class="meta-chip">${fmtDate(j.service_date)}</span><span class="meta-chip">${esc(j.planned_start||j.earliest_start)}–${esc(j.deadline)}</span><span class="meta-chip">${money(Number(j.client_price)+Number(j.extra_revenue||0))}</span></div></div><div class="active-job-body">${j.client_note?`<div class="instruction"><h4>${t('Your note','Your note')}</h4><p>${esc(j.client_note)}</p></div>`:''}<div class="instruction"><h4>${t('Progress','Progress')}</h4>${progressTracker(j)}${j.cleaner_name&&!['UNASSIGNED','CANCELLED'].includes(j.status)?`<p class="subtle" style="margin-top:8px">${t('Cleaner','Cleaner')}: <strong>${esc(String(j.cleaner_name).split(' ')[0])}</strong></p>`:''}</div><div class="instruction"><h4>Cleaning</h4><div class="detail-grid"><div class="detail-item"><div class="k">Status</div><div class="v">${deliveryPill(j)}</div></div><div class="detail-item"><div class="k">ETA</div><div class="v">${esc(j.eta||'—')}</div></div><div class="detail-item"><div class="k">Price</div><div class="v">${money(Number(j.client_price)+Number(j.extra_revenue||0))}</div></div><div class="detail-item"><div class="k">Financial status</div><div class="v">${esc(financialLabel(j.financial_status))}</div></div></div></div>${d.photos.length?`<div class="instruction"><h4>Proof photos</h4><div class="photo-grid">${d.photos.map(p=>proofMedia(p)).join('')}</div></div>`:''}${d.issues.length?`<div class="instruction"><h4>Issues</h4>${d.issues.map(i=>`<div class="risk-row"><div class="risk-score">!</div><div><strong>${esc(i.type)}</strong><small>${esc(i.description||'')} · ${esc(i.status)}</small></div></div>`).join('')}</div>`:''}</div>${!['COMPLETED','CANCELLED','EXPIRED','ARRIVED','CLEANING'].includes(j.status)&&j.service_date>=today()?`<div class="sticky-action"><button class="btn red full" onclick="cancelClientBooking(${j.id})">Cancel booking</button></div>`:''}`;}catch(e){$('#page').innerHTML=`<div class="job-card"><strong>${esc(e.message)}</strong><button class="btn full" onclick="navTo('client/bookings')">Back</button></div>`}}
+async function clientBookingDetail(id){try{const d=await api(`/api/client/bookings/${id}`),j=d.booking;$('#page').innerHTML=`<div class="active-job-head client-detail-head"><button class="back" onclick="navTo('client/bookings')">← Bookings</button><h2>${esc(j.object_code)} · ${esc(j.object_name)}</h2><div class="address" style="color:#b7c0cf">${esc(j.address)}</div><div class="job-meta">${deliveryPill(j)} <span class="meta-chip">${fmtDate(j.service_date)}</span><span class="meta-chip">${esc(j.planned_start||j.earliest_start)}–${esc(j.deadline)}</span><span class="meta-chip">${money(Number(j.client_price)+Number(j.extra_revenue||0))}</span></div></div><div class="active-job-body"><div class="instruction"><h4>${t('Your note','Your note')}</h4><p id="booking-note-text">${j.client_note?esc(j.client_note):`<span class="subtle">${t('No note yet.','No note yet.')}</span>`}</p>${['ARRIVED','CLEANING','COMPLETED','CANCELLED','EXPIRED'].includes(j.status)?`<small class="subtle">${t('The note can be changed until the cleaner arrives.','The note can be changed until the cleaner arrives.')}</small>`:`<button class="btn sm" onclick="editBookingNote(${j.id})">${t('Change the note','Change the note')}</button>`}</div>${ratingBlock(d)}<div class="instruction"><h4>${t('Progress','Progress')}</h4>${progressTracker(j)}${j.cleaner_name&&!['UNASSIGNED','CANCELLED'].includes(j.status)?`<p class="subtle" style="margin-top:8px">${t('Cleaner','Cleaner')}: <strong>${esc(String(j.cleaner_name).split(' ')[0])}</strong></p>`:''}</div><div class="instruction"><h4>Cleaning</h4><div class="detail-grid"><div class="detail-item"><div class="k">Status</div><div class="v">${deliveryPill(j)}</div></div><div class="detail-item"><div class="k">ETA</div><div class="v">${esc(j.eta||'—')}</div></div><div class="detail-item"><div class="k">Price</div><div class="v">${money(Number(j.client_price)+Number(j.extra_revenue||0))}</div></div><div class="detail-item"><div class="k">Financial status</div><div class="v">${esc(financialLabel(j.financial_status))}</div></div></div></div>${d.photos.length?`<div class="instruction"><h4>Proof photos</h4><div class="photo-grid">${d.photos.map(p=>proofMedia(p)).join('')}</div></div>`:''}${d.issues.length?`<div class="instruction"><h4>Issues</h4>${d.issues.map(i=>`<div class="risk-row"><div class="risk-score">!</div><div><strong>${esc(i.type)}</strong><small>${esc(i.description||'')} · ${esc(i.status)}</small></div></div>`).join('')}</div>`:''}</div>${!['COMPLETED','CANCELLED','EXPIRED','ARRIVED','CLEANING'].includes(j.status)&&j.service_date>=today()?`<div class="sticky-action"><button class="btn red full" onclick="cancelClientBooking(${j.id})">Cancel booking</button></div>`:''}`;}catch(e){$('#page').innerHTML=`<div class="job-card"><strong>${esc(e.message)}</strong><button class="btn full" onclick="navTo('client/bookings')">Back</button></div>`}}
 async function clientFinance(){
   const month=state.clientFinanceMonth||new Date().toISOString().slice(0,7);
   const data=await api('/api/client/finance?month='+encodeURIComponent(month));
