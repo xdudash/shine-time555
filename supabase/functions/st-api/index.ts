@@ -1016,6 +1016,14 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             return { entry: await one(service.rpc('st_save_finance_entry', { p_actor_id: ctx.appUser.id, p_body: financeBody(number(financeEntry[1])) })) };
         if (financeEntry && !financeEntry[2] && method === 'DELETE')
             return one(service.rpc('st_delete_finance_entry', { p_actor_id: ctx.appUser.id, p_id: number(financeEntry[1]), p_reason: String(body.reason || '') }));
+        if (route === 'admin/accounts/requests' && method === 'GET')
+            return one(service.rpc('st_account_requests_list', { p_actor_id: ctx.appUser.id, p_status: String(query.status || 'PENDING') }));
+        const accountDecision = route.match(/^admin\/accounts\/requests\/(\d+)\/(approve|reject)$/);
+        if (accountDecision && method === 'POST')
+            return one(service.rpc('st_decide_client_account', {
+                p_actor_id: ctx.appUser.id, p_request_id: number(accountDecision[1]),
+                p_approve: accountDecision[2] === 'approve', p_note: String(body.note || ''),
+            }));
         if (route === 'admin/issues' && method === 'GET') {
             const issues = await result(service.from('st_issues').select('*').order('status').order('priority').order('id', { ascending: false })) as AnyRow[];
             const jobs = await fetchRows('st_jobs', issues.map((issue) => issue.job_id));
@@ -1157,6 +1165,22 @@ Deno.serve(async (req) => {
     const query = request.query && typeof request.query === 'object' ? request.query : {};
     const body = request.body && typeof request.body === 'object' ? request.body : {};
     if (route === 'bootstrap' && method === 'POST') return json(await bootstrap(req, body), 201);
+    if (route === 'account/request' && method === 'POST') {
+      // Stage 3: a client who has just signed up asks to be let in. They are
+      // authenticated (authOnly) but have no application account yet, so this
+      // cannot sit behind context(), which requires an active one.
+      const { authUser } = await authOnly(req);
+      const result = await one(service.rpc('st_request_client_account', {
+        p_auth_user_id: authUser.id, p_email: String(authUser.email || ''),
+        p_body: {
+          fullName: String(body.fullName || ''), phone: String(body.phone || ''),
+          companyName: String(body.companyName || ''), city: String(body.city || ''),
+          propertyCount: body.propertyCount === undefined || body.propertyCount === '' ? '' : String(number(body.propertyCount)),
+          message: String(body.message || ''), language: validLanguage(body.language),
+        },
+      })) as AnyRow;
+      return json(result, 201);
+    }
     if (route === 'dispatch/outbox' && method === 'POST') {
       // Called by the scheduled job, never by a browser. The platform's JWT gate
       // is off for this function (supabase/config.toml: the project uses the new

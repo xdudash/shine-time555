@@ -185,7 +185,9 @@ Second block (specification `docs/ssd/specs/019-admin-sections-archive-records.m
 
 ### Stage 3 — open the front door
 
-- [ ] Client self-registration with owner approval (decision 5).
-- [ ] Fix 27 — retire `site-session` and the legacy tables it needs.
-- [ ] Fix 28 — remove the superseded photo-upload path.
-- [ ] Move the application from GitHub Pages to `shinetime.sk/app`.
+Specification `docs/ssd/specs/020-self-registration-and-retirement.md`, evidence `docs/verification/2026-10-12-stage3.md`. **Deployment:** apply `supabase/migrations/20261012210000_self_registration.sql` with the stage 2 migrations and deploy `st-api`; the two procedures below are yours to run when you choose.
+
+- [x] Client self-registration with your approval (decision 5). The account is created **inactive**, so `context()` keeps it out of every route until an administrator approves it in Clients → Account requests. Rejecting needs a reason; approving creates the client account and notifies the client. `selfRegistrationOpen` turns it off without a deployment.
+- [ ] Fix 27 — retiring `site-session` and the prototype tables: the procedure is written and checked against production in `deployment/retire-legacy.sql`. **It found that `profiles` is still written by a trigger on `auth.users`, so the trigger must be dropped before the tables or every new sign-up breaks.** Run it when you have a few minutes to watch the output; the application needs nothing from those tables today.
+- [ ] Fix 28 — the superseded photo path goes with the prototype tables in the same procedure (section 4 checks the storage buckets before deleting anything).
+- [ ] Move the application from GitHub Pages to `shinetime.sk/app`: `deployment/move-to-shinetime-app.md`. No code change needed — the base path is derived at runtime — but Supabase's Site URL and Redirect URLs and the `ST_APP_URL` secret must move with it, and everyone re-enables push notifications once, because a subscription belongs to its origin.
