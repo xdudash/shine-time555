@@ -55,6 +55,10 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(path==='/api/admin/managers'&&(opts.method||'GET')==='GET')return {managers:[{id:7,full_name:'Dispatcher One',email:'d1@test.invalid',phone:'',language:'en',active:true}]};
    if(path==='/api/admin/managers'&&opts.method==='POST'){window.createdManager=opts.body;return {manager:{id:8}}}
    if(path==='/api/notifications')return {notifications:[],unread:0};
+   if(path==='/api/account/push'&&opts.method==='POST'){window.savedSubscription=opts.body;return {subscription:{id:1,endpoint:opts.body.endpoint}}}
+   if(path==='/api/account/push'&&opts.method==='DELETE'){window.removedSubscription=opts.body;return {removed:1}}
+   if(path==='/api/account/push/test'){window.testPushes=(window.testPushes||0)+1;return {ok:true,browsers:1,removed:0}}
+   if(path==='/api/account/notifications'){window.channelPatches=(window.channelPatches||[]).concat([opts.body]);return {push:opts.body.push!==undefined?opts.body.push:true,email:opts.body.email!==undefined?opts.body.email:true}}
    if(path==='/api/account/language')return {ok:true};
    throw Error('Unexpected route '+path);
   }};
@@ -270,6 +274,67 @@ try {
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS admin adds an operations manager with a 12-character password');
+ }
+ // Notifications: this browser subscribes to push, can test it, and the account toggles are stored server side.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(async()=>{
+   // A stand-in push manager: the real one needs a registered service worker,
+   // which this harness does not have. Everything else is the real app code.
+   window.__subscription=null;
+   const subscription={endpoint:'https://push.example.invalid/f/abc',toJSON:()=>({keys:{p256dh:'BPc1-key',auth:'c2VjcmV0'}}),unsubscribe:async()=>{window.__subscription=null;return true}};
+   Object.defineProperty(navigator,'serviceWorker',{configurable:true,value:{
+    ready:Promise.resolve({pushManager:{
+     getSubscription:async()=>window.__subscription,
+     subscribe:async options=>{window.__subscribeOptions={userVisibleOnly:options.userVisibleOnly,keyBytes:options.applicationServerKey.length};window.__subscription=subscription;return subscription},
+    }}),
+    addEventListener(){},register:async()=>({}),
+   }});
+   window.Notification={permission:'default',requestPermission:async()=>{window.Notification.permission='granted';return 'granted'}};
+   state.me={id:2,role:'CLEANER',full_name:'Test Cleaner',language:'en',notify_push:true,notify_email:true,cleaner_mode:'FLEX',reliability_score:95};
+   state.settings={};
+   state.push={enabled:true,publicKey:'BPc1'+'a'.repeat(83)};
+   location.hash='cleaner/profile';
+   await render();
+  });
+  await page.locator('#notification-card').waitFor();
+  assert.match(await page.locator('#notification-card').innerText(),/Turn on notifications in this browser/);
+  await page.getByRole('button',{name:'Turn on notifications in this browser'}).click();
+  await page.waitForFunction(()=>window.savedSubscription);
+  const saved=await page.evaluate(()=>savedSubscription);
+  assert.equal(saved.endpoint,'https://push.example.invalid/f/abc');
+  assert.equal(saved.p256dh,'BPc1-key');
+  assert.equal(saved.auth,'c2VjcmV0');
+  assert.ok(saved.userAgent,'the browser is identified so the owner can tell subscriptions apart');
+  assert.deepEqual(await page.evaluate(()=>__subscribeOptions),{userVisibleOnly:true,keyBytes:65},'the VAPID key is sent as 65 raw bytes');
+  await page.waitForFunction(()=>document.querySelector('#notification-card')?.innerText.includes('This browser receives notifications'));
+
+  await page.getByRole('button',{name:'Send a test notification'}).click();
+  await page.waitForFunction(()=>window.testPushes===1);
+
+  // Turning the account-wide channel off is stored, not only shown.
+  await page.locator('#notification-card input[type=checkbox]').last().uncheck();
+  await page.waitForFunction(()=>window.channelPatches?.length);
+  assert.deepEqual(await page.evaluate(()=>channelPatches.at(-1)),{email:false});
+
+  await page.getByRole('button',{name:'Turn off on this browser'}).click();
+  await page.waitForFunction(()=>window.removedSubscription);
+  assert.equal((await page.evaluate(()=>removedSubscription)).endpoint,'https://push.example.invalid/f/abc');
+  assert.equal(await page.evaluate(()=>__subscription),null,'the browser subscription itself is dropped too');
+  await page.waitForFunction(()=>document.querySelector('#notification-card')?.innerText.includes('Turn on notifications in this browser'));
+
+  // A browser that blocked notifications is told so instead of being offered a dead button.
+  await page.evaluate(async()=>{window.Notification.permission='denied';await refreshPushState()});
+  assert.match(await page.locator('#notification-card').innerText(),/blocked in the browser settings/);
+  assert.equal(await page.getByRole('button',{name:'Turn on notifications in this browser'}).count(),0);
+
+  // And a server without keys never offers the flow at all.
+  await page.evaluate(async()=>{window.Notification.permission='default';state.push={enabled:false,publicKey:''};await refreshPushState()});
+  assert.match(await page.locator('#notification-card').innerText(),/not configured on the server/);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS notifications: push subscribe, test, channel toggles, unsubscribe, blocked and unconfigured states');
  }
  // Language switch re-renders navigation, not only the page body.
  {

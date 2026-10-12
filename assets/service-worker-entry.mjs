@@ -8,6 +8,37 @@ self.addEventListener('activate',event=>event.waitUntil(Promise.all([
   self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('shinetime-shell-')&&k!==CACHE).map(k=>caches.delete(k)))),
 ])));
 self.addEventListener('message',event=>{if(event.data?.type==='CLEAR_PRIVATE_DATA')event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('shinetime-')).map(k=>caches.delete(k)))));});
+/* Web Push: the payload is the JSON the API encrypted (title, body, type). */
+const ROUTE_FOR_TYPE={MARKETPLACE:'#cleaner/jobs',RESCUE:'#cleaner/jobs',ASSIGNED:'#cleaner/home',CLIENT_BOOKING:'#admin/live',ESCALATION:'#admin/live',EXPIRED:'#admin/jobs',CHECKIN:'#admin/live',SETTLEMENT:'#admin/finance'};
+self.addEventListener('push',event=>{
+  let data={};
+  try{data=event.data?event.data.json():{}}catch{data={title:'Shine Time',body:event.data?event.data.text():''}}
+  const title=data.title||'Shine Time';
+  event.waitUntil(self.registration.showNotification(title,{
+    body:data.body||'',
+    tag:data.type||'shinetime',
+    renotify:true,
+    lang:data.language||'sk',
+    icon:BASE+'assets/icon-192.png',
+    badge:BASE+'assets/icon-192.png',
+    data:{type:data.type||'',notificationId:data.notificationId||null,url:BASE+(ROUTE_FOR_TYPE[data.type]||'')},
+  }));
+});
+self.addEventListener('notificationclick',event=>{
+  event.notification.close();
+  const info=event.notification.data||{};
+  const scope=new URL(BASE,self.location.origin).href;
+  event.waitUntil((async()=>{
+    const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+    for(const client of windows){
+      if(!client.url.startsWith(scope))continue;
+      await client.focus().catch(()=>{});
+      client.postMessage({type:'NOTIFICATION_CLICK',data:info});
+      return;
+    }
+    await self.clients.openWindow(new URL(info.url||BASE,self.location.origin).href);
+  })());
+});
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET'||!staticCacheAllowed(event.request.url,self.location.origin,BASE))return;
   event.respondWith(fetch(event.request).then(response=>{

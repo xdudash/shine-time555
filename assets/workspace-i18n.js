@@ -955,3 +955,58 @@ window.ST_I18N.addTranslations({
   "Standard duration (min)": "Štandardná dĺžka (min)"
  }
 });
+
+/* Stage 1 (2026-10-12): push and email notifications. */
+window.ST_I18N.addTranslations({
+ "ru": {
+  "Notifications": "Уведомления",
+  "Push notifications are not configured on the server yet.": "Пуш-уведомления ещё не настроены на сервере.",
+  "This browser cannot show notifications. On iPhone add the application to the home screen first.": "Этот браузер не умеет показывать уведомления. На iPhone сначала добавьте приложение на домашний экран.",
+  "Notifications are blocked in the browser settings for this site.": "Уведомления для этого сайта заблокированы в настройках браузера.",
+  "This browser receives notifications.": "Этот браузер получает уведомления.",
+  "Send a test notification": "Отправить тестовое уведомление",
+  "Turn off on this browser": "Отключить в этом браузере",
+  "Turn on notifications in this browser": "Включить уведомления в этом браузере",
+  "Send me push notifications": "Присылать пуш-уведомления",
+  "Send me email notifications": "Присылать уведомления на email",
+  "Email is used for bookings, rescue, expired cleanings and settlements.": "На email приходят брони, срочные уборки, просроченные уборки и расчёты.",
+  "Notifications on": "Уведомления включены",
+  "Notifications off for this browser": "Уведомления в этом браузере отключены",
+  "Test notification sent": "Тестовое уведомление отправлено",
+  "Saved": "Сохранено"
+ },
+ "uk": {
+  "Notifications": "Повідомлення",
+  "Push notifications are not configured on the server yet.": "Push-повідомлення ще не налаштовані на сервері.",
+  "This browser cannot show notifications. On iPhone add the application to the home screen first.": "Цей браузер не може показувати повідомлення. На iPhone спершу додайте застосунок на головний екран.",
+  "Notifications are blocked in the browser settings for this site.": "Повідомлення для цього сайту заблоковані в налаштуваннях браузера.",
+  "This browser receives notifications.": "Цей браузер отримує повідомлення.",
+  "Send a test notification": "Надіслати тестове повідомлення",
+  "Turn off on this browser": "Вимкнути в цьому браузері",
+  "Turn on notifications in this browser": "Увімкнути повідомлення в цьому браузері",
+  "Send me push notifications": "Надсилати push-повідомлення",
+  "Send me email notifications": "Надсилати повідомлення на email",
+  "Email is used for bookings, rescue, expired cleanings and settlements.": "На email надходять бронювання, термінові прибирання, прострочені прибирання та розрахунки.",
+  "Notifications on": "Повідомлення увімкнені",
+  "Notifications off for this browser": "Повідомлення в цьому браузері вимкнені",
+  "Test notification sent": "Тестове повідомлення надіслано",
+  "Saved": "Збережено"
+ },
+ "sk": {
+  "Notifications": "Upozornenia",
+  "Push notifications are not configured on the server yet.": "Push upozornenia ešte nie sú nastavené na serveri.",
+  "This browser cannot show notifications. On iPhone add the application to the home screen first.": "Tento prehliadač nedokáže zobraziť upozornenia. Na iPhone najprv pridajte aplikáciu na domovskú obrazovku.",
+  "Notifications are blocked in the browser settings for this site.": "Upozornenia pre túto stránku sú zablokované v nastaveniach prehliadača.",
+  "This browser receives notifications.": "Tento prehliadač dostáva upozornenia.",
+  "Send a test notification": "Poslať testovacie upozornenie",
+  "Turn off on this browser": "Vypnúť v tomto prehliadači",
+  "Turn on notifications in this browser": "Zapnúť upozornenia v tomto prehliadači",
+  "Send me push notifications": "Posielať push upozornenia",
+  "Send me email notifications": "Posielať upozornenia e-mailom",
+  "Email is used for bookings, rescue, expired cleanings and settlements.": "E-mailom prichádzajú rezervácie, súrne upratovania, prepadnuté upratovania a vyúčtovania.",
+  "Notifications on": "Upozornenia zapnuté",
+  "Notifications off for this browser": "Upozornenia v tomto prehliadači vypnuté",
+  "Test notification sent": "Testovacie upozornenie odoslané",
+  "Saved": "Uložené"
+ }
+});

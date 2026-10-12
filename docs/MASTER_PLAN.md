@@ -154,7 +154,7 @@ The owner approved the full audit list ("Все делаем из списка")
 ### Stage 1 — make it work (fixes 1–4, 6–11, 14, 19; needs a migration and an API deployment)
 
 - [x] Window bookings, marketplace-first dispatch with cleaner-chosen start, GPS check-in distance, cancellation and rescue rules, `st_dispatch_tick()`, operations-manager accounts and role restrictions, property-manager reports without payout or margin, 12-character passwords, re-approval only on a real address move, 52 new RU/UK/SK labels. Specification: `docs/ssd/specs/015-stage1-dispatch.md` · evidence: `docs/verification/2026-10-12-stage1.md`.
-- [ ] Fix 5 — push and email delivery (the decision is approved; notifications are still in-app rows).
+- [x] Fix 5 — push and email delivery. Web Push on our own VAPID keys and the domain's own SMTP, driven by an outbox that hangs off `st_notifications`, drained by `st-api` on a one-minute schedule. Specification: `docs/ssd/specs/016-notification-delivery.md` · evidence: `docs/verification/2026-10-12-notifications.md`. **Deployment:** apply `supabase/migrations/20261012120000_notification_delivery.sql`, set the function secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `ST_APP_URL`, `ST_WORKER_SECRET`), deploy `st-api`, then run the filled-in `deployment/notifications-schedule.sql` once. Until the secrets are set the worker answers 503 and nothing is sent; nothing else in the application is affected.
 - [ ] Fix 12 — real analytics computed from `st_job_events` instead of placeholder cards.
 - [ ] Fix 13 — wire up or remove the settings that nothing reads.
 - [ ] Fix 18 — richer admin job creation (window, duration, bonus, marketplace visibility in one form).

@@ -4,6 +4,9 @@ import { marketplaceJobs, projectResponse, isStrongPassword } from './security.m
 import { operationsRoute } from './operations.mjs';
 import { propertyPhotosRoute } from './property-photos.mjs';
 import { validatePhoto, validateMedia } from './media.mjs';
+import { drainOutbox, workerConfigFromEnv, secretMatches, channelReadiness } from './notification-worker.mjs';
+import { sendMail } from './smtp.mjs';
+import { deliverPush } from './webpush.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -12,6 +15,7 @@ const MEDIA_BUCKET = 'st-cleaning-media';
 const APP_BUILD = '2026-10-12-stage1';
 const COMPATIBLE_BUILDS = new Set([APP_BUILD]);
 const service = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+const notificationConfig = workerConfigFromEnv(Deno.env);
 
 type AnyRow = Record<string, any>;
 
@@ -113,6 +117,8 @@ async function publicUser(ctx: any) {
     full_name: ctx.appUser.full_name,
     phone: ctx.appUser.phone || '',
     language: ctx.appUser.language,
+    notify_push: ctx.appUser.notify_push !== false,
+    notify_email: ctx.appUser.notify_email !== false,
     cleaner_id: ctx.cleaner?.id ?? null,
     cleaner_mode: ctx.cleaner?.mode ?? null,
     reliability_score: ctx.cleaner?.reliability_score ?? null,
@@ -974,6 +980,43 @@ async function account(ctx: any, route: string, method: string, body: AnyRow) {
     await result(service.from('st_users').update({ language }).eq('id', ctx.appUser.id));
     return { language };
   }
+  if (route === 'account/notifications' && method === 'PATCH') {
+    const user = await one(service.rpc('st_set_notification_preferences', {
+      p_actor_id: ctx.appUser.id,
+      p_body: { push: body.push === undefined ? null : truthy(body.push), email: body.email === undefined ? null : truthy(body.email) },
+    })) as AnyRow;
+    return { push: user.notify_push, email: user.notify_email };
+  }
+  if (route === 'account/push' && method === 'POST') {
+    const subscription = {
+      endpoint: String(body.endpoint || ''),
+      p256dh: String(body.p256dh || ''),
+      auth: String(body.auth || ''),
+      userAgent: String(body.userAgent || ''),
+    };
+    if (!/^https:\/\//.test(subscription.endpoint)) throw new ApiError('A push endpoint must be an https URL');
+    const saved = await one(service.rpc('st_save_push_subscription', { p_actor_id: ctx.appUser.id, p_body: subscription })) as AnyRow;
+    return { subscription: { id: saved.id, endpoint: saved.endpoint, created_at: saved.created_at } };
+  }
+  if (route === 'account/push' && method === 'DELETE') {
+    const removed = await result(service.rpc('st_delete_push_subscription', { p_actor_id: ctx.appUser.id, p_endpoint: String(body.endpoint || '') }));
+    return { removed: number(removed, 0) };
+  }
+  if (route === 'account/push/test' && method === 'POST') {
+    if (!channelReadiness(notificationConfig).push) throw new ApiError('Push notifications are not configured on the server', 503);
+    const subscriptions = await result(service.from('st_push_subscriptions')
+      .select('id,endpoint,p256dh,auth').eq('user_id', ctx.appUser.id)) as AnyRow[];
+    if (!subscriptions.length) throw new ApiError('This browser is not subscribed to notifications yet');
+    const outcome = await deliverPush({
+      row: { id: 0, title: 'Shine Time', message: 'Test notification', type: 'TEST', language: ctx.appUser.language, subscriptions },
+      vapid: notificationConfig.vapid,
+    });
+    if (outcome.goneSubscriptionIds?.length) {
+      await result(service.from('st_push_subscriptions').delete().in('id', outcome.goneSubscriptionIds));
+    }
+    if (!outcome.ok) throw new ApiError(outcome.error || 'The push service refused the message', 502);
+    return { ok: true, browsers: subscriptions.length, removed: outcome.goneSubscriptionIds?.length ?? 0 };
+  }
   if (route === 'account/password' && method === 'POST') {
     const currentPassword = String(body.currentPassword || ''), newPassword = String(body.newPassword || '');
     if (!currentPassword || !isStrongPassword(newPassword)) throw new ApiError('Current password and a new password of at least 12 characters are required');
@@ -999,8 +1042,25 @@ Deno.serve(async (req) => {
     const query = request.query && typeof request.query === 'object' ? request.query : {};
     const body = request.body && typeof request.body === 'object' ? request.body : {};
     if (route === 'bootstrap' && method === 'POST') return json(await bootstrap(req, body), 201);
+    if (route === 'dispatch/outbox' && method === 'POST') {
+      // Called by the scheduled job, never by a browser: a service-role token is
+      // not enough, the shared worker secret has to match as well.
+      if (!notificationConfig.secret) throw new ApiError('The notification worker is not configured', 503);
+      if (!secretMatches(notificationConfig.secret, req.headers.get('x-st-worker-secret'))) throw new ApiError('Forbidden', 403);
+      const summary = await drainOutbox({
+        config: notificationConfig,
+        limit: body.limit === undefined ? null : number(body.limit, 25),
+        claim: (limit: number | null) => one(service.rpc('st_claim_notifications', { p_limit: limit })),
+        report: (results: AnyRow[]) => one(service.rpc('st_report_notifications', { p_results: { results } })),
+        sendMailImpl: sendMail,
+      });
+      return json({ ...summary, results: undefined, channels: channelReadiness(notificationConfig) });
+    }
     const ctx = await context(req);
-    if (route === 'me' && method === 'GET') return json({ user: await publicUser(ctx), settings: await settings(), csrf: 'supabase', apiVersion: APP_BUILD });
+    if (route === 'me' && method === 'GET') return json({
+      user: await publicUser(ctx), settings: await settings(), csrf: 'supabase', apiVersion: APP_BUILD,
+      push: { publicKey: notificationConfig.vapid.publicKey || '', enabled: channelReadiness(notificationConfig).push },
+    });
     if (route === 'health' && method === 'GET') return json({ ok: true, service: 'Shine Time Operations', date: today(), time: currentTime(), apiVersion: APP_BUILD });
     if (route === 'notifications' && method === 'GET') {
       const notifications = await result(service.from('st_notifications').select('*').eq('user_id', ctx.appUser.id).order('id', { ascending: false }).limit(50)) as AnyRow[];
