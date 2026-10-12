@@ -64,3 +64,15 @@ tfoot th{border-top:2px solid var(--line)}
 .switch-row{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:14px;cursor:pointer}
 .switch-row input{width:18px;height:18px;flex:none;accent-color:var(--brand,#1f6feb)}
 #notification-card .row-actions{margin-top:10px}
+.settings-group{margin:16px 0 0;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted,#6b7a90);border-top:1px solid var(--line);padding-top:14px}
+.trend{margin:0}
+.trend svg{width:100%;height:140px;display:block}
+.trend-axis{stroke:var(--line,#dde3ec);stroke-width:1}
+.trend-area{fill:rgba(31,111,235,.12)}
+.trend-line{fill:none;stroke:var(--brand,#1f6feb);stroke-width:2;stroke-linejoin:round}
+.trend-dot{fill:var(--brand,#1f6feb)}
+.trend figcaption{display:flex;justify-content:space-between;font-size:11px;color:var(--muted,#6b7a90);margin-top:4px}
+.funnel-row{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:13px}
+.funnel-label{flex:0 0 94px;color:var(--muted,#6b7a90);text-transform:capitalize}
+.funnel-bar{flex:1;height:10px;border-radius:6px;background:var(--line,#eef1f5);overflow:hidden}
+.funnel-bar>span{display:block;height:100%;border-radius:6px;background:var(--brand,#1f6feb)}

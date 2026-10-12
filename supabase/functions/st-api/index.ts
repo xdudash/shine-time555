@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.4';
-import { activeAssignmentStatuses, availableBookingSlots, cleanerEarningsSummary, clientAccountRows, coordinatesForStorage, financeBoardReport, marketplaceForCleaner, riskForJob, roleCapabilities, settingsFromRows } from './logic.mjs';
+import { activeAssignmentStatuses, cleanerEarningsSummary, clientAccountRows, coordinatesForStorage, financeBoardReport, marketplaceForCleaner, riskForJob, roleCapabilities, settingsFromRows } from './logic.mjs';
 import { marketplaceJobs, projectResponse, isStrongPassword } from './security.mjs';
+import { operationsAnalytics, objectAnalytics, zoneOffsetMinutes } from './analytics.mjs';
 import { operationsRoute } from './operations.mjs';
 import { propertyPhotosRoute } from './property-photos.mjs';
 import { validatePhoto, validateMedia } from './media.mjs';
@@ -73,11 +74,16 @@ async function one<T>(query: PromiseLike<{ data: T; error: any }>): Promise<T> {
 async function settings() {
   const rows = await result(service.from('st_settings').select('setting_key,value_json')) as AnyRow[];
   return {
-    windowStart: '10:00', windowEnd: '15:00', travelBuffer: 15, sameZoneTravelBuffer: 10, safetyBuffer: 10,
-    rescueStart: '13:30', surge2Start: '11:30', surge4Start: '12:30', surge6Start: '13:30',
-    checkinRadiusMeters: 250, reserveTargetPct: 20, cleanerCancellationCutoffMinutes: 90,
-    companyName: 'Shine Time Operations', timezone: 'Europe/Bratislava', clientBookingStepMinutes: 30,
-    clientCancellationCutoffHours: 12, defaultLanguage: 'ru', ...settingsFromRows(rows),
+    // Every key here is read somewhere on the server, and every key here is
+    // editable in admin → Settings. tests/settings-contract.test.mjs keeps the
+    // three in step, so a setting can no longer sit in the UI doing nothing.
+    companyName: 'Shine Time Operations', timezone: 'Europe/Bratislava',
+    windowStart: '10:00', travelBuffer: 15, safetyBuffer: 10, reserveTargetPct: 20,
+    checkinRadiusMeters: 250,
+    cleanerCancellationCutoffMinutes: 180, rescueBonus: 6, managerEscalationHours: 24, rescueHours: 3,
+    emailNotificationTypes: ['CLIENT_BOOKING', 'ASSIGNED', 'RESCUE', 'EXPIRED', 'ESCALATION', 'REVIEW_REJECTED', 'SETTLEMENT'],
+    notificationRetryLimit: 5, notificationBatchSize: 25,
+    ...settingsFromRows(rows),
   };
 }
 
@@ -538,13 +544,8 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
             const object = await clientObject(ctx, objectId);
             if (!object.active || object.approval_status !== 'APPROVED')
                 throw new ApiError('Object is not approved for booking', 404);
-            const [jobs, availability, appSettings, cleaners] = await Promise.all([
-                result(service.from('st_jobs').select('*').eq('service_date', date)) as Promise<AnyRow[]>,
-                result(service.from('st_cleaner_availability').select('*').eq('service_date', date)) as Promise<AnyRow[]>,
-                settings(), activeCleaners(date),
-            ]);
-            const windows = availability;
-            return { date, object, window: { from: String(object.checkout_time || '10:00').slice(0, 5), to: String(object.deadline_time || '15:00').slice(0, 5), durationMinutes: object.duration_minutes }, slots: availableBookingSlots({ object, jobs, windows, cleaners, durationMinutes: object.duration_minutes, settings: appSettings, stepMinutes: number(appSettings.clientBookingStepMinutes, 30) }).filter(slot => date !== today() || slot > currentTime()), capacity: cleaners.filter((cleaner) => cleaner.available).length };
+            const cleaners = await activeCleaners(date);
+            return { date, object, window: { from: String(object.checkout_time || '10:00').slice(0, 5), to: String(object.deadline_time || '15:00').slice(0, 5), durationMinutes: object.duration_minutes }, capacity: cleaners.filter((cleaner) => cleaner.available).length };
         }
         if (route === 'client/bookings' && method === 'GET') {
             const objects = await clientPortfolioObjects(ctx);
@@ -930,16 +931,22 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             return { date, capacity: capacity(cleaners, raw, appSettings), cleaners, jobs: await hydrateJobs(raw) };
         }
         if (route === 'admin/analytics' && method === 'GET') {
-            const from = String(query.from || '2000-01-01'), to = String(query.to || '2099-12-31');
-            const [raw, issues, cleaners] = await Promise.all([
-                result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as Promise<AnyRow[]>,
+            const to = /^\d{4}-\d{2}-\d{2}$/.test(String(query.to || '')) ? String(query.to) : today();
+            const from = /^\d{4}-\d{2}-\d{2}$/.test(String(query.from || '')) ? String(query.from) : to;
+            if (from > to) throw new ApiError('The period starts after it ends');
+            const jobs = await result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as AnyRow[];
+            const [events, issues, cleaners, objects] = await Promise.all([
+                jobs.length
+                    ? result(service.from('st_job_events').select('job_id,event_type,created_at').in('job_id', jobs.map((job) => job.id))) as Promise<AnyRow[]>
+                    : Promise.resolve([] as AnyRow[]),
                 result(service.from('st_issues').select('id').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`)) as Promise<AnyRow[]>,
                 activeCleaners(date),
+                result(service.from('st_objects').select('id,code,name,duration_minutes').order('code')) as Promise<AnyRow[]>,
             ]);
-            const completed = raw.filter((job) => job.status === 'COMPLETED');
-            const onTime = completed.filter((job) => job.completed_at && new Date(job.completed_at).getHours() <= 15);
-            const objects = await result(service.from('st_objects').select('*').order('code')) as AnyRow[];
-            return { summary: { jobs: raw.length, completed: completed.length, onTimePct: completed.length ? Math.round(onTime.length / completed.length * 1000) / 10 : 100, rescue: raw.filter((job) => job.rescue_state !== 'NONE').length, cancelled: raw.filter((job) => job.status === 'CANCELLED').length, issues: issues.length }, byDate: [], cleanerRanking: cleaners, objectPerformance: objects.map((object) => ({ ...object, jobs: raw.filter((job) => same(job.object_id, object.id)).length, avg_duration: raw.filter((job) => same(job.object_id, object.id)).length ? Math.round(raw.filter((job) => same(job.object_id, object.id)).reduce((sum, job) => sum + number(job.duration_minutes), 0) / raw.filter((job) => same(job.object_id, object.id)).length) : null })) };
+            // A deadline is a wall-clock time, so it is compared in Bratislava
+            // time rather than UTC — including across the DST change.
+            const computed = operationsAnalytics({ jobs, events, issues, offsetMinutes: zoneOffsetMinutes(to) });
+            return { from, to, ...computed, cleanerRanking: cleaners, objectPerformance: objectAnalytics({ objects, jobs }) };
         }
         if (route === 'admin/settings' && method === 'GET')
             return { settings: await settings() };

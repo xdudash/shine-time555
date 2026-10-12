@@ -26,6 +26,7 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    calls.push({path,method:opts.method||'GET',body:opts.body});
    const job=id=>jobs.find(x=>x.id===Number(id));
    let m;
+   if(path==='/api/admin/jobs'&&opts.method==='POST'){window.createdJob=opts.body;return {job:{id:501,status:'UNASSIGNED'}}}
    if(path.startsWith('/api/admin/jobs?')||path==='/api/admin/jobs')return {jobs:structuredClone(jobs)};
    if(path==='/api/admin/cleaners')return {cleaners:[{id:1,full_name:'Test Cleaner',mode:'FLEX',reliability_score:95,active:true}]};
    if(path==='/api/admin/clients'&&(opts.method||'GET')==='GET')return {clients:[{id:5,full_name:'Manager',email:'m@test.invalid',account_type:'PROPERTY_MANAGER',user_active:true,language:'en'},{id:4,full_name:'Olga Owner',company_name:'Demo stays',billing_name:'Demo stays s.r.o.',billing_address:'Hlavná 1, Bratislava',ico:'12345678',email:'o@test.invalid',account_type:'OWNER',user_active:true,language:'en'}]};
@@ -55,6 +56,19 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(path==='/api/admin/managers'&&(opts.method||'GET')==='GET')return {managers:[{id:7,full_name:'Dispatcher One',email:'d1@test.invalid',phone:'',language:'en',active:true}]};
    if(path==='/api/admin/managers'&&opts.method==='POST'){window.createdManager=opts.body;return {manager:{id:8}}}
    if(path==='/api/notifications')return {notifications:[],unread:0};
+   if(path.startsWith('/api/admin/analytics')){
+    const q=new URL(path,'https://x.test').searchParams;
+    window.analyticsCalls=(window.analyticsCalls||[]).concat([{from:q.get('from'),to:q.get('to')}]);
+    return {from:q.get('from'),to:q.get('to'),
+     summary:{jobs:12,completed:8,expired:2,cancelled:2,cancelledBy:{client:1,operations:1,other:0},rescue:3,escalated:1,issues:4,
+      onTimePct:75,onTimeOf:8,medianOverrunMinutes:25,medianMinutesToAccept:95,acceptedOf:9,unassignedRatePct:16.7,
+      reworkPct:12.5,reworkOf:8,outsideRadius:1,lateReleases:2},
+     funnel:[{step:'booked',jobs:12},{step:'taken',jobs:9},{step:'arrived',jobs:8},{step:'completed',jobs:8},{step:'approved',jobs:7}],
+     byDate:[{date:'2099-01-01',jobs:3,completed:2,expired:1,rescue:1,onTimePct:50},{date:'2099-01-02',jobs:4,completed:3,expired:0,rescue:1,onTimePct:100},{date:'2099-01-03',jobs:5,completed:3,expired:1,rescue:1,onTimePct:66.7}],
+     cleanerRanking:[{full_name:'Test Cleaner',reliability_score:95,rating:4.8,completed_jobs:40,reclean_rate:2.5,cancellation_rate:1.2}],
+     objectPerformance:[{id:11,code:'BA-101',name:'Dunajská apartment',duration_minutes:90,jobs:7,completed:6,expired:1,avg_worked_minutes:112,over_standard_minutes:22},
+      {id:12,code:'BA-102',name:'Riverside',duration_minutes:60,jobs:0,completed:0,expired:0,avg_worked_minutes:null,over_standard_minutes:null}]};
+   }
    if(path==='/api/account/push'&&opts.method==='POST'){window.savedSubscription=opts.body;return {subscription:{id:1,endpoint:opts.body.endpoint}}}
    if(path==='/api/account/push'&&opts.method==='DELETE'){window.removedSubscription=opts.body;return {removed:1}}
    if(path==='/api/account/push/test'){window.testPushes=(window.testPushes||0)+1;return {ok:true,browsers:1,removed:0}}
@@ -335,6 +349,84 @@ try {
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS notifications: push subscribe, test, channel toggles, unsubscribe, blocked and unconfigured states');
+ }
+ // Analytics: every number comes from the API, the period selector drives the query, and empty data is said out loud.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};location.hash='admin/analytics';await render()});
+  await page.locator('.kpis').waitFor();
+  const kpis=await page.locator('.kpis').innerText();
+  assert.match(kpis,/On time[\s\S]*75%/,'the on-time rate is the one the API computed');
+  assert.match(kpis,/of 8/,'the denominator is shown, not implied');
+  assert.match(kpis,/95 min/,'median time to take a cleaning');
+  assert.match(kpis,/16\.7% of all/,'the expiry share is shown next to the count');
+  assert.match(kpis,/12\.5%/,'rework share of completed cleanings');
+  assert.equal(await page.locator('.trend svg').count(),2,'both trends are drawn inline, without a chart library');
+  assert.equal(await page.locator('.trend-dot').count(),6,'three days per chart');
+  assert.match(await page.locator('.funnel-row').first().innerText(),/booked[\s\S]*12/i);
+  assert.equal(await page.locator('.funnel-row').count(),5);
+  // the funnel bars shrink monotonically, so a wider later step would be visible
+  const widths=await page.locator('.funnel-bar>span').evaluateAll(els=>els.map(el=>parseFloat(el.style.width)));
+  assert.deepEqual(widths,[...widths].sort((a,b)=>b-a));
+  assert.match(await page.locator('.card.pad').last().innerText(),/\+22 min/,'a standard far from reality is flagged');
+  assert.doesNotMatch(await page.locator('.card.pad').last().innerText(),/Riverside/,'a property with no cleanings in the period is left out');
+
+  const first=await page.evaluate(()=>analyticsCalls.at(-1));
+  await page.getByRole('button',{name:'Last 7 days'}).click();
+  await page.waitForFunction(()=>analyticsCalls.length>1);
+  const second=await page.evaluate(()=>analyticsCalls.at(-1));
+  assert.notEqual(second.from,first.from,'the period selector actually changes the query');
+  assert.equal(second.to,first.to);
+  assert.equal(Math.round((new Date(second.to)-new Date(second.from))/86400000),6,'seven days inclusive');
+
+  // An empty period must not claim a perfect record.
+  await page.evaluate(()=>{window.__realRequest=ShineTimeSupabase.request;ShineTimeSupabase.request=async(path,opts)=>path.startsWith('/api/admin/analytics')?({from:'2099-02-01',to:'2099-02-01',summary:{jobs:0,completed:0,expired:0,cancelled:0,cancelledBy:{client:0,operations:0,other:0},rescue:0,escalated:0,issues:0,onTimePct:null,onTimeOf:0,medianOverrunMinutes:null,medianMinutesToAccept:null,acceptedOf:0,unassignedRatePct:null,reworkPct:null,reworkOf:0,outsideRadius:0,lateReleases:0},funnel:[{step:'booked',jobs:0},{step:'taken',jobs:0},{step:'arrived',jobs:0},{step:'completed',jobs:0},{step:'approved',jobs:0}],byDate:[],cleanerRanking:[],objectPerformance:[]}):window.__realRequest(path,opts)});
+  await page.evaluate(()=>adminAnalytics('month'));
+  await page.waitForFunction(()=>document.querySelector('.kpis')?.innerText.includes('—'));
+  const empty=await page.locator('.kpis').innerText();
+  assert.doesNotMatch(empty,/100%/,'an empty period never reports a perfect on-time rate');
+  assert.match(empty,/nothing measurable yet/);
+  assert.match(await page.locator('.two-col').first().innerText(),/Not enough days in this period/);
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS analytics: measured KPIs with denominators, inline trends, funnel, period selector and an honest empty period');
+ }
+ // Admin job creation: the full window, prefilled from the property and validated like the server.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={};location.hash='admin/jobs';await new Promise(r=>setTimeout(r,100));await render()});
+  await page.evaluate(()=>createJobModal());
+  await page.locator('#job-create').waitFor();
+  // Prefilled from the property the select opened on.
+  assert.equal(await page.locator('#jc-from').inputValue(),'10:00');
+  assert.equal(await page.locator('#jc-to').inputValue(),'15:00');
+  assert.equal(await page.locator('#jc-duration').inputValue(),'90');
+  assert.match(await page.locator('#jc-hint').innerText(),/Fits the window.*latest start 13:30/);
+
+  // The same rule the server applies: start + duration must fit the window.
+  await page.fill('#jc-duration','400');
+  await page.waitForFunction(()=>document.querySelector('#jc-hint')?.className.includes('error-text'));
+  assert.match(await page.locator('#jc-hint').innerText(),/window is too short/i);
+  assert.equal(await page.locator('#jc-submit').isDisabled(),true,'a window that cannot fit cannot be submitted');
+  await page.fill('#jc-to','09:00');
+  assert.match(await page.locator('#jc-hint').innerText(),/must be after the start/i);
+
+  await page.fill('#jc-duration','120');
+  await page.fill('#jc-to','16:00');
+  await page.fill('#jc-bonus','6');
+  await page.fill('#jc-payout','24');
+  await page.fill('#jc-price','48');
+  await page.fill('#jc-note','Guests arrive at 17:00');
+  await page.selectOption('#jc-market','false');
+  await page.waitForFunction(()=>!document.querySelector('#jc-submit').disabled);
+  await page.locator('#jc-submit').click();
+  await page.waitForFunction(()=>window.createdJob);
+  const created=await page.evaluate(()=>createdJob);
+  assert.match(created.serviceDate,/^\d{4}-\d{2}-\d{2}$/);
+  assert.deepEqual({...created,serviceDate:undefined},{objectId:11,serviceDate:undefined,earliestStart:'10:00',deadline:'16:00',durationMinutes:120,bonus:6,marketplaceVisible:false,note:'Guests arrive at 17:00',payout:24,clientPrice:48});
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS admin creates a cleaning with window, duration, money, visibility and a note');
  }
  // Language switch re-renders navigation, not only the page body.
  {

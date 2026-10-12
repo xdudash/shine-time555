@@ -118,7 +118,7 @@ navigator.serviceWorker?.addEventListener?.('message',event=>{
 });
 function statusPill(s){const map={COMPLETED:'green',CLEANING:'blue',ARRIVED:'blue',EN_ROUTE:'blue',ACCEPTED:'violet',UNASSIGNED:'orange',OFFERED:'orange',AT_RISK:'red',RESCUE:'red',CANCELLED:'gray',EXPIRED:'gray'};const label=(s||'UNKNOWN').replaceAll('_',' ');return `<span class="pill ${map[s]||'gray'}"><span class="dot"></span>${esc(t(label,label))}</span>`}
 function riskPill(level,score){const c=level==='RED'?'red':level==='ORANGE'?'orange':'green';return `<span class="pill ${c}">${esc(t(level||'GREEN',level||'GREEN'))} ${score??0}</span>`}
-function shellTitle(title,subtitle=''){ $('.page-title h1')?.replaceChildren(document.createTextNode(title)); $('.page-title p')?.replaceChildren(document.createTextNode(subtitle)); }
+function shellTitle(title,subtitle=''){ document.title=`${title} · ${state.settings?.companyName||'Shine Time'}`; $('.page-title h1')?.replaceChildren(document.createTextNode(title)); $('.page-title p')?.replaceChildren(document.createTextNode(subtitle)); }
 function initials(name='User'){return name.split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
 function route(){const fallback=['ADMIN','OPERATIONS_MANAGER'].includes(state.me?.role)?'admin/live':state.me?.role==='CLEANER'?'cleaner/home':'client/home';return location.hash.replace(/^#/,'')||fallback}
 function navTo(r){location.hash=r}
@@ -201,7 +201,7 @@ window.setAppLanguage=async locale=>{state.locale=ST_I18N.setLocale(locale);last
 const adminNav=[['owner','◆','Owner board'],['live','⌁','Live Operations'],['map','◎','Map'],['tomorrow','◫','Tomorrow'],['jobs','☷','Jobs'],['objects','▣','Objects'],['clients','♧','Clients'],['cleaners','♙','Team'],['finance','€','Finance'],['issues','⚠','Issues'],['analytics','▥','Analytics'],['settings','⚙','Settings']];
 const cleanerNav=[['home','⌂','Home'],['jobs','☷','Jobs'],['myday','◷','My Day'],['earnings','€','Earnings'],['profile','○','Profile']];
 const clientNav=[['home','⌂','Home'],['book','＋','Book Cleaning'],['objects','▣','Objects'],['bookings','◷','Bookings'],['finance','€','Finance'],['profile','○','Profile']];
-function renderAdminShell(){const current=route().split('/')[1];app.innerHTML=`<div class="app-shell"><div class="mobile-menu-backdrop" onclick="closeAdminMenu()"></div><aside id="admin-sidebar" class="sidebar" aria-label="Operations navigation"><div class="side-brand"><div class="brand-mark">ST</div><div><strong>Shine Time</strong><small>Operations</small></div><button class="mobile-menu-close" aria-label="Close menu" onclick="closeAdminMenu()">×</button></div><nav class="nav">${window.ShineTimeUi.adminNavigationForRole(adminNav,state.me.role).map(([r,i,l])=>`<button data-route="admin/${r}" class="${current===r?'active':''}" onclick="navTo('admin/${r}');closeAdminMenu()"><span class="nav-icon">${i}</span><span class="nav-label">${l}</span></button>`).join('')}</nav><div class="side-footer"><div class="profile-mini"><div class="avatar">${initials(state.me.full_name)}</div><div><strong>${esc(state.me.full_name)}</strong><small>${state.me.role==='OPERATIONS_MANAGER'?'Operations manager':'Administrator'}</small></div></div>${ST_I18N.selector()}<button class="btn ghost sm full" style="color:#d7deea;border-color:#384458;margin-top:6px" onclick="logout()">Sign out</button></div></aside><main class="main"><header class="topbar"><button class="mobile-menu-trigger" aria-label="Open menu" aria-controls="admin-sidebar" aria-expanded="false" onclick="toggleAdminMenu()">☰</button><div class="page-title"><h1>Operations</h1><p>Loading…</p></div><div class="top-actions"><button class="btn sm" aria-label="Notifications" onclick="notificationModal()">🔔</button><span class="pill green"><span class="dot"></span>Bratislava</span><button class="btn sm" aria-label="Refresh" onclick="render()"><span aria-hidden="true">↻</span><span class="refresh-label">Refresh</span></button></div></header><div id="page" class="content"></div></main></div>`}
+function renderAdminShell(){const current=route().split('/')[1];app.innerHTML=`<div class="app-shell"><div class="mobile-menu-backdrop" onclick="closeAdminMenu()"></div><aside id="admin-sidebar" class="sidebar" aria-label="Operations navigation"><div class="side-brand"><div class="brand-mark">ST</div><div><strong>${esc(String(state.settings?.companyName||'Shine Time'))}</strong><small>${esc(t('Operations','Operations'))}</small></div><button class="mobile-menu-close" aria-label="Close menu" onclick="closeAdminMenu()">×</button></div><nav class="nav">${window.ShineTimeUi.adminNavigationForRole(adminNav,state.me.role).map(([r,i,l])=>`<button data-route="admin/${r}" class="${current===r?'active':''}" onclick="navTo('admin/${r}');closeAdminMenu()"><span class="nav-icon">${i}</span><span class="nav-label">${l}</span></button>`).join('')}</nav><div class="side-footer"><div class="profile-mini"><div class="avatar">${initials(state.me.full_name)}</div><div><strong>${esc(state.me.full_name)}</strong><small>${state.me.role==='OPERATIONS_MANAGER'?'Operations manager':'Administrator'}</small></div></div>${ST_I18N.selector()}<button class="btn ghost sm full" style="color:#d7deea;border-color:#384458;margin-top:6px" onclick="logout()">Sign out</button></div></aside><main class="main"><header class="topbar"><button class="mobile-menu-trigger" aria-label="Open menu" aria-controls="admin-sidebar" aria-expanded="false" onclick="toggleAdminMenu()">☰</button><div class="page-title"><h1>Operations</h1><p>Loading…</p></div><div class="top-actions"><button class="btn sm" aria-label="Notifications" onclick="notificationModal()">🔔</button><span class="pill green"><span class="dot"></span>Bratislava</span><button class="btn sm" aria-label="Refresh" onclick="render()"><span aria-hidden="true">↻</span><span class="refresh-label">Refresh</span></button></div></header><div id="page" class="content"></div></main></div>`}
 function renderCleanerShell(){const current=route().split('/')[1];app.innerHTML=`<div class="cleaner-shell"><header class="cleaner-top"><div class="row"><div><h1>${esc(state.me.full_name)}</h1><small>Shine Time Cleaner</small></div><div style="display:flex;gap:8px;align-items:center">${ST_I18N.selector(true)}<button class="btn sm" onclick="notificationModal()">🔔</button><button id="online-toggle" class="online-toggle">Loading…</button></div></div></header><main id="page" class="cleaner-content"></main><nav class="bottom-nav">${cleanerNav.map(([r,i,l])=>`<button data-route="cleaner/${r}" class="${current===r?'active':''}" onclick="navTo('cleaner/${r}')"><span>${i}</span>${l}</button>`).join('')}</nav></div>`}
 function renderClientShell(){
   const current=(route().split('/')[1]||'home').split('?')[0];
@@ -312,8 +312,68 @@ function jobsTable(jobs){return `<div class="card admin-job-table"><div class="t
 window.loadAdminJobsFilters=()=>render();
 function filterVisibleRows(sel,q){q=q.toLowerCase();$$('tbody tr',$(sel)).forEach(r=>r.style.display=r.textContent.toLowerCase().includes(q)?'':'none');$$('.admin-mobile-job',$(sel)).forEach(card=>card.style.display=card.textContent.toLowerCase().includes(q)?'':'none')}
 
-async function createJobModal(){try{const o=await api('/api/admin/objects');modal('Create cleaning job',`<form id="job-create" class="form-grid"><div class="field wide"><label>Object</label><select class="select" name="objectId" required>${o.objects.filter(x=>x.active).map(x=>`<option value="${x.id}">${esc(x.code)} — ${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label>Service date</label><input class="input" name="serviceDate" type="date" value="${today()}" required></div><div class="field"><label>Planned start</label><input class="input" name="plannedStart" type="time" value="10:00"></div><div class="field"><label>Bonus €</label><input class="input" name="bonus" type="number" min="0" step="1" value="0"></div><div class="field"><label>Marketplace</label><select class="select" name="marketplaceVisible"><option value="true">Published</option><option value="false">Hidden</option></select></div></form>`,`<button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="submitCreateJob()">Create job</button>`)}catch(e){toast(e.message,'error')}}window.createJobModal=createJobModal;
-window.submitCreateJob=async()=>{const f=new FormData($('#job-create'));try{await api('/api/admin/jobs',{method:'POST',body:{objectId:Number(f.get('objectId')),serviceDate:f.get('serviceDate'),plannedStart:f.get('plannedStart'),bonus:Number(f.get('bonus')),marketplaceVisible:f.get('marketplaceVisible')==='true'}});closeModal();toast('Job created','success');render()}catch(e){toast(e.message,'error')}};
+/* Admin job creation: the same fields the server accepts, prefilled from the
+   property, validated by the same rule (start + duration must fit the window). */
+async function createJobModal(){
+ try{
+  const o=await api('/api/admin/objects');
+  const objects=o.objects.filter(x=>x.active&&x.approval_status==='APPROVED');
+  if(!objects.length){toast(t('No approved property to book','No approved property to book'),'error');return}
+  state.jobCreateObjects=objects;
+  const finance=state.me?.role==='ADMIN';
+  modal(esc(t('Create cleaning','Create cleaning')),`<form id="job-create" class="form-grid">
+   <div class="field wide"><label for="jc-object">${esc(t('Property','Property'))}</label><select class="select" id="jc-object" name="objectId" onchange="prefillJobCreate()">${objects.map(x=>`<option value="${x.id}">${esc(x.code)} — ${esc(x.name)}</option>`).join('')}</select></div>
+   <div class="field"><label for="jc-date">${esc(t('Service date','Service date'))}</label><input class="input" id="jc-date" name="serviceDate" type="date" min="${today()}" value="${tomorrow()}" required></div>
+   <div class="field"><label for="jc-duration">${esc(t('Duration (min)','Duration (min)'))}</label><input class="input" id="jc-duration" name="durationMinutes" type="number" min="15" max="1440" step="15" oninput="checkJobCreateWindow()"></div>
+   <div class="field"><label for="jc-from">${esc(t('Not before','Not before'))}</label><input class="input" id="jc-from" name="earliestStart" type="time" step="900" oninput="checkJobCreateWindow()"></div>
+   <div class="field"><label for="jc-to">${esc(t('Ready by','Ready by'))}</label><input class="input" id="jc-to" name="deadline" type="time" step="900" oninput="checkJobCreateWindow()"></div>
+   ${finance?`<div class="field"><label for="jc-payout">${esc(t('Cleaner payout (€)','Cleaner payout (€)'))}</label><input class="input" id="jc-payout" name="payout" type="number" min="0" step="0.5"></div>
+   <div class="field"><label for="jc-price">${esc(t('Client price (€)','Client price (€)'))}</label><input class="input" id="jc-price" name="clientPrice" type="number" min="0" step="0.5"></div>`:''}
+   <div class="field"><label for="jc-bonus">${esc(t('Bonus (€)','Bonus (€)'))}</label><input class="input" id="jc-bonus" name="bonus" type="number" min="0" step="0.5" value="0"></div>
+   <div class="field"><label for="jc-market">${esc(t('Marketplace','Marketplace'))}</label><select class="select" id="jc-market" name="marketplaceVisible"><option value="true">${esc(t('Published to cleaners','Published to cleaners'))}</option><option value="false">${esc(t('Hidden, assign by hand','Hidden, assign by hand'))}</option></select></div>
+   <div class="field wide"><label for="jc-note">${esc(t('Note for the cleaner (optional)','Note for the cleaner (optional)'))}</label><textarea class="textarea" id="jc-note" name="note" maxlength="1000" rows="2"></textarea></div>
+   <small class="wide subtle" id="jc-hint" role="status"></small>
+  </form>`,`<button class="btn" onclick="closeModal()">${esc(t('Cancel','Cancel'))}</button><button class="btn primary" id="jc-submit" onclick="submitCreateJob()">${esc(t('Create cleaning','Create cleaning'))}</button>`);
+  prefillJobCreate();
+ }catch(e){toast(e.message,'error')}
+}
+window.createJobModal=createJobModal;
+window.prefillJobCreate=()=>{
+ const object=(state.jobCreateObjects||[]).find(x=>String(x.id)===String($('#jc-object')?.value));
+ if(!object)return;
+ const set=(id,value)=>{const el=document.getElementById(id);if(el&&value!==null&&value!==undefined)el.value=value};
+ set('jc-from',String(object.checkout_time||'10:00').slice(0,5));
+ set('jc-to',String(object.deadline_time||'15:00').slice(0,5));
+ set('jc-duration',object.duration_minutes??90);
+ set('jc-payout',object.payout??0);
+ set('jc-price',object.client_price??0);
+ checkJobCreateWindow();
+};
+window.checkJobCreateWindow=()=>{
+ const hint=document.getElementById('jc-hint'),submit=document.getElementById('jc-submit');
+ if(!hint)return true;
+ const toMin=v=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(v||''));return m?Number(m[1])*60+Number(m[2]):null};
+ const from=toMin($('#jc-from')?.value),to=toMin($('#jc-to')?.value),duration=Number($('#jc-duration')?.value||0);
+ let error='';
+ if(from===null||to===null)error=t('Enter the cleaning window','Enter the cleaning window');
+ else if(to<=from)error=t('Ready-by time must be after the start','Ready-by time must be after the start');
+ else if(!(duration>=15))error=t('Duration must be at least 15 minutes','Duration must be at least 15 minutes');
+ else if(from+duration>to)error=`${t('The window is too short for this cleaning','The window is too short for this cleaning')} (${duration} ${t('min','min')})`;
+ hint.textContent=error||`${t('Fits the window','Fits the window')} · ${t('latest start','latest start')} ${String(Math.floor((to-duration)/60)).padStart(2,'0')}:${String((to-duration)%60).padStart(2,'0')}`;
+ hint.className=`wide ${error?'error-text':'subtle'}`;
+ if(submit)submit.disabled=Boolean(error);
+ return !error;
+};
+window.submitCreateJob=async()=>{
+ if(!checkJobCreateWindow())return;
+ const f=new FormData($('#job-create'));
+ const body={objectId:Number(f.get('objectId')),serviceDate:f.get('serviceDate'),earliestStart:f.get('earliestStart'),deadline:f.get('deadline'),
+  durationMinutes:Number(f.get('durationMinutes')),bonus:Number(f.get('bonus')||0),marketplaceVisible:f.get('marketplaceVisible')==='true',
+  note:String(f.get('note')||'').trim()};
+ if(f.get('payout')!==null)body.payout=Number(f.get('payout'));
+ if(f.get('clientPrice')!==null)body.clientPrice=Number(f.get('clientPrice'));
+ try{await api('/api/admin/jobs',{method:'POST',body});closeModal();toast(t('Cleaning created','Cleaning created'),'success');render()}catch(e){toast(e.message,'error')}
+};
 async function generateJobsModal(){const o=await api('/api/admin/objects');modal('Generate jobs',`<form id="gen-jobs"><div class="form-grid"><div class="field"><label>Date</label><input class="input" name="serviceDate" type="date" value="${tomorrow()}"></div><div class="field"><label>Publish</label><select class="select" name="publish"><option value="true">Yes — marketplace</option><option value="false">No — draft</option></select></div><div class="field wide"><label>Objects (${o.objects.filter(x=>x.active).length} active)</label><div style="max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:8px">${o.objects.filter(x=>x.active).map(x=>`<label class="check-item"><input type="checkbox" name="objectIds" value="${x.id}" checked><span>${esc(x.code)} · ${esc(x.name)}</span><span class="subtle">${x.duration_minutes} min</span></label>`).join('')}</div></div></div></form>`,`<button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="submitGenerateJobs()">Generate</button>`)}window.generateJobsModal=generateJobsModal;
 window.submitGenerateJobs=async()=>{const f=new FormData($('#gen-jobs'));const ids=f.getAll('objectIds').map(Number);try{const d=await api('/api/admin/jobs/generate',{method:'POST',body:{serviceDate:f.get('serviceDate'),objectIds:ids,publish:f.get('publish')==='true'}});closeModal();toast(`Created ${d.created}; skipped ${d.skipped.length}`,'success');render()}catch(e){toast(e.message,'error')}};
 
@@ -507,10 +567,130 @@ window.resolveIssue=async id=>{const note=await askDialog({title:'Resolve issue'
 
 async function adminTomorrow(){shellTitle('Tomorrow','Capacity reserve and pre-publishing');const date=tomorrow(),d=await api(`/api/admin/capacity?date=${date}`);$('#page').innerHTML=`<div class="section-head"><div><h2>${fmtDate(date)}</h2><p>Pre-plan demand before cleaners start choosing jobs.</p></div><button class="btn primary" onclick="generateJobsModal()">Generate tomorrow jobs</button></div><div class="grid kpis" style="grid-template-columns:repeat(5,1fr)"><div class="card kpi"><div class="label">Planned cleanings</div><div class="value">${d.jobs.length}</div></div><div class="card kpi"><div class="label">Available cleaners</div><div class="value">${d.capacity.cleaners}</div></div><div class="card kpi"><div class="label">Demand hours</div><div class="value">${(d.capacity.demandMinutes/60).toFixed(1)}</div></div><div class="card kpi"><div class="label">Capacity hours</div><div class="value">${(d.capacity.capacityMinutes/60).toFixed(1)}</div></div><div class="card kpi ${d.capacity.health==='RED'?'danger':d.capacity.health==='ORANGE'?'warn':''}"><div class="label">Reserve</div><div class="value">${d.capacity.reservePct}%</div><div class="hint">target ≥ ${state.settings.reserveTargetPct}%</div></div></div><div style="height:14px"></div><div class="two-col"><div class="card pad"><h2 style="margin-top:0">Tomorrow jobs</h2>${jobsTable(d.jobs)}</div><div class="card pad"><h2 style="margin-top:0">Cleaner availability</h2>${d.cleaners.map(c=>`<div class="risk-row"><div class="avatar">${initials(c.full_name)}</div><div><strong>${esc(c.full_name)}</strong><small>${c.mode} · ${c.available?'online/available':'not declared'} · ${c.availability.fromTime}–${c.availability.toTime}</small></div><span class="pill ${c.available?'green':'gray'}">${c.available?'Available':'Unknown'}</span></div>`).join('')||'<div class="empty">No availability for tomorrow yet.</div>'}</div></div>`}
 
-async function adminAnalytics(){shellTitle('Analytics','Operational quality, SLA and reliability');const d=await api(`/api/admin/analytics?from=2020-01-01&to=${today()}`);$('#page').innerHTML=`<div class="grid kpis" style="grid-template-columns:repeat(5,1fr)"><div class="card kpi"><div class="label">All jobs</div><div class="value">${d.summary.jobs}</div></div><div class="card kpi"><div class="label">Completed</div><div class="value">${d.summary.completed}</div></div><div class="card kpi"><div class="label">On-time</div><div class="value">${d.summary.onTimePct}%</div></div><div class="card kpi"><div class="label">Rescue</div><div class="value">${d.summary.rescue}</div></div><div class="card kpi"><div class="label">Issues</div><div class="value">${d.summary.issues}</div></div></div><div style="height:14px"></div><div class="two-col"><div class="card pad"><h2 style="margin-top:0">Cleaner reliability</h2><div class="table-wrap"><table><thead><tr><th>Cleaner</th><th>Reliability</th><th>Rating</th><th>Completed</th><th>Reclean</th><th>Cancel</th><th>Delay</th></tr></thead><tbody>${d.cleanerRanking.map(c=>`<tr><td><strong>${esc(c.full_name)}</strong></td><td>${Math.round(c.reliability_score)}</td><td>★${c.rating}</td><td>${c.completed_jobs}</td><td>${Number(c.reclean_rate).toFixed(1)}%</td><td>${Number(c.cancellation_rate).toFixed(1)}%</td><td>${Number(c.avg_delay_minutes).toFixed(1)} min</td></tr>`).join('')}</tbody></table></div></div><div class="card pad"><h2 style="margin-top:0">Object standards</h2>${d.objectPerformance.slice(0,10).map(o=>`<div class="risk-row"><div class="risk-score" style="background:#eef1f5;color:#445065">${o.jobs}</div><div><strong>${esc(o.code)} · ${esc(o.name)}</strong><small>Standard ${o.duration_minutes} min · current avg ${o.avg_duration||'—'} min</small></div></div>`).join('')}</div></div>`}
+const ANALYTICS_PERIODS=[['7','Last 7 days'],['30','Last 30 days'],['90','Last 90 days'],['month','This month'],['all','All time']];
+function analyticsRange(period){
+ const to=today();
+ if(period==='all')return {from:'2020-01-01',to};
+ if(period==='month')return {from:to.slice(0,8)+'01',to};
+ const days=Number(period)||30;
+ const start=new Date(`${to}T12:00:00Z`);start.setUTCDate(start.getUTCDate()-(days-1));
+ return {from:start.toISOString().slice(0,10),to};
+}
+/* A small inline chart: no library, readable at 390px, and it says plainly when
+   there is nothing to draw instead of showing an empty frame. */
+function trendChart(series,{key='jobs',label='Cleanings'}={}){
+ const points=series.filter(d=>Number.isFinite(Number(d[key])));
+ if(points.length<2)return `<div class="empty">${esc(t('Not enough days in this period to draw a trend.','Not enough days in this period to draw a trend.'))}</div>`;
+ const w=600,h=140,pad=24;
+ const max=Math.max(...points.map(d=>Number(d[key])),1);
+ const x=i=>pad+(i*(w-pad*2))/(points.length-1);
+ const y=v=>h-pad-((Number(v)||0)*(h-pad*2))/max;
+ const line=points.map((d,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`).join(' ');
+ const area=`${line} L${x(points.length-1).toFixed(1)},${h-pad} L${x(0).toFixed(1)},${h-pad} Z`;
+ const ticks=[points[0],points[Math.floor(points.length/2)],points[points.length-1]];
+ return `<figure class="trend" aria-label="${esc(t(label,label))}">
+  <svg viewBox="0 0 ${w} ${h}" role="img" preserveAspectRatio="none">
+   <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" class="trend-axis"></line>
+   <path d="${area}" class="trend-area"></path>
+   <path d="${line}" class="trend-line"></path>
+   ${points.map((d,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(d[key]).toFixed(1)}" r="2.5" class="trend-dot"><title>${esc(fmtDate(d.date))}: ${Number(d[key])}</title></circle>`).join('')}
+  </svg>
+  <figcaption>${ticks.map(d=>`<span>${esc(fmtDate(d.date))}</span>`).join('')}</figcaption>
+ </figure>`;
+}
+const kpi=(label,value,hint='')=>`<div class="card kpi"><div class="label">${esc(t(label,label))}</div><div class="value">${esc(String(value))}</div>${hint?`<small class="subtle">${esc(hint)}</small>`:''}</div>`;
+const pct=(value,of)=>value===null||value===undefined?'—':`${value}%`;
+const mins=value=>value===null||value===undefined?'—':`${value} ${t('min','min')}`;
+async function adminAnalytics(period){
+ state.analyticsPeriod=period||state.analyticsPeriod||'30';
+ const {from,to}=analyticsRange(state.analyticsPeriod);
+ shellTitle(t('Analytics','Analytics'),t('Measured from the job history, not estimated','Measured from the job history, not estimated'));
+ $('#page').innerHTML=`<div class="empty">${t('Loading…','Loading…')}</div>`;
+ const d=await api(`/api/admin/analytics?from=${from}&to=${to}`);
+ const s=d.summary,funnelMax=Math.max(...d.funnel.map(step=>step.jobs),1);
+ $('#page').innerHTML=`
+ <div class="row-actions" style="margin-bottom:12px">${ANALYTICS_PERIODS.map(([value,label])=>`<button class="btn sm ${state.analyticsPeriod===value?'primary':''}" onclick="adminAnalytics('${value}')">${esc(t(label,label))}</button>`).join('')}<span class="subtle">${esc(fmtDate(d.from))} – ${esc(fmtDate(d.to))}</span></div>
+ <div class="grid kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+  ${kpi('Cleanings',s.jobs)}
+  ${kpi('Completed',s.completed)}
+  ${kpi('On time',pct(s.onTimePct),s.onTimeOf?`${t('of','of')} ${s.onTimeOf}`:t('nothing measurable yet','nothing measurable yet'))}
+  ${kpi('Median time to take',mins(s.medianMinutesToAccept),s.acceptedOf?`${t('of','of')} ${s.acceptedOf}`:'')}
+  ${kpi('Expired without a cleaner',s.expired,pct(s.unassignedRatePct)==='—'?'':`${pct(s.unassignedRatePct)} ${t('of all','of all')}`)}
+  ${kpi('Rescue opened',s.rescue)}
+  ${kpi('Escalated to operations',s.escalated)}
+  ${kpi('Rework required',pct(s.reworkPct),s.reworkOf?`${t('of','of')} ${s.reworkOf} ${t('completed','completed')}`:'')}
+  ${kpi('Check-ins outside the property',s.outsideRadius)}
+  ${kpi('Late releases by cleaners',s.lateReleases)}
+  ${kpi('Issues',s.issues)}
+  ${kpi('Overrun when late',mins(s.medianOverrunMinutes))}
+ </div>
+ <div style="height:14px"></div>
+ <div class="two-col">
+  <div class="card pad"><h2 style="margin-top:0">${esc(t('Cleanings per day','Cleanings per day'))}</h2>${trendChart(d.byDate,{key:'jobs',label:'Cleanings per day'})}</div>
+  <div class="card pad"><h2 style="margin-top:0">${esc(t('On time per day','On time per day'))}</h2>${trendChart(d.byDate.filter(day=>day.onTimePct!==null),{key:'onTimePct',label:'On time per day'})}</div>
+ </div>
+ <div style="height:14px"></div>
+ <div class="two-col">
+  <div class="card pad"><h2 style="margin-top:0">${esc(t('How far cleanings got','How far cleanings got'))}</h2>
+   ${d.funnel.map(step=>`<div class="funnel-row"><span class="funnel-label">${esc(t(step.step,step.step))}</span><span class="funnel-bar"><span style="width:${Math.round(step.jobs/funnelMax*100)}%"></span></span><strong>${step.jobs}</strong></div>`).join('')}
+   <small class="subtle">${esc(t('Cancelled and expired cleanings stop where they stopped, so the steps always add up.','Cancelled and expired cleanings stop where they stopped, so the steps always add up.'))}</small>
+   <div class="detail-grid" style="margin-top:12px"><div class="detail-item"><div class="k">${esc(t('Cancelled by client','Cancelled by client'))}</div><div class="v">${s.cancelledBy.client}</div></div><div class="detail-item"><div class="k">${esc(t('Cancelled by operations','Cancelled by operations'))}</div><div class="v">${s.cancelledBy.operations}</div></div><div class="detail-item"><div class="k">${esc(t('Cancelled otherwise','Cancelled otherwise'))}</div><div class="v">${s.cancelledBy.other}</div></div></div>
+  </div>
+  <div class="card pad"><h2 style="margin-top:0">${esc(t('Cleaner reliability','Cleaner reliability'))}</h2><div class="table-wrap"><table><thead><tr><th>${esc(t('Cleaner','Cleaner'))}</th><th>${esc(t('Reliability','Reliability'))}</th><th>${esc(t('Rating','Rating'))}</th><th>${esc(t('Completed','Completed'))}</th><th>${esc(t('Reclean','Reclean'))}</th><th>${esc(t('Cancel','Cancel'))}</th></tr></thead><tbody>${d.cleanerRanking.map(c=>`<tr><td><strong>${esc(c.full_name)}</strong></td><td>${Math.round(c.reliability_score)}</td><td>★${c.rating}</td><td>${c.completed_jobs}</td><td>${Number(c.reclean_rate).toFixed(1)}%</td><td>${Number(c.cancellation_rate).toFixed(1)}%</td></tr>`).join('')||`<tr><td colspan="6">${esc(t('No cleaners yet.','No cleaners yet.'))}</td></tr>`}</tbody></table></div></div>
+ </div>
+ <div style="height:14px"></div>
+ <div class="card pad"><h2 style="margin-top:0">${esc(t('Property standards against reality','Property standards against reality'))}</h2>
+  <p class="subtle">${esc(t('Worked time is measured from the start of cleaning to completion. A standard far from reality is a planning problem.','Worked time is measured from the start of cleaning to completion. A standard far from reality is a planning problem.'))}</p>
+  <div class="table-wrap"><table><thead><tr><th>${esc(t('Property','Property'))}</th><th>${esc(t('Cleanings','Cleanings'))}</th><th>${esc(t('Expired','Expired'))}</th><th>${esc(t('Standard','Standard'))}</th><th>${esc(t('Worked','Worked'))}</th><th>${esc(t('Difference','Difference'))}</th></tr></thead><tbody>
+  ${d.objectPerformance.filter(o=>o.jobs).slice(0,25).map(o=>`<tr><td><strong>${esc(o.code)}</strong><br><small class="subtle">${esc(o.name)}</small></td><td>${o.jobs}</td><td>${o.expired||0}</td><td>${o.duration_minutes} ${t('min','min')}</td><td>${o.avg_worked_minutes===null?'—':`${o.avg_worked_minutes} ${t('min','min')}`}</td><td>${o.over_standard_minutes===null?'—':`<span class="pill ${o.over_standard_minutes>10?'red':o.over_standard_minutes<-10?'orange':'green'}">${o.over_standard_minutes>0?'+':''}${o.over_standard_minutes} ${t('min','min')}</span>`}</td></tr>`).join('')||`<tr><td colspan="6">${esc(t('No cleanings in this period.','No cleanings in this period.'))}</td></tr>`}
+  </tbody></table></div></div>`;
+}
+window.adminAnalytics=adminAnalytics;
 
-async function adminSettings(){shellTitle('Settings','Operational rules controlling dispatch and SLA');const s=(await api('/api/admin/settings')).settings;$('#page').innerHTML=`<div class="card pad" style="max-width:850px"><form id="settings-form" class="form-grid"><div class="field"><label>Company</label><input class="input" name="companyName" value="${esc(s.companyName)}"></div><div class="field"><label>Timezone</label><input class="input" name="timezone" value="${esc(s.timezone)}" disabled></div><div class="field"><label>Window start</label><input class="input" name="windowStart" type="time" value="${s.windowStart}"></div><div class="field"><label>Hard deadline</label><input class="input" name="windowEnd" type="time" value="${s.windowEnd}"></div><div class="field"><label>Default travel buffer (min)</label><input class="input" name="travelBuffer" type="number" value="${s.travelBuffer}"></div><div class="field"><label>Same-zone travel (min)</label><input class="input" name="sameZoneTravelBuffer" type="number" value="${s.sameZoneTravelBuffer}"></div><div class="field"><label>Safety buffer / job (min)</label><input class="input" name="safetyBuffer" type="number" value="${s.safetyBuffer}"></div><div class="field"><label>Rescue starts</label><input class="input" name="rescueStart" type="time" value="${s.rescueStart}"></div><div class="field"><label>Check-in radius (m)</label><input class="input" name="checkinRadiusMeters" type="number" value="${s.checkinRadiusMeters}"></div><div class="field"><label>Reserve target %</label><input class="input" name="reserveTargetPct" type="number" value="${s.reserveTargetPct}"></div><div class="field"><label>Client booking step (min)</label><input class="input" name="clientBookingStepMinutes" type="number" min="15" step="15" value="${s.clientBookingStepMinutes??30}"></div><div class="field"><label>Client cancellation cutoff (hours)</label><input class="input" name="clientCancellationCutoffHours" type="number" min="0" value="${s.clientCancellationCutoffHours??12}"></div><div class="wide"><button class="btn primary" type="button" onclick="saveSettings()">Save settings</button></div></form><div style="height:18px"></div>${notificationCard()}<div style="border-top:1px solid var(--line);padding-top:16px"><strong>Account security</strong><p class="subtle">Change the password for this administrator account.</p><button class="btn" type="button" onclick="passwordModal()">Change password</button></div></div>`}
-window.saveSettings=async()=>{const f=new FormData($('#settings-form'));const body={companyName:f.get('companyName'),windowStart:f.get('windowStart'),windowEnd:f.get('windowEnd'),travelBuffer:Number(f.get('travelBuffer')),sameZoneTravelBuffer:Number(f.get('sameZoneTravelBuffer')),safetyBuffer:Number(f.get('safetyBuffer')),rescueStart:f.get('rescueStart'),checkinRadiusMeters:Number(f.get('checkinRadiusMeters')),reserveTargetPct:Number(f.get('reserveTargetPct')),clientBookingStepMinutes:Number(f.get('clientBookingStepMinutes')),clientCancellationCutoffHours:Number(f.get('clientCancellationCutoffHours'))};try{const d=await api('/api/admin/settings',{method:'PATCH',body});state.settings=d.settings;toast('Settings saved','success')}catch(e){toast(e.message,'error')}};
+async function adminSettings(){
+ shellTitle(t('Settings','Settings'),t('Operational rules controlling dispatch and SLA','Operational rules controlling dispatch and SLA'));
+ const s=(await api('/api/admin/settings')).settings;
+ /* Every field below is read by the server (see settings() in st-api); nothing
+    here is decoration. The dispatch group is what stage 1 added. */
+ const num=(name,label,extra='')=>`<div class="field"><label for="set-${name}">${esc(t(label,label))}</label><input class="input" id="set-${name}" name="${name}" type="number" ${extra} value="${esc(String(s[name]??''))}"></div>`;
+ const txt=(name,label,extra='')=>`<div class="field"><label for="set-${name}">${esc(t(label,label))}</label><input class="input" id="set-${name}" name="${name}" ${extra} value="${esc(String(s[name]??''))}"></div>`;
+ $('#page').innerHTML=`<div class="card pad" style="max-width:880px"><form id="settings-form" class="form-grid">
+  ${txt('companyName','Company')}
+  <div class="field"><label for="set-timezone">${esc(t('Timezone','Timezone'))}</label><input class="input" id="set-timezone" value="${esc(String(s.timezone||''))}" disabled></div>
+  <h3 class="wide settings-group">${esc(t('Planning','Planning'))}</h3>
+  ${txt('windowStart','Default day start','type="time"')}
+  ${num('travelBuffer','Travel buffer between cleanings (min)','min="0"')}
+  ${num('safetyBuffer','Safety buffer per cleaning (min)','min="0"')}
+  ${num('reserveTargetPct','Reserve target %','min="0" max="100"')}
+  ${num('checkinRadiusMeters','Check-in radius (m)','min="25"')}
+  <h3 class="wide settings-group">${esc(t('Dispatch','Dispatch'))}</h3>
+  ${num('managerEscalationHours','Warn operations this many hours before an unassigned cleaning','min="1"')}
+  ${num('rescueHours','Open rescue this many hours before the start','min="1"')}
+  ${num('rescueBonus','Rescue bonus (€)','min="0" step="0.5"')}
+  ${num('cleanerCancellationCutoffMinutes','A cleaner release later than this many minutes before the start counts as late','min="0"')}
+  <h3 class="wide settings-group">${esc(t('Notifications','Notifications'))}</h3>
+  <div class="field wide"><label for="set-emailNotificationTypes">${esc(t('Notification types sent by email','Notification types sent by email'))}</label><input class="input" id="set-emailNotificationTypes" name="emailNotificationTypes" value="${esc((Array.isArray(s.emailNotificationTypes)?s.emailNotificationTypes:[]).join(', '))}"><small class="subtle">${esc(t('Push is sent for every type. Comma-separated, e.g. CLIENT_BOOKING, RESCUE, EXPIRED.','Push is sent for every type. Comma-separated, e.g. CLIENT_BOOKING, RESCUE, EXPIRED.'))}</small></div>
+  ${num('notificationRetryLimit','Delivery attempts before a message is given up','min="1" max="20"')}
+  ${num('notificationBatchSize','Messages sent per run','min="1" max="100"')}
+  <div class="wide"><button class="btn primary" type="button" onclick="saveSettings()">${esc(t('Save settings','Save settings'))}</button></div>
+ </form><div style="height:18px"></div>${notificationCard()}<div style="border-top:1px solid var(--line);padding-top:16px"><strong>${esc(t('Account security','Account security'))}</strong><p class="subtle">${esc(t('Change the password for this administrator account.','Change the password for this administrator account.'))}</p><button class="btn" type="button" onclick="passwordModal()">${esc(t('Change password','Change password'))}</button></div></div>`;
+}
+
+/* The saved keys are exactly the editable keys of settings(); the contract test
+   tests/settings-contract.test.mjs fails if the two lists drift apart. */
+const SETTING_FIELDS={companyName:'text',windowStart:'text',travelBuffer:'number',safetyBuffer:'number',reserveTargetPct:'number',checkinRadiusMeters:'number',managerEscalationHours:'number',rescueHours:'number',rescueBonus:'number',cleanerCancellationCutoffMinutes:'number',emailNotificationTypes:'list',notificationRetryLimit:'number',notificationBatchSize:'number'};
+window.saveSettings=async()=>{
+ const f=new FormData($('#settings-form'));
+ const body={};
+ for(const [name,kind] of Object.entries(SETTING_FIELDS)){
+  const raw=f.get(name);
+  if(raw===null)continue;
+  if(kind==='number'){const value=Number(raw);if(!Number.isFinite(value)){toast(t('Enter a number','Enter a number')+`: ${name}`,'error');return}body[name]=value}
+  else if(kind==='list')body[name]=String(raw).split(',').map(part=>part.trim().toUpperCase()).filter(Boolean);
+  else body[name]=String(raw);
+ }
+ try{const d=await api('/api/admin/settings',{method:'PATCH',body});state.settings=d.settings;toast(t('Settings saved','Settings saved'),'success')}catch(e){toast(e.message,'error')}
+};
 
 async function adminMap(){shellTitle('Operations Map','All objects and today jobs by operational status');const [d,objectsData]=await Promise.all([api('/api/admin/dashboard'),api('/api/admin/objects')]);const points=window.ShineTimeUi.mapPoints(objectsData.objects,d.jobs);$('#page').innerHTML='<div class="card pad"><div id="admin-map" class="map"></div></div><div style="height:14px"></div>'+jobsTable(d.jobs);setTimeout(()=>renderLeaflet('admin-map',points,p=>p.job?openAdminJob(p.id):navTo('admin/objects')),20)}
 let leafletPromise=null;function loadLeaflet(){if(window.L)return Promise.resolve(true);if(leafletPromise)return leafletPromise;leafletPromise=new Promise(resolve=>{if(!document.querySelector('link[data-leaflet]')){const css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';css.dataset.leaflet='1';document.head.appendChild(css)}const script=document.createElement('script');script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';script.dataset.leaflet='1';let done=false;const finish=ok=>{if(done)return;done=true;resolve(ok&&!!window.L)};script.onload=()=>finish(true);script.onerror=()=>finish(false);document.head.appendChild(script);setTimeout(()=>finish(false),3500)});return leafletPromise}async function renderLeaflet(id,points,onClick){const el=document.getElementById(id);if(!el)return;const ok=await loadLeaflet();if(!ok||!window.L){el.innerHTML=`<div class="pin-fallback" style="padding:12px">${points.map(p=>`<div class="map-list-card"><strong>${esc(p.name)}</strong><small>${esc(p.detail)}</small></div>`).join('')}</div>`;return}if(!document.getElementById(id))return;state.map=L.map(id).setView([48.1486,17.1077],12);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(state.map);const bounds=[];points.filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lng))).forEach(p=>{const marker=L.marker([Number(p.lat),Number(p.lng)]).addTo(state.map).bindPopup(`<strong>${esc(p.name)}</strong><br>${esc(p.detail||'')}`);if(onClick)marker.on('click',()=>setTimeout(()=>onClick(p),150));bounds.push([Number(p.lat),Number(p.lng)])});if(bounds.length===1)state.map.setView(bounds[0],15);else if(bounds.length>1)state.map.fitBounds(bounds,{padding:[28,28]})}
