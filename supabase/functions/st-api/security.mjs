@@ -2,7 +2,7 @@ const MARKETPLACE_FIELDS = [
   'id', 'object_id', 'service_date', 'earliest_start', 'deadline', 'duration_minutes',
   'status', 'planned_start', 'risk_score', 'risk_level', 'risk_reasons', 'rescue_state',
   'object_code', 'object_name', 'zone', 'apartment_type', 'bedrooms', 'bathrooms',
-  'payout', 'bonus', 'feasible', 'feasibility_reason', 'projected_finish',
+  'payout', 'bonus', 'feasible', 'feasibility_reason', 'projected_finish', 'earliest_feasible_start', 'latest_start', 'client_note',
 ];
 
 const REQUEST_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,95}$/;
@@ -19,8 +19,8 @@ export function marketplaceJobs(jobs) {
 export function projectResponse(value,role){
   if(role==='ADMIN')return value;
   const hidden=new Set(role==='CLEANER'?['client_price','object_client_price','extra_revenue','extra_cost','client_company','client_name','client_id','financial_status']:
-    role==='OPERATIONS_MANAGER'?['client_price','object_client_price','extra_revenue','extra_cost','financial_status']:
-    ['payout','bonus','extra_cost','object_notes','cleaner_reliability','review_note','reviewed_by_user_id','completion_counted']);
+    role==='OPERATIONS_MANAGER'?['client_price','object_client_price','extra_revenue','extra_cost','financial_status','month_revenue','chargedCents','receivedCents','dueCents']:
+    ['payout','bonus','extra_cost','object_notes','cleaner_reliability','review_note','reviewed_by_user_id','completion_counted','cleaner_phone','cleaner_mode','checkin_lat','checkin_lng','checkin_distance_m','escalated_at']);
   // Entry details (door codes, keys, Wi-Fi) reach a cleaner only while the job is actively theirs.
   const privateGuide=new Set(['access_instructions','key_instructions','parking','linen_location','supplies_location','wifi','object_notes']);
   const activeGuide=new Set(['ACCEPTED','EN_ROUTE','ARRIVED','CLEANING']);

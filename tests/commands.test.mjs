@@ -24,11 +24,11 @@ test('only an active cleaner can accept a feasible marketplace job', async () =>
   } finally { await db.close(); }
 });
 
-test('acceptance uses the cleaner and object windows after 15:00', async () => {
+test('cleaner picks a start inside the window after 15:00', async () => {
   const { db, jobId } = await fixture();
   try {
     await db.query("update st_jobs set planned_start='18:00', earliest_start='16:00', deadline='20:00' where id=$1", [jobId]);
-    const claimed = await command(db, 2, jobId, 'accept', { nowTime: '16:00', safetyBuffer: 0, travelBuffer: 0 });
+    const claimed = await command(db, 2, jobId, 'accept', { plannedStart: '18:00', nowTime: '16:00', safetyBuffer: 0, travelBuffer: 0 });
     assert.equal(String(claimed.rows[0].planned_start).slice(0, 5), '18:00');
   } finally { await db.close(); }
 });

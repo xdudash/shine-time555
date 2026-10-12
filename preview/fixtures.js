@@ -18,12 +18,12 @@
     {id:14,code:'PR-002',name:'Vinohrady flat',address:'Korunní 47, Praha',zone:'Praha — Vinohrady',lat:50.0750,lng:14.4495,apartment_type:'2 rooms',client_name:'Demo stays',client_id:5,active:true,approval_status:'APPROVED',duration_minutes:90,client_price:45,payout:25,bedrooms:1,bathrooms:1}
   ];
   const jobs=[
-    {id:101,object_id:11,status:'CLEANING',risk_score:15,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'10:00',eta:'11:30',deadline:'15:00',service_date:today},
-    {id:102,object_id:12,status:'UNASSIGNED',risk_score:68,risk_level:'ORANGE',risk_reasons:['Unassigned'],cleaner_name:null,planned_start:'12:00',eta:'13:15',deadline:'15:00',service_date:today},
-    {id:103,object_id:13,status:'ACCEPTED',risk_score:18,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'10:30',eta:'12:30',deadline:'15:00',service_date:tomorrow},
-    {id:104,object_id:14,status:'UNASSIGNED',risk_score:22,risk_level:'GREEN',risk_reasons:[],cleaner_name:null,planned_start:'11:00',eta:'12:30',deadline:'15:00',service_date:tomorrow},
-    {id:106,object_id:14,status:'COMPLETED',review_status:'PENDING',review_version:1,risk_score:0,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'08:00',eta:'09:30',deadline:'15:00',service_date:today},
-    {id:105,object_id:11,status:'COMPLETED',risk_score:0,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'10:00',eta:'11:30',deadline:'15:00',service_date:yesterday}
+    {id:101,object_id:11,status:'CLEANING',risk_score:15,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'10:00',earliest_start:'10:00',eta:'11:30',deadline:'15:00',service_date:today},
+    {id:102,object_id:12,status:'UNASSIGNED',risk_score:68,risk_level:'ORANGE',risk_reasons:['Unassigned'],cleaner_name:null,planned_start:'12:00',earliest_start:'12:00',eta:'13:15',deadline:'15:00',service_date:today},
+    {id:103,object_id:13,status:'ACCEPTED',risk_score:18,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'10:30',earliest_start:'10:30',eta:'12:30',deadline:'15:00',service_date:tomorrow},
+    {id:104,object_id:14,status:'UNASSIGNED',risk_score:22,risk_level:'GREEN',risk_reasons:[],cleaner_name:null,planned_start:'11:00',earliest_start:'11:00',eta:'12:30',deadline:'15:00',service_date:tomorrow},
+    {id:106,object_id:14,status:'COMPLETED',review_status:'PENDING',review_version:1,risk_score:0,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'08:00',earliest_start:'08:00',eta:'09:30',deadline:'15:00',service_date:today},
+    {id:105,object_id:11,status:'COMPLETED',risk_score:0,risk_level:'GREEN',risk_reasons:[],cleaner_name:'Demo cleaner',planned_start:'10:00',earliest_start:'10:00',eta:'11:30',deadline:'15:00',service_date:yesterday}
   ].map(j=>({...objects.find(o=>o.id===j.object_id),...j,object_code:objects.find(o=>o.id===j.object_id).code,object_name:objects.find(o=>o.id===j.object_id).name,projected_finish:j.eta,assigned_cleaner_id:j.cleaner_name?3:null,review_status:j.review_status||(j.status==='COMPLETED'?'APPROVED':'NOT_SUBMITTED'),review_version:j.review_version||0,bonus:0}));
   const cleaners=[{id:3,full_name:'Demo cleaner',email:'cleaner@example.invalid',active:true,mode:'FLEX',transport:'CAR',reliability_score:96,rating:4.9,today_jobs:1,today_earnings:24,completed_jobs:42,cancellation_rate:0,reclean_rate:0,avg_delay_minutes:2,preferred_zones:['Bratislava — Staré Mesto','Praha — Nové Město']}];
   const clients=[{id:4,full_name:'Demo owner',company_name:'Demo stays',account_type:'OWNER',email:'owner@example.invalid',language:'en',user_active:true,active:true,objects:2,approved_objects:2,month_jobs:2,month_revenue:175},{id:5,full_name:'Demo manager',company_name:'Demo stays Prague',account_type:'PROPERTY_MANAGER',email:'manager@example.invalid',language:'en',user_active:true,active:true,objects:2,approved_objects:2,month_jobs:2,month_revenue:100}];
@@ -54,20 +54,21 @@
     else if(resource==='/api/client/objects')data={objects:objects.map(clientObject)};
     else if(resource==='/api/admin/clients')data={clients};
     else if(resource==='/api/admin/cleaners')data={cleaners};
+    else if(resource==='/api/admin/managers')data={managers:[{id:7,full_name:'Demo dispatcher',email:'dispatch@example.invalid',phone:'',language:'ru',active:true}]};
     else if(/^\/api\/admin\/clients\/\d+\/properties$/.test(resource))data={objectIds:objects.filter((o,i)=>i%2===1).map(o=>o.id)};
     else if(resource==='/api/admin/capacity')data=capacity(url.searchParams.get('date'));
     else if(resource==='/api/admin/analytics')data=analytics();
     else if(resource==='/api/admin/finance'||resource==='/api/client/finance')data=finance(url.searchParams.get('month')||today.slice(0,7));
     else if(resource==='/api/admin/issues')data={issues};
     else if(resource==='/api/admin/settings')data={settings};
-    else if(resource==='/api/admin/recurring')data={schedules:[{id:1,st_objects:objects[0],weekdays:[1,3,5],planned_start:'10:00',start_date:today,end_date:null,active:true}]};
+    else if(resource==='/api/admin/recurring')data={schedules:[{id:1,st_objects:objects[0],weekdays:[1,3,5],planned_start:'10:00',earliest_start:'10:00',start_date:today,end_date:null,active:true}]};
     else if(resource==='/api/admin/settlements/monthly'){const side=url.searchParams.get('side')||'CLIENT';const party=url.searchParams.get('partyId');const rows=side==='CLIENT'?[{id:4,name:'Demo stays',count:2,chargedCents:8400,paidCents:4200,dueCents:4200},{id:5,name:'Demo stays Prague',count:1,chargedCents:4500,paidCents:0,dueCents:4500}]:[{id:3,name:'Demo cleaner',count:3,chargedCents:7300,paidCents:2400,dueCents:4900}];data={groups:rows,jobs:party?[{id:105,object_name:'Old Town apartment',service_date:yesterday,chargedCents:4200,paidCents:4200,dueCents:0},{id:106,object_name:'Riverside studio',service_date:yesterday,chargedCents:4200,paidCents:0,dueCents:4200}]:[],hasMore:false,waitingReviewJobs:1};}
     else if(/^\/api\/(admin|cleaner|client)\/settlements$/.test(resource))data=settlements();
     else if(resource==='/api/cleaner/dashboard'){
       const assigned=jobs.filter(j=>j.service_date===(url.searchParams.get('date')||today)&&j.cleaner_name);
       data={availability:{online:true,fromTime:'08:00',toTime:'16:00'},jobs:assigned.map(cleanerJob),nextJob:assigned[0]?cleanerJob(assigned[0]):null,total:assigned.length,earnings:assigned.reduce((n,j)=>n+j.payout,0),projectedFinish:assigned.at(-1)?.eta||'—'};
     }
-    else if(resource==='/api/cleaner/marketplace')data={jobs:jobs.filter(j=>j.service_date===(url.searchParams.get('date')||today)&&j.status==='UNASSIGNED').map(j=>({...cleanerJob(j),feasible:true})),bundles:[]};
+    else if(resource==='/api/cleaner/marketplace')data={jobs:jobs.filter(j=>j.service_date===(url.searchParams.get('date')||today)&&j.status==='UNASSIGNED').map(j=>({...cleanerJob(j),feasible:true,earliest_feasible_start:'10:00',latest_start:'13:00',client_note:'Гости заезжают в 16:00'})),bundles:[]};
     else if(resource==='/api/cleaner/earnings')data={today:0,jobs:[cleanerJob(jobs.at(-1))]};
     else if(/^\/api\/cleaner\/jobs\/\d+$/.test(resource)){
       const j=jobs.find(x=>x.id===Number(resource.split('/').at(-1))&&x.cleaner_name);
@@ -76,7 +77,7 @@
     }
     else if(resource==='/api/client/dashboard')data={objects:{total:objects.length,approved:objects.length,pending:0},upcoming:jobs.slice(0,2).map(clientJob),completedToday:0,nextBooking:clientJob(jobs[0])};
     else if(/^\/api\/client\/objects\/\d+$/.test(resource))data={object:clientObject(objects.find(o=>o.id===Number(resource.split('/').at(-1))))};
-    else if(resource==='/api/client/slots')data={object:clientObject(objects.find(o=>o.id===Number(url.searchParams.get('objectId')))),slots:['10:00','11:00','12:00']};
+    else if(resource==='/api/client/slots')data={object:clientObject(objects.find(o=>o.id===Number(url.searchParams.get('objectId')))),window:{from:'11:00',to:'15:00',durationMinutes:90},slots:[]};
     else if(resource==='/api/client/bookings')data={bookings:jobs.map(clientJob)};
     else if(/^\/api\/client\/bookings\/\d+$/.test(resource))data={booking:clientJob(jobs.find(j=>j.id===Number(resource.split('/').at(-1)))),photos:[],issues:[]};
     else if(resource==='/api/client/profile')data={client:{...identities[role],account_type:role}};

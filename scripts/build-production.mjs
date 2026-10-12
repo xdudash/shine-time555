@@ -3,7 +3,7 @@ import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 const dest=join(process.cwd(),'_production');
 const target=JSON.parse(await readFile('deployment/pages-production.json','utf8'));
-if(target.projectRef!=='qbbtroiqioufuucrqair'||target.apiBuild!=='2026-09-28-quality1'||target.qualityReview!==true||!Number.isInteger(target.edgeVersion))throw Error('Revalidate production server before changing its contract');
+if(target.projectRef!=='qbbtroiqioufuucrqair'||target.apiBuild!=='2026-10-12-stage1'||target.qualityReview!==true||!Number.isInteger(target.edgeVersion))throw Error('Revalidate production server before changing its contract');
 const php=await readFile('index.php','utf8');
 const scripts=[...php.matchAll(/<script src="(assets\/[^"?]+)(?:\?[^"]*)?"><\/script>/g)].map(m=>m[1]);
 const styles=[...php.matchAll(/<link rel="stylesheet" href="(assets\/[^"?]+)(?:\?[^"]*)?">/g)].map(m=>m[1]);

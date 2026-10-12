@@ -47,6 +47,13 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(path.startsWith('/api/admin/settlements/monthly')){const q=new URL(path,'https://x.test').searchParams;window.monthlyCalls=(window.monthlyCalls||0)+1;if(q.get('partyId'))return {jobs:window.batchDone?[]:[{id:201,object_name:'Flat A',service_date:'2099-01-05',chargedCents:4000,paidCents:0,dueCents:4000},{id:202,object_name:'Flat B',service_date:'2099-01-06',chargedCents:3550,paidCents:0,dueCents:3550}],hasMore:false};return {groups:[{id:4,name:'Demo stays',count:2,chargedCents:7550,paidCents:window.batchDone?7550:0,dueCents:window.batchDone?0:7550}],jobs:[],hasMore:false,waitingReviewJobs:1}}
    if(path==='/api/admin/settlements/batch'){window.batchBodies=(window.batchBodies||[]).concat([opts.body]);window.batchDone=true;return {count:opts.body.items.length,amountCents:opts.body.items.reduce((n,i)=>n+i.amountCents,0)}}
    if(path.startsWith('/api/admin/settlements'))return {summary:{},jobs:[],hasMore:false};
+   if(path.startsWith('/api/client/slots'))return {object:{id:11,name:'Dunajská apartment',client_price:42,duration_minutes:90},window:{from:'11:00',to:'15:00',durationMinutes:90},slots:[]};
+   if(path==='/api/client/bookings'&&opts.method==='POST'){window.bookings=(window.bookings||[]).concat([opts.body]);return {booking:{id:301,status:'UNASSIGNED'}}}
+   if(path==='/api/client/objects')return {objects:[{id:11,code:'BA-101',name:'Dunajská apartment',address:'Dunajská 15',zone:'Staré Mesto',active:true,approval_status:'APPROVED',client_price:42,apartment_type:'2 rooms'}]};
+   if(path.startsWith('/api/cleaner/marketplace'))return {jobs:[{id:401,object_code:'BA-101',zone:'Staré Mesto',earliest_start:'11:00',deadline:'15:00',duration_minutes:90,payout:24,bonus:0,client_note:'Guests at 16:00',feasible:true,earliest_feasible_start:'11:00',latest_start:'13:30'},{id:402,object_code:'BA-102',zone:'Ružinov',earliest_start:'09:00',deadline:'10:00',duration_minutes:90,payout:20,bonus:6,feasible:false,feasibility_reason:'Not enough time left before the deadline'}]};
+   if(m=path.match(/^\/api\/cleaner\/jobs\/(\d+)\/accept$/)){window.accepts=(window.accepts||[]).concat([{id:Number(m[1]),body:opts.body}]);return {job:{id:Number(m[1]),status:'ACCEPTED'}}}
+   if(path==='/api/admin/managers'&&(opts.method||'GET')==='GET')return {managers:[{id:7,full_name:'Dispatcher One',email:'d1@test.invalid',phone:'',language:'en',active:true}]};
+   if(path==='/api/admin/managers'&&opts.method==='POST'){window.createdManager=opts.body;return {manager:{id:8}}}
    if(path==='/api/notifications')return {notifications:[],unread:0};
    if(path==='/api/account/language')return {ok:true};
    throw Error('Unexpected route '+path);
@@ -204,6 +211,65 @@ try {
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS archive/delete property, deactivate cleaner, delete reference photo');
+ }
+ // Client books a window, not a fixed slot; the note reaches the server.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(async()=>{state.me={id:4,role:'OWNER',full_name:'Owner',language:'en'};state.settings={};location.hash='client/book';await new Promise(r=>setTimeout(r,100));await render()});
+  await page.locator('#window-from').waitFor();
+  assert.equal(await page.inputValue('#window-from'),'11:00');
+  assert.equal(await page.inputValue('#window-to'),'15:00');
+  assert.equal(await page.locator('.slot-grid').count(),0,'fixed slots are gone');
+  await page.fill('#window-to','10:00');
+  await page.locator('#reserve-cleaning-btn').click();
+  await page.waitForFunction(()=>document.querySelector('#toast-root')?.innerText.includes('Ready-by'));
+  await page.fill('#window-to','16:00');await page.fill('#booking-note','Guests at 16:00');
+  await page.locator('#reserve-cleaning-btn').click();
+  await page.waitForFunction(()=>window.bookings?.length===1);
+  const sent=await page.evaluate(()=>bookings[0]);
+  assert.equal(sent.objectId,11);assert.equal(sent.windowFrom,'11:00');assert.equal(sent.windowTo,'16:00');assert.equal(sent.note,'Guests at 16:00');
+  assert.match(sent.serviceDate,/^\d{4}-\d{2}-\d{2}$/);
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS client books a window with a note; no shift-dependent slots');
+ }
+ // Cleaner marketplace: seven days, start picker inside the window, honest refusal.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(async()=>{state.me={id:3,role:'CLEANER',full_name:'Cleaner',language:'en'};state.settings={};location.hash='cleaner/jobs';await new Promise(r=>setTimeout(r,100));await render()});
+  await page.locator('#start-401').waitFor();
+  assert.equal(await page.locator('.day-chips button').count(),7,'a week of days');
+  const options=await page.locator('#start-401 option').allInnerTexts();
+  assert.equal(options.at(0),'11:00');assert.equal(options.at(-1),'13:30');
+  assert.match(await page.locator('.job-card',{hasText:'BA-101'}).innerText(),/Guests at 16:00/);
+  assert.equal(await page.locator('.job-card',{hasText:'BA-102'}).locator('button[disabled]').count(),1);
+  await page.selectOption('#start-401','12:30');
+  await page.locator('.job-card',{hasText:'BA-101'}).getByRole('button',{name:'Take cleaning'}).click();
+  await page.waitForFunction(()=>window.accepts?.length===1);
+  assert.deepEqual(await page.evaluate(()=>accepts[0]),{id:401,body:{plannedStart:'12:30'}});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS cleaner marketplace: 7 days, start picker, client note, honest refusal');
+ }
+ // Admin creates an operations manager; the password rule is 12 characters.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={};location.hash='admin/cleaners';await new Promise(r=>setTimeout(r,100));await render()});
+  await page.locator('#managers-card table').waitFor();
+  assert.match(await page.locator('#managers-card').innerText(),/Dispatcher One/);
+  await page.getByRole('button',{name:'Add manager'}).click();
+  await page.locator('#manager-form').waitFor();
+  assert.equal(await page.locator('#manager-form [name=password]').getAttribute('minlength'),'12');
+  await page.fill('#manager-form [name=fullName]','New dispatcher');
+  await page.fill('#manager-form [name=email]','new@test.invalid');
+  await page.fill('#manager-form [name=password]','Long-enough-pass-2026');
+  await page.getByRole('button',{name:'Save'}).click();
+  await page.waitForFunction(()=>window.createdManager);
+  assert.equal((await page.evaluate(()=>createdManager)).fullName,'New dispatcher');
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS admin adds an operations manager with a 12-character password');
  }
  // Language switch re-renders navigation, not only the page body.
  {

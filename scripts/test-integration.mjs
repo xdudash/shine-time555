@@ -13,7 +13,7 @@ const clients=[];
 const channels=[];
 async function api(index,route,method='GET',body={},query={}){
  const {data:{session}}=await clients[index].auth.getSession();
- const res=await fetch(`${config.API_URL}/functions/v1/st-api`,{method:'POST',headers:{apikey:config.ANON_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({route,method,body,query,clientBuild:'2026-09-28-quality1'})});
+ const res=await fetch(`${config.API_URL}/functions/v1/st-api`,{method:'POST',headers:{apikey:config.ANON_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({route,method,body,query,clientBuild:'2026-10-12-stage1'})});
  const data=await res.json();
  assert.ok(res.ok,`${route}: ${res.status} ${JSON.stringify(data)}`);return data;
 }
@@ -33,9 +33,12 @@ try{
  for(let attempt=0;;attempt++){try{await api(0,'health');break}catch(error){if(attempt>=30)throw error;await new Promise(r=>setTimeout(r,1000));}}
  for(let i=0;i<roles.length;i++)assert.equal((await api(i,'me')).user.role,roles[i]);
  const date=(await db.query("select to_char(current_date+1,'YYYY-MM-DD') date")).rows[0].date;
- assert.ok((await api(3,'client/slots','GET',{}, {objectId:1,date})).slots.includes('10:00'));
- const {booking}=await api(3,'client/bookings','POST',{objectId:1,serviceDate:date,startTime:'10:00',requestId:crypto.randomUUID()});
- assert.equal(booking.status,'ACCEPTED');
+ const {booking:booked}=await api(3,'client/bookings','POST',{objectId:1,serviceDate:date,windowFrom:'09:00',windowTo:'15:00',note:'Guests at 16:00',requestId:crypto.randomUUID()});
+ assert.equal(booked.status,'UNASSIGNED','client booking goes to the marketplace');
+ const market=await api(1,'cleaner/marketplace','GET',{}, {date});
+ assert.ok(market.jobs.some(j=>j.id===booked.id&&j.feasible),'booking is offered to cleaners without a shift row');
+ const {job:booking}=await api(1,`cleaner/jobs/${booked.id}/accept`,'POST',{plannedStart:'10:00'});
+ assert.equal(booking.status,'ACCEPTED');assert.equal(String(booking.planned_start).slice(0,5),'10:00');
  const cleaner=Number(booking.assigned_cleaner_id);
  const path=`cleaner/jobs/${booking.id}`;
  const unrelated=cleaner===1?2:1;
@@ -113,6 +116,17 @@ try{
  const settlement=await api(0,'admin/settlements','GET',{}, {month:date.slice(0,7)});
  assert.equal(settlement.summary.dueCents,0);assert.equal(settlement.summary.payableCents,0);
  await assert.rejects(api(3,'admin/settings'),/403|Forbidden|permission/i);
- const report={realAuthRoles:5,booking:true,referencePhotos:true,entryDetailsWithdrawn:true,monthlySettlementGate:true,signedStorageUpload:true,idempotentFinalize:true,completion:true,settlements:true,realtime:true,privateJobAccess:true,productionTouched:false};
+ // Stage 1: owner never sees the cleaner's phone; ops manager cannot touch prices; managers are created by admin.
+ assert.equal((await api(3,`client/bookings/${booking.id}`)).booking.cleaner_phone,undefined);
+ await assert.rejects(api(5,'admin/objects/1','PATCH',{clientPrice:1}),/403|administrator/i);
+ await assert.rejects(api(5,'admin/objects/1','DELETE'),/403|administrator/i);
+ assert.equal((await api(5,'admin/clients')).clients.every(c=>c.month_revenue===undefined),true);
+ const {manager}=await api(0,'admin/managers','POST',{fullName:'Second manager',email:'integration-om2@test.invalid',password:'Synthetic-local-test-2026!'});
+ assert.ok(manager.id);assert.equal((await api(0,'admin/managers')).managers.length,2);
+ await assert.rejects(api(5,'admin/managers'),/403|administrator/i);
+ await assert.rejects(api(0,'admin/managers','POST',{fullName:'Weak',email:'integration-om3@test.invalid',password:'short-pass1'}),/12/);
+ const pmReport=await api(4,'client/settlements','GET',{}, {month:date.slice(0,7)});
+ assert.equal(pmReport.summary.chargedCents,4000);assert.equal(pmReport.summary.earnedCents,undefined);
+ const report={stage1:true,realAuthRoles:5,booking:true,referencePhotos:true,entryDetailsWithdrawn:true,monthlySettlementGate:true,signedStorageUpload:true,idempotentFinalize:true,completion:true,settlements:true,realtime:true,privateJobAccess:true,productionTouched:false};
  await writeFile('artifacts/integration-result.json',JSON.stringify(report,null,2));console.log(report);
 }finally{for(const stop of channels)await stop();await db.end();for(const client of clients)await client.auth.signOut();}

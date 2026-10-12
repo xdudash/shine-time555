@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.4';
 import { activeAssignmentStatuses, availableBookingSlots, cleanerEarningsSummary, clientAccountRows, coordinatesForStorage, financeBoardReport, marketplaceForCleaner, riskForJob, roleCapabilities, settingsFromRows } from './logic.mjs';
-import { marketplaceJobs, projectResponse } from './security.mjs';
+import { marketplaceJobs, projectResponse, isStrongPassword } from './security.mjs';
 import { operationsRoute } from './operations.mjs';
 import { propertyPhotosRoute } from './property-photos.mjs';
 import { validatePhoto, validateMedia } from './media.mjs';
@@ -9,7 +9,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const PUBLIC_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? '';
 const MEDIA_BUCKET = 'st-cleaning-media';
-const APP_BUILD = '2026-09-28-quality1';
+const APP_BUILD = '2026-10-12-stage1';
 const COMPATIBLE_BUILDS = new Set([APP_BUILD]);
 const service = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
@@ -354,7 +354,7 @@ async function routeCleaner(ctx: any, route: string, method: string, query: AnyR
     ]);
     const marketplace = marketplaceForCleaner({
       cleaner: ctx.cleaner,
-      availability: availabilityRows[0] || { online: false },
+      availability: availabilityRows[0] ? { ...availabilityRows[0], explicit: true } : null,
       assignedJobs,
       jobs: await hydrateJobs(rows),
       settings: appSettings,
@@ -374,7 +374,8 @@ async function routeCleaner(ctx: any, route: string, method: string, query: AnyR
   if (!action && method === 'GET') return jobDetails(ctx, jobId);
   if (action === 'accept' && method === 'POST') {
     const offered = await getJob(jobId);
-    const job = await jobCommand(ctx, jobId, 'accept', { ...body, nowTime: offered.service_date === today() ? currentTime() : '00:00' });
+    const plannedStart = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(body.plannedStart || '')) ? String(body.plannedStart) : undefined;
+    const job = await jobCommand(ctx, jobId, 'accept', { requestId: body.requestId, plannedStart, nowTime: offered.service_date === today() ? currentTime() : '00:00' });
     await jobFor(ctx, jobId); // Recheck access before hydrating a replayed snapshot.
     return { job: (await hydrateJobs([job]))[0] };
   }
@@ -445,8 +446,8 @@ async function routeCleaner(ctx: any, route: string, method: string, query: AnyR
     const issue = await one(service.from('st_issues').insert({ job_id: jobId, cleaner_id: cleanerId, type: String(body.type || 'OTHER'), description: String(body.description || ''), priority: String(body.priority || 'HIGH') }).select().single()) as AnyRow;
     await result(service.from('st_jobs').update({ issue_flag: true }).eq('id', jobId));
     await insertEvent(jobId, ctx.appUser.id, 'ISSUE_REPORTED', { issueId: issue.id });
-    const admins = await result(service.from('st_users').select('id').eq('role', 'ADMIN').eq('active', true)) as AnyRow[];
-    await Promise.all(admins.map((admin) => notify(admin.id, 'ISSUE', 'New cleaning issue', `${job.object_id} · ${issue.type}`)));
+    const object = await one(service.from('st_objects').select('code').eq('id', job.object_id).single()) as AnyRow;
+    await result(service.rpc('st_notify_staff', { p_type: 'ISSUE', p_title: 'New cleaning issue', p_message: `${object.code} · #${jobId} · ${issue.type}` }));
     return { issue };
   }
   if (action === 'complete' && method === 'POST') {
@@ -496,8 +497,7 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
                 throw new ApiError('A property manager can only work with assigned properties', 403);
             const coordinates = objectCoordinates(body.lat, body.lng);
             const object = await one(service.from('st_objects').insert({ client_id: clientId, code: code(), name: String(body.name || ''), address: String(body.address || ''), zone: String(body.zone || 'Bratislava'), service_category: String(body.serviceCategory || 'SHORT_STAY'), apartment_type: String(body.apartmentType || 'Apartment'), bedrooms: number(body.bedrooms, 1), bathrooms: number(body.bathrooms, 1), lat: coordinates.lat, lng: coordinates.lng, access_instructions: body.accessInstructions || null, key_instructions: body.keyInstructions || null, parking: body.parking || null, linen_location: body.linenLocation || null, supplies_location: body.suppliesLocation || null, notes: body.notes || null, active: false, approval_status: 'PENDING' }).select().single()) as AnyRow;
-            const admins = await result(service.from('st_users').select('id').eq('role', 'ADMIN').eq('active', true)) as AnyRow[];
-            await Promise.all(admins.map((admin) => notify(admin.id, 'OBJECT_APPROVAL', 'Property needs approval', object.name)));
+            await result(service.rpc('st_notify_staff', { p_type: 'OBJECT_APPROVAL', p_title: 'Property needs approval', p_message: `${object.code} · ${object.name}` }));
             return { object };
         }
         const objectMatch = route.match(/^client\/objects\/(\d+)$/);
@@ -507,7 +507,8 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
                 return { object: await clientObject(ctx, objectId) };
             if (method === 'PATCH') {
                 const existing = await clientObject(ctx, objectId);
-                const structural = ['serviceCategory', 'address', 'zone', 'apartmentType', 'bedrooms', 'bathrooms', 'lat', 'lng'].some((key) => body[key] !== undefined);
+                const moved = (body.address !== undefined && String(body.address).trim() !== String(existing.address || '').trim()) || (body.lat !== undefined && body.lat !== null && Math.abs(Number(body.lat) - Number(existing.lat)) > 0.0005) || (body.lng !== undefined && body.lng !== null && Math.abs(Number(body.lng) - Number(existing.lng)) > 0.0005);
+                const structural = moved;
                 const coordinates = objectCoordinates(body.lat !== undefined ? body.lat : existing.lat, body.lng !== undefined ? body.lng : existing.lng);
                 const updates: AnyRow = {
                     service_category: body.serviceCategory ?? existing.service_category, name: body.name ?? existing.name, address: body.address ?? existing.address, zone: body.zone ?? existing.zone,
@@ -537,7 +538,7 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
                 settings(), activeCleaners(date),
             ]);
             const windows = availability;
-            return { date, object, slots: availableBookingSlots({ object, jobs, windows, cleaners, durationMinutes: object.duration_minutes, settings: appSettings, stepMinutes: number(appSettings.clientBookingStepMinutes, 30) }).filter(slot => date !== today() || slot > currentTime()), capacity: cleaners.filter((cleaner) => cleaner.available).length };
+            return { date, object, window: { from: String(object.checkout_time || '10:00').slice(0, 5), to: String(object.deadline_time || '15:00').slice(0, 5), durationMinutes: object.duration_minutes }, slots: availableBookingSlots({ object, jobs, windows, cleaners, durationMinutes: object.duration_minutes, settings: appSettings, stepMinutes: number(appSettings.clientBookingStepMinutes, 30) }).filter(slot => date !== today() || slot > currentTime()), capacity: cleaners.filter((cleaner) => cleaner.available).length };
         }
         if (route === 'client/bookings' && method === 'GET') {
             const objects = await clientPortfolioObjects(ctx);
@@ -546,13 +547,11 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
         }
         if (route === 'client/bookings' && method === 'POST') {
             const object = await clientObject(ctx, number(body.objectId));
-            const slotsResult = await routeClient(ctx, 'client/slots', 'GET', { objectId: body.objectId, date: body.serviceDate }, {});
-            if (!slotsResult.slots.includes(String(body.startTime)))
-                throw new ApiError('This cleaning slot is no longer available', 409, { availableSlots: slotsResult.slots });
-            const job = await createJob(ctx, { objectId: object.id, serviceDate: body.serviceDate, clientId: object.client_id, plannedStart: body.startTime, earliestStart: body.startTime, deadline: String(object.deadline_time).slice(0, 5), bookingSource: 'CLIENT_BOOKING', marketplaceVisible: true });
-            await insertEvent(job.id, ctx.appUser.id, 'CLIENT_BOOKED', { startTime: body.startTime });
-            const admins = await result(service.from('st_users').select('id').eq('role', 'ADMIN').eq('active', true)) as AnyRow[];
-            await Promise.all(admins.map((admin) => notify(admin.id, 'CLIENT_BOOKING', 'New client cleaning reservation', `${object.code} · ${body.serviceDate} ${body.startTime}`)));
+            const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
+            const from = String(body.windowFrom || body.startTime || '').slice(0, 5), to = String(body.windowTo || String(object.deadline_time).slice(0, 5)).slice(0, 5);
+            if (!hhmm.test(from) || !hhmm.test(to) || from >= to) throw new ApiError('Choose a valid cleaning window');
+            if (String(body.note || '').length > 1000) throw new ApiError('Note is too long');
+            const job = await createJob(ctx, { objectId: object.id, serviceDate: body.serviceDate, earliestStart: from, deadline: to, note: String(body.note || '') });
             return { booking: (await hydrateJobs([job]))[0] };
         }
         const booking = route.match(/^client\/bookings\/(\d+)(?:\/(cancel))?$/);
@@ -584,12 +583,13 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
 async function createManagedUser(role: string, body: AnyRow) {
   if (!body.email || !body.password || !body.fullName) throw new ApiError('email, password and fullName are required');
   if (!validEmail(body.email)) throw new ApiError('Valid email is required');
-  if (String(body.password).length < 8) throw new ApiError('Password must be at least 8 characters');
+  if (!isStrongPassword(body.password)) throw new ApiError('Password must be at least 12 characters');
   const email = normalizedEmail(body.email);
   const { data, error } = await service.auth.admin.createUser({ email, password: String(body.password), email_confirm: true, user_metadata: {} });
   if (error || !data.user) throw new ApiError(error?.message || 'Cannot create account', 409);
   try {
     const user = await one(service.from('st_users').insert({ auth_user_id: data.user.id, email, role, full_name: String(body.fullName), phone: String(body.phone || ''), language: validLanguage(body.language) }).select().single()) as AnyRow;
+    if (role === 'OPERATIONS_MANAGER') return { manager: user };
     if (role === 'CLEANER') {
       const cleaner = await one(service.from('st_cleaners').insert({ user_id: user.id, mode: body.mode === 'GUARANTEE' ? 'GUARANTEE' : 'FLEX', reliability_score: number(body.reliabilityScore, 95), rating: number(body.rating, 5), transport: ['CAR', 'PUBLIC', 'WALKING'].includes(body.transport) ? body.transport : 'PUBLIC', preferred_zones: Array.isArray(body.preferredZones) ? body.preferredZones : [], max_jobs_day: number(body.maxJobsDay, 5) }).select().single()) as AnyRow;
       return { user, cleaner };
@@ -622,6 +622,31 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             || /^admin\/(cleaners|clients)\/\d+(?:\/password)?$/.test(route);
         if ((route.startsWith('admin/finance') && !capabilities.finance) || (accountRoute && !capabilities.access))
             throw new ApiError('Forbidden', 403);
+        // Operations managers run dispatch only: no prices, no deleting properties, no accounts.
+        if (ctx.appUser.role !== 'ADMIN') {
+            const objectWrite = /^admin\/objects(?:\/\d+)?$/.test(route) && ['POST', 'PATCH', 'DELETE'].includes(method);
+            if (route.startsWith('admin/managers') || (objectWrite && (method === 'DELETE' || ['clientPrice', 'payout', 'clientId'].some((key) => body[key] !== undefined))))
+                throw new ApiError('Forbidden: administrator only', 403);
+        }
+        const managerRoute = route.match(/^admin\/managers(?:\/(\d+)(?:\/(password))?)?$/);
+        if (managerRoute) {
+            if (!managerRoute[1] && method === 'GET')
+                return { managers: await result(service.from('st_users').select('id,email,full_name,phone,language,active,created_at').eq('role', 'OPERATIONS_MANAGER').order('full_name')) };
+            if (!managerRoute[1] && method === 'POST')
+                return createManagedUser('OPERATIONS_MANAGER', body);
+            const user = await one(service.from('st_users').select('*').eq('id', Number(managerRoute[1])).eq('role', 'OPERATIONS_MANAGER').single()) as AnyRow;
+            if (managerRoute[2] === 'password' && method === 'POST') {
+                if (!isStrongPassword(body.password)) throw new ApiError('Temporary password must be at least 12 characters');
+                await result(service.auth.admin.updateUserById(user.auth_user_id, { password: String(body.password) }));
+                return { ok: true };
+            }
+            if (!managerRoute[2] && method === 'PATCH') {
+                if (body.email !== undefined) await updateManagedLoginEmail(user, body.email);
+                const updates = Object.fromEntries(Object.entries({ active: body.active, full_name: body.fullName, phone: body.phone, language: body.language && validLanguage(body.language) }).filter(([, v]) => v !== undefined));
+                return { manager: Object.keys(updates).length ? await one(service.from('st_users').update(updates).eq('id', user.id).select('id,email,full_name,phone,language,active').single()) : user };
+            }
+            throw new ApiError('Method not allowed', 405);
+        }
         if (body.serviceCategory !== undefined && !['SHORT_STAY', 'HOME', 'OFFICE', 'COMMON_AREAS', 'OTHER'].includes(body.serviceCategory))
             throw new ApiError('Invalid service category');
         const portfolio = route.match(/^admin\/clients\/(\d+)\/properties(?:\/(\d+))?$/);
@@ -792,8 +817,8 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             const cleanerId = number(cleanerRoute[1]);
             const cleaner = await one(service.from('st_cleaners').select('*').eq('id', cleanerId).single()) as AnyRow;
             if (cleanerRoute[2] === 'password' && method === 'POST') {
-                if (String(body.password || '').length < 10)
-                    throw new ApiError('Temporary password must be at least 10 characters');
+                if (!isStrongPassword(body.password))
+                    throw new ApiError('Temporary password must be at least 12 characters');
                 const user = await one(service.from('st_users').select('*').eq('id', cleaner.user_id).single()) as AnyRow;
                 await result(service.auth.admin.updateUserById(user.auth_user_id, { password: String(body.password) }));
                 await notify(user.id, 'SECURITY', 'Password reset', 'Operations reset your login password.');
@@ -828,8 +853,8 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             const client = await one(service.from('st_client_accounts').select('*').eq('id', clientId).single()) as AnyRow;
             const user = await one(service.from('st_users').select('*').eq('id', client.user_id).single()) as AnyRow;
             if (clientRoute[2] === 'password' && method === 'POST') {
-                if (String(body.password || '').length < 10)
-                    throw new ApiError('Temporary password must be at least 10 characters');
+                if (!isStrongPassword(body.password))
+                    throw new ApiError('Temporary password must be at least 12 characters');
                 await result(service.auth.admin.updateUserById(user.auth_user_id, { password: String(body.password) }));
                 return { ok: true };
             }
@@ -951,7 +976,7 @@ async function account(ctx: any, route: string, method: string, body: AnyRow) {
   }
   if (route === 'account/password' && method === 'POST') {
     const currentPassword = String(body.currentPassword || ''), newPassword = String(body.newPassword || '');
-    if (!currentPassword || newPassword.length < 8) throw new ApiError('Current password and a new password of at least 8 characters are required');
+    if (!currentPassword || !isStrongPassword(newPassword)) throw new ApiError('Current password and a new password of at least 12 characters are required');
     const { error } = await ctx.userClient.auth.signInWithPassword({ email: ctx.authUser.email || '', password: currentPassword });
     if (error) throw new ApiError('Current password is incorrect', 403);
     await result(service.auth.admin.updateUserById(ctx.authUser.id, { password: newPassword }));
