@@ -58,8 +58,8 @@ test('monthly property reconciliation is the default Finance tab', () => {
   assert.match(reconciliation, /Mark cleaners paid/);
   assert.match(reconciliation, /saveMonthlyCorrection/);
   assert.match(reconciliation, /function reconciliationPaymentAction/);
-  assert.match(reconciliation, /window\\.settleReconciliationJob/);
-  assert.match(reconciliation, /items:\\[\\{jobId:Number\\(job\\.id\\),amountCents:due\\}\\]/);
+  assert.ok(reconciliation.includes('window.settleReconciliationJob'));
+  assert.ok(reconciliation.includes('items:[{jobId:Number(job.id),amountCents:due}]'));
   assert.match(reconciliation, /recon-job-payment/);
   assert.match(reconciliation, /Record client payment/);
   assert.match(reconciliation, /Record cleaner payout/);
