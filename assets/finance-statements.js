@@ -13,24 +13,137 @@
  renderAdminPage=async function(page){if(page==='statements'&&window.ShineTimeUi.adminRouteAllowed('finance',state.me.role))return statementsScreen();return originalRenderAdmin(page)};
 
  async function statementsScreen(){
-  const side=state.statementSide||'CLIENT';const month=state.statementMonth||today().slice(0,7);
-  shellTitle(tr('Statements'),tr('Who owes what, for which cleanings, and monthly reports'));
-  const months=lastMonths(month,12);
-  const [current,...history]=await Promise.all(months.map(m=>monthlyGroups(m,side).catch(()=>({groups:[]}))));
-  const debt=new Map();history.concat([current]).forEach(r=>(r.groups||[]).forEach(g=>{if(g.id===null)return;debt.set(g.id,(debt.get(g.id)||0)+Number(g.dueCents||0))}));
-  const rows=(current.groups||[]).filter(g=>g.id!==null);
-  const names=new Map(rows.map(g=>[g.id,g.name]));history.forEach(r=>(r.groups||[]).forEach(g=>{if(g.id!==null&&!names.has(g.id))names.set(g.id,g.name)}));
-  const olderOnly=[...debt.entries()].filter(([id,d])=>d>0&&!rows.some(g=>g.id===id));
-  const totals=rows.reduce((a,g)=>({count:a.count+Number(g.count),charged:a.charged+Number(g.chargedCents),paid:a.paid+Number(g.paidCents),due:a.due+Number(g.dueCents)}),{count:0,charged:0,paid:0,due:0});
-  const allDebt=[...debt.values()].reduce((a,b)=>a+b,0);
-  const who=side==='CLIENT'?'Client':'Cleaner';
-  $('#page').innerHTML=`<div class="section-head"><div><h2>${tr('Statements')}</h2><p>${tr(side==='CLIENT'?'What each client owes you, job by job.':'What you owe each cleaner, job by job.')}</p></div><div class="row-actions"><button class="btn ${side==='CLIENT'?'primary':''}" onclick="setStatementSide('CLIENT')">${tr('Clients')}</button><button class="btn ${side==='CLEANER'?'primary':''}" onclick="setStatementSide('CLEANER')">${tr('Cleaners')}</button><input class="input" style="width:170px" type="month" value="${esc(month)}" onchange="setStatementMonth(this.value)"></div></div>
-  <div class="grid finance-kpis"><div class="card kpi"><div class="label">${tr(side==='CLIENT'?'Charged':'Earned')} · ${esc(monthLabel(month))}</div><div class="value small-money">${cents(totals.charged)}</div><div class="hint">${totals.count} ${tr('jobs')}</div></div><div class="card kpi"><div class="label">${tr(side==='CLIENT'?'Received':'Paid out')}</div><div class="value small-money">${cents(totals.paid)}</div></div><div class="card kpi ${totals.due>0?'danger':''}"><div class="label">${tr(side==='CLIENT'?'Outstanding this month':'To pay this month')}</div><div class="value small-money">${cents(totals.due)}</div></div><div class="card kpi ${allDebt>0?'danger':''}"><div class="label">${tr(side==='CLIENT'?'Outstanding, last 12 months':'To pay, last 12 months')}</div><div class="value small-money">${cents(allDebt)}</div></div></div>
-  <div style="height:14px"></div><div class="card"><div class="table-wrap"><table><thead><tr><th>${tr(who)}</th><th>${tr('Jobs')}</th><th>${tr(side==='CLIENT'?'Charged':'Earned')}</th><th>${tr(side==='CLIENT'?'Received':'Paid out')}</th><th>${tr('Outstanding')}</th><th>${tr('12 months')}</th><th></th></tr></thead><tbody>
-  ${rows.map(g=>`<tr><td><strong>${esc(g.name)}</strong></td><td>${Number(g.count)}</td><td>${cents(g.chargedCents)}</td><td>${cents(g.paidCents)}</td><td class="${g.dueCents>0?'profit-neg':''}"><strong>${cents(g.dueCents)}</strong></td><td>${cents(debt.get(g.id)||0)}</td><td><div class="row-actions"><button class="btn sm primary" onclick="openStatement(${Number(g.id)})">${tr('Statement')}</button></div></td></tr>`).join('')}
-  ${olderOnly.map(([id,d])=>`<tr><td><strong>${esc(names.get(id)||'#'+id)}</strong><br><span class="subtle">${tr('No approved jobs this month')}</span></td><td>0</td><td>—</td><td>—</td><td>—</td><td class="profit-neg"><strong>${cents(d)}</strong></td><td><button class="btn sm" onclick="openStatement(${Number(id)})">${tr('Statement')}</button></td></tr>`).join('')}
-  ${rows.length||olderOnly.length?'':`<tr><td colspan="7"><div class="empty">${tr('No approved jobs in this month.')}</div></td></tr>`}
-  </tbody></table></div></div><p class="subtle" style="margin-top:10px">${tr('Only completed cleanings approved by quality review are billed. Payments are recorded in Payments & payouts.')}</p>`;
+  const month=state.statementMonth||today().slice(0,7);
+  shellTitle(tr('Monthly reconciliation','Monthly reconciliation'),tr('One monthly total per property, with client and cleaner payments separate.'));
+  $('#page').innerHTML='<div class="card pad"><div class="empty">'+tr('Loading…')+'</div></div>';
+  try{
+   const data=await api('/api/admin/settlements/reconciliation?month='+encodeURIComponent(month));
+   state.reconciliationData=data;
+   renderReconciliation(data,month);
+  }catch(e){
+   $('#page').innerHTML='<div class="card pad"><div class="empty error-text">'+esc(e.message)+'</div></div>';
+  }
+ }
+
+ const reconCents=v=>cents(Number(v||0));
+ const reconMajor=v=>(Number(v||0)/100).toFixed(2);
+ const reconDue=(due,paid)=>{
+  const amount=Number(due||0);
+  if(amount<=0)return '<span class="pill green">'+tr('Paid')+'</span>';
+  if(Number(paid||0)>0)return '<span class="pill orange">'+tr('Partially paid')+' · '+reconCents(amount)+'</span>';
+  return '<span class="pill gray">'+tr('Unpaid')+' · '+reconCents(amount)+'</span>';
+ };
+ const reconWeekday=date=>{
+  try{return new Intl.DateTimeFormat(intlLocale(),{weekday:'short'}).format(new Date(String(date)+'T12:00:00'))}
+  catch{return ''}
+ };
+ function renderReconciliation(data,month){
+  const summary=data.summary||{};
+  const objects=data.objects||[];
+  const jobs=data.jobs||[];
+  const expanded=state.reconciliationExpanded||(state.reconciliationExpanded=new Set());
+  const objectRows=objects.map(o=>{
+   const id=Number(o.objectId);
+   const clientAction=Number(o.clientDueCents)>0
+    ?'<button class="btn sm primary" '+(data.hasMore?'disabled':'')+' onclick="settleReconciliationObject('+id+',&quot;CLIENT&quot;)">'+tr('Mark client paid')+'</button>'
+    :'<span class="pill green">'+tr('Paid')+'</span>';
+   const cleanerAction=Number(o.cleanerDueCents)>0
+    ?'<button class="btn sm primary" '+(data.hasMore?'disabled':'')+' onclick="settleReconciliationObject('+id+',&quot;CLEANER&quot;)">'+tr('Mark cleaners paid')+'</button>'
+    :'<span class="pill green">'+tr('Paid')+'</span>';
+   const clientSummary='<strong>'+reconCents(o.clientAmountCents)+'</strong><small>'+tr('Paid')+': '+reconCents(o.clientPaidCents)+' · '+tr('Due')+': '+reconCents(o.clientDueCents)+'</small><small class="subtle">'+esc(o.clientNames||'—')+'</small>';
+   const cleanerSummary='<strong>'+reconCents(o.cleanerAmountCents)+'</strong><small>'+tr('Paid')+': '+reconCents(o.cleanerPaidCents)+' · '+tr('Due')+': '+reconCents(o.cleanerDueCents)+'</small><small class="subtle">'+esc(o.cleanerNames||tr('No cleaner assigned'))+'</small>';
+   let row='<tr><td><strong>'+esc(o.objectCode||('#'+id))+'</strong><br><small>'+esc(o.objectName||'')+'</small></td>'+
+    '<td>'+Number(o.jobsCount||0)+'</td><td class="recon-amount">'+clientSummary+'</td><td>'+clientAction+'</td>'+
+    '<td class="recon-amount">'+cleanerSummary+'</td><td>'+cleanerAction+'</td>'+
+    '<td><button class="btn sm" onclick="toggleReconciliationObject('+id+')">'+(expanded.has(id)?tr('Hide details'):tr('Details'))+'</button></td></tr>';
+   if(expanded.has(id))row+='<tr class="recon-detail-row"><td colspan="7">'+reconciliationDetails(o,jobs,month,data.hasMore)+'</td></tr>';
+   return row;
+  }).join('');
+  const expandedClientDue=Number(summary.clientDueCents||0),expandedCleanerDue=Number(summary.cleanerDueCents||0);
+  const overLimit=data.hasMore?'<p class="notice-inline">'+tr('Totals cover the whole month, but only the first 5000 cleanings are loaded. Payment actions are disabled until the list is narrowed.')+'</p>':'';
+  $('#page').innerHTML=
+   '<div class="section-head"><div><h2>'+tr('Monthly reconciliation')+'</h2><p>'+tr('Correct cleanings first, then record client receipts and cleaner payouts separately.')+'</p></div>'+
+   '<input class="input" style="width:170px" type="month" value="'+esc(month)+'" onchange="setStatementMonth(this.value)"></div>'+
+   '<div class="grid finance-kpis recon-kpis">'+
+    '<div class="card kpi"><div class="label">'+tr('Client total')+'</div><div class="value small-money">'+reconCents(summary.clientAmountCents)+'</div><div class="hint">'+tr('Paid')+' '+reconCents(summary.clientPaidCents)+' · '+tr('Due')+' <strong>'+reconCents(expandedClientDue)+'</strong></div></div>'+
+    '<div class="card kpi"><div class="label">'+tr('Cleaner total')+'</div><div class="value small-money">'+reconCents(summary.cleanerAmountCents)+'</div><div class="hint">'+tr('Paid out')+' '+reconCents(summary.cleanerPaidCents)+' · '+tr('Due')+' <strong>'+reconCents(expandedCleanerDue)+'</strong></div></div>'+
+   '</div>'+overLimit+
+   '<div class="card recon-table-card"><div class="table-wrap"><table><thead><tr><th>'+tr('Object')+'</th><th>'+tr('Cleanings')+'</th><th>'+tr('Client · total / paid / due')+'</th><th></th><th>'+tr('Cleaner · total / paid / due')+'</th><th></th><th></th></tr></thead><tbody>'+
+   (objectRows||'')+(objectRows?'':'<tr><td colspan="7"><div class="empty">'+tr('No completed cleanings in this month.')+'</div></td></tr>')+
+   '</tbody></table></div></div>';
+ }
+ function reconciliationDetails(object,jobs,month,hasMore){
+  const rows=jobs.filter(j=>Number(j.objectId)===Number(object.objectId)).map(j=>{
+   const id=Number(j.id),editable=j.editable===true;
+   const dateCell=editable
+    ?'<input class="input recon-date-input" type="date" data-recon-date="'+id+'" value="'+esc(j.serviceDate)+'"><small class="subtle">'+esc(reconWeekday(j.serviceDate))+'</small>'
+    :'<strong>'+esc(fmtDate(j.serviceDate))+'</strong><br><small class="subtle">'+esc(reconWeekday(j.serviceDate))+' · #'+id+'</small>';
+   const clientCell=editable
+    ?'<input class="input recon-money-input" type="number" min="0" step="0.01" data-recon-client="'+id+'" value="'+reconMajor(j.clientAmountCents)+'">'
+    :'<strong>'+reconCents(j.clientAmountCents)+'</strong>';
+   const cleanerCell=editable
+    ?'<input class="input recon-money-input" type="number" min="0" step="0.01" data-recon-cleaner="'+id+'" value="'+reconMajor(j.cleanerAmountCents)+'">'
+    :'<strong>'+reconCents(j.cleanerAmountCents)+'</strong>';
+   const reason=editable?'<input class="input recon-reason-input" type="text" maxlength="500" data-recon-reason="'+id+'" placeholder="'+esc(tr('Reason for correction'))+'">':'<small class="subtle">'+tr('Locked after first payment')+'</small>';
+   const save=editable?'<button class="btn sm primary" onclick="saveMonthlyCorrection('+id+','+Number(object.objectId)+')">'+tr('Save correction')+'</button>':'<span class="subtle">—</span>';
+   return '<tr><td>'+dateCell+'</td><td><strong>'+esc(j.clientName||'—')+'</strong><br><small class="subtle">'+tr('Client')+' · '+reconDue(j.clientDueCents,j.clientPaidCents)+'</small></td><td>'+clientCell+'</td>'+
+    '<td><strong>'+esc(j.cleanerName||tr('No cleaner assigned'))+'</strong><br><small class="subtle">'+tr('Cleaner')+' · '+reconDue(j.cleanerDueCents,j.cleanerPaidCents)+'</small></td><td>'+cleanerCell+'</td><td>'+reason+'</td><td>'+save+'</td></tr>';
+  }).join('');
+  return '<div class="recon-detail"><div class="section-head compact"><div><h3>'+esc(object.objectCode||'')+' · '+esc(object.objectName||'')+'</h3><p>'+tr('Change dates or total amounts here. Payment records are never overwritten.')+'</p></div>'+
+   '<div class="row-actions"><button class="btn sm" '+(hasMore?'disabled':'')+' onclick="settleReconciliationObject('+Number(object.objectId)+',&quot;CLIENT&quot;)">'+tr('Mark client paid')+'</button><button class="btn sm" '+(hasMore?'disabled':'')+' onclick="settleReconciliationObject('+Number(object.objectId)+',&quot;CLEANER&quot;)">'+tr('Mark cleaners paid')+'</button></div></div>'+
+   '<div class="table-wrap"><table class="recon-detail-table"><thead><tr><th>'+tr('Cleaning date')+'</th><th>'+tr('Client / status')+'</th><th>'+tr('Client total (€)')+'</th><th>'+tr('Cleaner / status')+'</th><th>'+tr('Cleaner total (€)')+'</th><th>'+tr('Correction reason')+'</th><th></th></tr></thead><tbody>'+
+   (rows||'')+(rows?'':'<tr><td colspan="7"><div class="empty">'+tr('No cleanings to show here.')+'</div></td></tr>')+
+   '</tbody></table></div><p class="subtle">'+tr('After a payment is recorded, use a refund or return entry to correct the financial history.')+'</p></div>';
+ }
+ window.toggleReconciliationObject=id=>{
+  const expanded=state.reconciliationExpanded||(state.reconciliationExpanded=new Set());
+  if(expanded.has(Number(id)))expanded.delete(Number(id));else expanded.add(Number(id));
+  renderReconciliation(state.reconciliationData,state.statementMonth||today().slice(0,7));
+ };
+ window.settleReconciliationObject=async(objectId,side)=>{
+  const data=state.reconciliationData,month=state.statementMonth||today().slice(0,7);
+  if(!data)return;
+  const dueKey=side==='CLIENT'?'clientDueCents':'cleanerDueCents';
+  const partyKey=side==='CLIENT'?'clientId':'cleanerId';
+  const rows=(data.jobs||[]).filter(j=>Number(j.objectId)===Number(objectId)&&Number(j[dueKey]||0)>0&&j[partyKey]!==null&&j[partyKey]!==undefined);
+  const groups=new Map();
+  rows.forEach(j=>{const partyId=Number(j[partyKey]);if(!groups.has(partyId))groups.set(partyId,[]);groups.get(partyId).push({jobId:Number(j.id),amountCents:Number(j[dueKey])})});
+  if(!groups.size)return toast(tr('No outstanding payments for this side.'),'error');
+  try{
+   for(const [partyId,items] of groups){
+    await api('/api/admin/settlements/batch',{method:'POST',body:{
+     month,side,partyId,items,
+     note:(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month+' · '+String((data.objects||[]).find(o=>Number(o.objectId)===Number(objectId))?.objectCode||objectId),
+     requestId:crypto.randomUUID()
+    }});
+   }
+   toast(tr(side==='CLIENT'?'Client payment recorded.':'Cleaner payout recorded.'),'success');
+   await statementsScreen();
+  }catch(e){
+   toast(e.message,'error');
+   await statementsScreen();
+  }
+ };
+ window.saveMonthlyCorrection=async(id,objectId)=>{
+  const pick=selector=>document.querySelector('[data-recon-'+selector+'="'+id+'"]');
+  const date=pick('date')?.value;
+  const clientValue=pick('client')?.value;
+  const cleanerValue=pick('cleaner')?.value;
+  const reason=pick('reason')?.value?.trim();
+  if(!date||clientValue===''||cleanerValue===''||!Number.isFinite(Number(clientValue))||!Number.isFinite(Number(cleanerValue))||Number(clientValue)<0||Number(cleanerValue)<0||!reason){
+   return toast(tr('Enter the date, non-negative amounts and a correction reason.'),'error');
+  }
+  try{
+   await api('/api/admin/settlements/jobs/'+Number(id)+'/correct',{method:'PATCH',body:{
+    serviceDate:date,
+    clientAmountCents:window.ShineTimeMoney.toMinorUnits(String(clientValue)),
+    cleanerAmountCents:window.ShineTimeMoney.toMinorUnits(String(cleanerValue)),
+    reason
+   }});
+   state.reconciliationExpanded?.add(Number(objectId));
+   toast(tr('Correction saved.'),'success');
+   await statementsScreen();
+  }catch(e){toast(e.message,'error')}
  }
  window.setStatementSide=side=>{state.statementSide=side;render()};
  window.setStatementMonth=month=>{if(/^\d{4}-\d{2}$/.test(month)){state.statementMonth=month;render()}};
