@@ -6,7 +6,13 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 
 test('navigation highlights parent tabs for details and ignores booking query parameters',()=>{
   const context={window:{}};vm.runInNewContext(read('assets/operations-ui-core.js'),context);
-  for(const [route,expected] of [['client/home','client/home'],['client/book?object=11','client/book'],['client/booking/101','client/bookings'],['cleaner/job/101','cleaner/myday'],['admin/jobs','admin/jobs']])assert.equal(context.window.ShineTimeUi.navigationRoute(route),expected);
+  // Since fix 21 an admin route highlights its section, so the old page names
+  // and the new sub-tabs both light up the one menu entry that hosts them.
+  for(const [route,expected] of [['client/home','client/home'],['client/book?object=11','client/book'],['client/booking/101','client/bookings'],['cleaner/job/101','cleaner/myday'],
+    ['admin/jobs','admin/cleanings'],['admin/schedule','admin/cleanings'],['admin/live','admin/today'],['admin/map','admin/today'],['admin/monitoring','admin/today'],
+    ['admin/issues','admin/review'],['admin/review/issues','admin/review'],['admin/cleaners','admin/team'],
+    ['admin/statements','admin/finance'],['admin/settlements','admin/finance'],['admin/owner','admin/finance'],['admin/finance/entries','admin/finance'],
+    ['admin/objects','admin/objects'],['admin/settings','admin/settings'],['admin','admin/today']])assert.equal(context.window.ShineTimeUi.navigationRoute(route),expected,route);
 });
 
 test('table sorting handles text, natural property identifiers and localized money',()=>{

@@ -8,9 +8,9 @@
  const monthlyGroups=(month,side)=>api(`/api/admin/settlements/monthly?month=${encodeURIComponent(month)}&side=${side}`);
  const monthlyJobs=(month,side,id)=>api(`/api/admin/settlements/monthly?month=${encodeURIComponent(month)}&side=${side}&partyId=${Number(id)}`);
 
- const originalRenderAdmin=renderAdmin;
- renderAdmin=async function(page){if(page==='statements'&&window.ShineTimeUi.adminRouteAllowed('finance',state.me.role))return statementsScreen();return originalRenderAdmin(page)};
- adminNav.splice(adminNav.findIndex(x=>x[0]==='settlements')+1,0,['statements','▤','Statements']);
+ /* Statements is the second tab of Finance since fix 21. */
+ const originalRenderAdmin=renderAdminPage;
+ renderAdminPage=async function(page){if(page==='statements'&&window.ShineTimeUi.adminRouteAllowed('finance',state.me.role))return statementsScreen();return originalRenderAdmin(page)};
 
  async function statementsScreen(){
   const side=state.statementSide||'CLIENT';const month=state.statementMonth||today().slice(0,7);

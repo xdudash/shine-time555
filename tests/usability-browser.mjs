@@ -27,6 +27,7 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    const job=id=>jobs.find(x=>x.id===Number(id));
    let m;
    if(path==='/api/admin/jobs'&&opts.method==='POST'){window.createdJob=opts.body;return {job:{id:501,status:'UNASSIGNED'}}}
+   if(path.startsWith('/api/admin/jobs?review=')){window.reviewQueries=(window.reviewQueries||[]).concat([path]);return {jobs:[{id:301,object_code:'BA-101',object_name:'Dunajská apartment',cleaner_name:'Test Cleaner',service_date:'2099-01-04',status:'COMPLETED',review_status:'PENDING',completed_at:'2099-01-04T12:00:00Z',photo_count:3}]}}
    if(path.startsWith('/api/admin/jobs?')||path==='/api/admin/jobs')return {jobs:structuredClone(jobs)};
    if(path==='/api/admin/cleaners')return {cleaners:[{id:1,full_name:'Test Cleaner',mode:'FLEX',reliability_score:95,active:true}]};
    if(path==='/api/admin/clients'&&(opts.method||'GET')==='GET')return {clients:[{id:5,full_name:'Manager',email:'m@test.invalid',account_type:'PROPERTY_MANAGER',user_active:true,language:'en'},{id:4,full_name:'Olga Owner',company_name:'Demo stays',billing_name:'Demo stays s.r.o.',billing_address:'Hlavná 1, Bratislava',ico:'12345678',email:'o@test.invalid',account_type:'OWNER',user_active:true,language:'en'}]};
@@ -55,6 +56,21 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(path==='/api/admin/managers'&&(opts.method||'GET')==='GET')return {managers:[{id:7,full_name:'Dispatcher One',email:'d1@test.invalid',phone:'',language:'en',active:true}]};
    if(path==='/api/admin/managers'&&opts.method==='POST'){window.createdManager=opts.body;return {manager:{id:8}}}
    if(path==='/api/notifications')return {notifications:[],unread:0};
+   if(path.startsWith('/api/client/bookings?')||path==='/api/client/bookings'){
+    if((opts.method||'GET')==='GET'){
+     const q=new URL(path,'https://x.test').searchParams;
+     window.bookingQueries=(window.bookingQueries||[]).concat([{status:q.get('status'),objectId:q.get('objectId'),from:q.get('from'),to:q.get('to')}]);
+     const all=[{id:201,object_code:'BA-101',object_name:'Dunajská apartment',service_date:'2099-01-05',earliest_start:'10:00:00',deadline:'15:00:00',status:'COMPLETED',client_price:40,extra_revenue:2},
+                {id:202,object_code:'BA-102',object_name:'Riverside',service_date:'2099-01-06',earliest_start:'11:00:00',deadline:'16:00:00',status:'CANCELLED',client_price:35,extra_revenue:0}];
+     const rows=q.get('status')&&q.get('status')!=='ALL'?all.filter(b=>b.status===q.get('status')):all;
+     const completed=rows.filter(b=>b.status==='COMPLETED');
+     return {bookings:rows,summary:{bookings:rows.length,completed:completed.length,cancelled:rows.filter(b=>b.status==='CANCELLED').length,expired:0,chargedCents:completed.reduce((n,b)=>n+Math.round((b.client_price+b.extra_revenue)*100),0)},hasMore:false,
+      filters:{status:q.get('status')||'ALL'},properties:[{id:11,code:'BA-101',name:'Dunajská apartment'},{id:12,code:'BA-102',name:'Riverside'}]};
+    }
+   }
+   if(m=path.match(/^\/api\/admin\/finance\/entries\/(\d+)\/history$/))return {history:[{id:2,action:'UPDATE',actor:'Admin',created_at:'2099-01-02T10:00:00Z',before:{amount:24.5},after:{amount:19.9},reason:'Wrong amount on the invoice'},{id:1,action:'CREATE',actor:'Admin',created_at:'2099-01-01T10:00:00Z',before:null,after:{amount:24.5}}]};
+   if(m=path.match(/^\/api\/admin\/finance\/entries(?:\/(\d+))?$/)){window.financeWrites=(window.financeWrites||[]).concat([{id:m[1]||null,method:opts.method,body:opts.body}]);return {entry:{id:Number(m[1]||9)}}}
+   if(m=path.match(/^\/api\/objects\/11\/reference-photos\/(\d+)$/)&&opts.method==='PATCH'){window.captionWrites=(window.captionWrites||[]).concat([opts.body]);return {photo:{id:Number(m[1]),caption:opts.body.caption,mime:'image/png'}}}
    if(m=path.match(/^\/api\/client\/bookings\/(\d+)$/)){
     const b=job(m[1])||{id:Number(m[1]),object_code:'BA-101',object_name:'Dunajská apartment',address:'Dunajská 15',status:'COMPLETED',service_date:'2099-01-01',earliest_start:'10:00',deadline:'15:00',client_price:40,extra_revenue:0,client_note:window.bookingNote??'Guests at 16:00',completed_at:'2099-01-01T12:00:00Z',financial_status:'PENDING'};
     return {booking:structuredClone({...b,client_note:window.bookingNote??b.client_note}),photos:[],issues:[],feedback:window.savedFeedback||null,rating:{canRate:true,windowDays:14,closesAt:'2099-01-15T12:00:00Z'}};
@@ -208,7 +224,10 @@ try {
   await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};location.hash='admin/statements';await new Promise(r=>setTimeout(r,100));await render()});
   await page.getByRole('button',{name:'Statement',exact:true}).first().waitFor();
   assert.match(await page.locator('#page').innerText(),/€906/,'12-month outstanding sums every month');
-  assert.match(await page.locator('#admin-sidebar').innerText(),/Statements/);
+  // Since fix 21 Statements is the second tab of Finance, not a menu entry.
+  assert.match(await page.locator('#admin-sidebar').innerText(),/Finance/);
+  assert.doesNotMatch(await page.locator('#admin-sidebar').innerText(),/Statements/);
+  assert.equal(await page.locator('[data-route="admin/finance"]').getAttribute('aria-current'),'page','the Finance section is the one highlighted');
   await page.getByRole('button',{name:'Statement',exact:true}).first().click();
   await page.locator('.statement-head').waitFor();
   const text=await page.locator('.modal').innerText();
@@ -547,6 +566,95 @@ try {
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS cleaner earnings: week, month, waiting for review, payable, paid and rating');
+ }
+ // The nine sections: sub-tabs, old links still land, and an operations manager sees no finance.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};location.hash='admin/today';await new Promise(r=>setTimeout(r,80));await render()});
+  await page.locator('#admin-sidebar').waitFor();
+  const labels=await page.locator('#admin-sidebar .nav button').evaluateAll(els=>els.map(el=>el.dataset.route));
+  assert.deepEqual(labels,['admin/today','admin/cleanings','admin/review','admin/objects','admin/clients','admin/team','admin/finance','admin/analytics','admin/settings'],'nine sections, in the approved order');
+  assert.ok(await page.locator('.section-tabs').count()>=1,'Today carries its sub-tabs');
+  const tabs=await page.locator('.section-tabs button').allInnerTexts();
+  assert.deepEqual(tabs,['Dispatch','Map','Tomorrow','Monitoring']);
+
+  // An old bookmark still opens the right screen, and the menu highlights its section.
+  await page.evaluate(async()=>{location.hash='admin/jobs';await new Promise(r=>setTimeout(r,80));await render()});
+  await page.waitForFunction(()=>document.querySelector('[data-route="admin/cleanings"]')?.classList.contains('active'));
+  assert.equal(await page.locator('[data-route="admin/cleanings"]').getAttribute('aria-current'),'page');
+
+  // The review queue is a screen of its own and asks the server for pending reports.
+  await page.evaluate(async()=>{location.hash='admin/review';await new Promise(r=>setTimeout(r,80));await render()});
+  await page.waitForFunction(()=>window.reviewQueries?.length);
+  assert.match(await page.evaluate(()=>reviewQueries.at(-1)),/review=PENDING/);
+  assert.match(await page.locator('#page').innerText(),/Awaiting review[\s\S]*Dunajská apartment/);
+
+  // An operations manager gets seven sections and no finance tab anywhere.
+  await page.evaluate(async()=>{state.me={id:7,role:'OPERATIONS_MANAGER',full_name:'Dispatcher',language:'en'};lastShellRole=null;location.hash='admin/today';await new Promise(r=>setTimeout(r,80));await render()});
+  await page.waitForFunction(()=>document.querySelectorAll('#admin-sidebar .nav button').length>0);
+  const managerSections=await page.locator('#admin-sidebar .nav button').evaluateAll(els=>els.map(el=>el.dataset.route));
+  assert.ok(!managerSections.includes('admin/finance'),'finance stays with the administrator');
+  assert.ok(!managerSections.includes('admin/clients'));
+  assert.ok(managerSections.includes('admin/review')&&managerSections.includes('admin/today'));
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS admin menu: nine sections with sub-tabs, old links still land, manager boundary holds');
+ }
+ // Finance entries are corrected rather than retyped, and the change keeps a reason and a history.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(async()=>{
+   state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={};
+   // The entries table is what adminFinance puts in state.finance; this block
+   // exercises the editor, so the row is placed there directly after the page
+   // has settled (a navigation would reload it from the API mock).
+   state.finance={entries:[{id:5,entry_date:'2099-01-05',entry_type:'EXPENSE',category:'LAUNDRY',amount:24.5,description:'Towels',client_id:4,object_id:11}]};
+   await financeEntryModal(5);
+  });
+  await page.locator('#finance-entry-form').waitFor();
+  assert.equal(await page.locator('#fe-amount').inputValue(),'24.5','the form opens on the entry being corrected');
+  assert.equal(await page.locator('#fe-description').inputValue(),'Towels');
+  assert.equal(await page.locator('#fe-category').inputValue(),'LAUNDRY');
+  assert.equal(await page.locator('#fe-reason').count(),1,'a correction asks why');
+
+  await page.getByRole('button',{name:'Show change history'}).click();
+  await page.waitForFunction(()=>document.querySelector('#fe-history table'));
+  const history=await page.locator('#fe-history').innerText();
+  assert.match(history,/UPDATE[\s\S]*Wrong amount on the invoice/);
+  assert.match(history,/CREATE/);
+
+  await page.fill('#fe-amount','19.90');
+  await page.fill('#fe-reason','Wrong amount on the invoice');
+  await page.getByRole('button',{name:'Save'}).click();
+  await page.waitForFunction(()=>window.financeWrites?.length);
+  const write=await page.evaluate(()=>financeWrites.at(-1));
+  assert.equal(write.method,'PATCH','an existing entry is corrected, not re-created');
+  assert.equal(write.id,'5');
+  assert.equal(write.body.amount,19.9);
+  assert.equal(write.body.reason,'Wrong amount on the invoice');
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS finance entry corrected in place with a reason and a readable history');
+ }
+ // The owner archive filters, totals the filtered set and offers a table to export.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(async()=>{state.me={id:4,role:'OWNER',full_name:'Olga Owner',language:'en'};state.settings={};location.hash='client/bookings';await new Promise(r=>setTimeout(r,80));await render()});
+  await page.locator('#booking-filters').waitFor();
+  assert.match(await page.locator('.section-head').innerText(),/2 cleanings · charged €42/);
+  assert.equal(await page.locator('tbody tr').count(),2);
+  await page.selectOption('#bf-status','COMPLETED');
+  await page.waitForFunction(()=>bookingQueries.at(-1)?.status==='COMPLETED');
+  await page.waitForFunction(()=>document.querySelectorAll('tbody tr').length===1);
+  assert.match(await page.locator('.section-head').innerText(),/1 cleanings/);
+  await page.fill('#bf-from','2099-01-01');
+  await page.waitForFunction(()=>bookingQueries.at(-1)?.from==='2099-01-01');
+  await page.getByRole('button',{name:'Clear filters'}).click();
+  await page.waitForFunction(()=>bookingQueries.at(-1)?.status===null);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS owner archive: filters drive the query, totals follow the filter, rows export as a table');
  }
  // Language switch re-renders navigation, not only the page body.
  {

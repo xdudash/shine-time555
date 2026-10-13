@@ -87,3 +87,7 @@ tfoot th{border-top:2px solid var(--line)}
 .earnings-kpis .mobile-kpi small{display:block;color:var(--muted,#6b7a90);font-size:11px;margin-top:2px}
 .feedback-note{border:1px solid var(--line,#dde3ec);border-left:3px solid #f0a92b;border-radius:8px;padding:10px 12px;margin-bottom:10px;background:var(--surface-2,#fafbfd)}
 .feedback-note p{margin:6px 0 4px;font-size:14px}
+.section-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:4px;scrollbar-width:none}
+.section-tabs::-webkit-scrollbar{display:none}
+.section-tabs .btn{flex:none;white-space:nowrap}
+.photo-rename{margin-top:6px}
