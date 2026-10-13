@@ -170,12 +170,14 @@ The owner approved the full audit list ("Все делаем из списка")
 
 ### Stage 2 — make it complete (after stage 1 is live)
 
-- [ ] Fix 16 — client rating and complaint on a finished cleaning.
-- [ ] Fix 17 — client comment on a booking and a recurring booking the client can manage.
+First block (specification `docs/ssd/specs/018-client-voice-and-earnings.md`, evidence `docs/verification/2026-10-12-stage2-client-voice.md`). **Deployment:** apply `supabase/migrations/20261012170000_client_feedback_recurring.sql`, deploy `st-api` and publish the frontend together — this block adds routes, so the build string moves to `2026-10-12-stage2` and the two must land in step.
+
+- [x] Fix 16 — client rating (1–5, correctable for `feedbackWindowDays`) and a complaint that opens a `CLIENT_COMPLAINT` issue and notifies staff. `st_cleaners.rating` is now the average of real ratings instead of a default that never moved; the cleaner sees the number, never the client's words.
+- [x] Fix 17 — the client can change the note on a booking until the cleaner arrives (the cleaner is notified), and has a **Repeat** section to create, correct, pause, resume and remove repeating cleanings on their own properties. A schedule that already produced cleanings is switched off rather than deleted, so `st_jobs.recurring_id` stays readable.
+- [x] Fix 24 — `st_cleaner_earnings` answers today / this week / this month / waiting for review / ready to be paid / already paid in cents, from the jobs and the settlements. The page renders those cards and adds no money up itself; the month-by-month settlement list moved to `cleaner/settlements`, which it used to replace.
 - [ ] Fix 21 — reorganize the admin menu into the nine sections of the approved plan.
 - [ ] Fix 22 — the remaining inherited screens in all four locales.
 - [ ] Fix 23 — owner archive of past cleanings with filters and export.
-- [ ] Fix 24 — cleaner earnings cards (this week, this month, waiting for review, paid).
 - [ ] Fix 25 — editable finance entries and reference-photo captions (needs new API commands).
 
 ### Stage 3 — open the front door

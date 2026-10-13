@@ -13,7 +13,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const PUBLIC_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? '';
 const MEDIA_BUCKET = 'st-cleaning-media';
-const APP_BUILD = '2026-10-12-stage1';
+const APP_BUILD = '2026-10-12-stage2';
 const COMPATIBLE_BUILDS = new Set([APP_BUILD]);
 const service = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 const notificationConfig = workerConfigFromEnv(Deno.env);
@@ -377,7 +377,15 @@ async function routeCleaner(ctx: any, route: string, method: string, query: AnyR
   if (route === 'cleaner/earnings' && method === 'GET') {
     const rows = await result(service.from('st_jobs').select('*').eq('assigned_cleaner_id', cleanerId).neq('status', 'CANCELLED').order('service_date', { ascending: false })) as AnyRow[];
     const completed = rows.filter((job) => job.status === 'COMPLETED');
-    return { jobs: await hydrateJobs(completed), ...cleanerEarningsSummary({ jobs: rows, date: today() }) };
+    // Money is added up by the database, which can see the settlements; the
+    // browser only renders what it is told.
+    const earnings = await one(service.rpc('st_cleaner_earnings', { p_actor_id: ctx.appUser.id })) as AnyRow;
+    const feedback = completed.length
+      ? await result(service.from('st_job_feedback').select('job_id,rating').in('job_id', completed.map((job) => job.id))) as AnyRow[]
+      : [];
+    const ratingByJob = new Map(feedback.map((row) => [String(row.job_id), row.rating]));
+    const jobs = (await hydrateJobs(completed)).map((job: AnyRow) => ({ ...job, feedback_rating: ratingByJob.get(String(job.id)) ?? null }));
+    return { jobs, earnings, ...cleanerEarningsSummary({ jobs: rows, date: today() }) };
   }
   const match = route.match(/^cleaner\/jobs\/(\d+)(?:\/(accept|status|checklist\/(\d+)|photos(?:\/(?:prepare|finalize))?|issues|complete|cancel))?$/);
   if (!match) throw new ApiError('Route not found', 404);
@@ -561,13 +569,38 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
             const job = await createJob(ctx, { objectId: object.id, serviceDate: body.serviceDate, earliestStart: from, deadline: to, note: String(body.note || '') });
             return { booking: (await hydrateJobs([job]))[0] };
         }
-        const booking = route.match(/^client\/bookings\/(\d+)(?:\/(cancel))?$/);
+        const booking = route.match(/^client\/bookings\/(\d+)(?:\/(cancel|feedback|note))?$/);
         if (booking) {
             const jobId = number(booking[1]);
             if (!booking[2] && method === 'GET') {
                 const job = await jobFor(ctx, jobId);
                 const details = await jobDetails(ctx, jobId);
-                return { booking: (await hydrateJobs([job]))[0], photos: details.photos, issues: details.issues };
+                const appSettings = await settings();
+                const feedback = await result(service.from('st_job_feedback').select('*').eq('job_id', jobId).maybeSingle()) as AnyRow | null;
+                const windowDays = Math.max(1, number(appSettings.feedbackWindowDays, 14));
+                const closesAt = job.completed_at ? new Date(new Date(job.completed_at).getTime() + windowDays * 86400000) : null;
+                return {
+                    booking: (await hydrateJobs([job]))[0], photos: details.photos, issues: details.issues,
+                    feedback,
+                    rating: {
+                        canRate: job.status === 'COMPLETED' && (!closesAt || closesAt > new Date()),
+                        windowDays, closesAt: closesAt ? closesAt.toISOString() : null,
+                    },
+                };
+            }
+            if (booking[2] === 'feedback' && method === 'POST') {
+                await jobFor(ctx, jobId);
+                const feedback = await one(service.rpc('st_submit_job_feedback', {
+                    p_actor_id: ctx.appUser.id, p_job_id: jobId,
+                    p_body: { rating: number(body.rating), comment: String(body.comment || ''), complaint: truthy(body.complaint) },
+                })) as AnyRow;
+                return { feedback };
+            }
+            if (booking[2] === 'note' && method === 'PATCH') {
+                await jobFor(ctx, jobId);
+                if (String(body.note || '').length > 1000) throw new ApiError('Note is too long');
+                const job = await one(service.rpc('st_update_booking_note', { p_actor_id: ctx.appUser.id, p_job_id: jobId, p_note: String(body.note || '') })) as AnyRow;
+                return { booking: (await hydrateJobs([job]))[0] };
             }
             if (booking[2] === 'cancel' && method === 'POST') {
                 const job = await jobFor(ctx, jobId);
@@ -577,6 +610,24 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
                 return { ok: true };
             }
         }
+        if (route === 'client/recurring' && method === 'GET')
+            return one(service.rpc('st_client_recurring', { p_actor_id: ctx.appUser.id }));
+        if (route === 'client/recurring' && method === 'POST') {
+            const schedule = await one(service.rpc('st_client_recurring_save', {
+                p_actor_id: ctx.appUser.id,
+                p_body: {
+                    id: body.id ?? null, objectId: number(body.objectId),
+                    weekdays: Array.isArray(body.weekdays) ? body.weekdays.map((day: unknown) => number(day)).filter((day: number) => day >= 1 && day <= 7) : [],
+                    startDate: body.startDate || null, endDate: body.endDate || null,
+                    plannedStart: body.plannedStart || null,
+                    active: body.active === undefined ? null : truthy(body.active),
+                },
+            })) as AnyRow;
+            return { schedule };
+        }
+        const recurring = route.match(/^client\/recurring\/(\d+)$/);
+        if (recurring && method === 'DELETE')
+            return one(service.rpc('st_client_recurring_delete', { p_actor_id: ctx.appUser.id, p_id: number(recurring[1]) }));
         if (route === 'client/profile' && method === 'GET')
             return { client: ctx.client, user: await publicUser(ctx) };
         if (route === 'client/profile' && method === 'PATCH') {
@@ -769,12 +820,20 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             }
             return { created: created.length, skipped, jobIds: created };
         }
-        const jobRoute = route.match(/^admin\/jobs\/(\d+)(?:\/(assign|rescue|bonus|cancel|review))?$/);
+        const jobRoute = route.match(/^admin\/jobs\/(\d+)(?:\/(assign|rescue|bonus|cancel|review|note))?$/);
         if (jobRoute) {
             const id = number(jobRoute[1]);
             const action = jobRoute[2] || '';
-            if (!action && method === 'GET')
-                return jobDetails(ctx, id);
+            if (!action && method === 'GET') {
+                const details = await jobDetails(ctx, id);
+                const feedback = await result(service.from('st_job_feedback').select('*').eq('job_id', id).maybeSingle()) as AnyRow | null;
+                return { ...details, feedback };
+            }
+            if (action === 'note' && method === 'PATCH') {
+                if (String(body.note || '').length > 1000) throw new ApiError('Note is too long');
+                const job = await one(service.rpc('st_update_booking_note', { p_actor_id: ctx.appUser.id, p_job_id: id, p_note: String(body.note || '') })) as AnyRow;
+                return { job: (await hydrateJobs([job]))[0] };
+            }
             if (action === 'review' && method === 'POST') {
                 requireRole(ctx, ['ADMIN', 'OPERATIONS_MANAGER']);
                 if (!['APPROVED','REWORK_REQUIRED'].includes(body.decision) || !Number.isInteger(body.expectedVersion) || body.expectedVersion < 1 || !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,95}$/.test(String(body.requestId || ''))) throw new ApiError('Decision, expectedVersion and valid requestId required');

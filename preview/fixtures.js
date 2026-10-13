@@ -72,6 +72,9 @@
     else if(resource==='/api/admin/recurring')data={schedules:[{id:1,st_objects:objects[0],weekdays:[1,3,5],planned_start:'10:00',earliest_start:'10:00',start_date:today,end_date:null,active:true}]};
     else if(resource==='/api/admin/settlements/monthly'){const side=url.searchParams.get('side')||'CLIENT';const party=url.searchParams.get('partyId');const rows=side==='CLIENT'?[{id:4,name:'Demo stays',count:2,chargedCents:8400,paidCents:4200,dueCents:4200},{id:5,name:'Demo stays Prague',count:1,chargedCents:4500,paidCents:0,dueCents:4500}]:[{id:3,name:'Demo cleaner',count:3,chargedCents:7300,paidCents:2400,dueCents:4900}];data={groups:rows,jobs:party?[{id:105,object_name:'Old Town apartment',service_date:yesterday,chargedCents:4200,paidCents:4200,dueCents:0},{id:106,object_name:'Riverside studio',service_date:yesterday,chargedCents:4200,paidCents:0,dueCents:4200}]:[],hasMore:false,waitingReviewJobs:1};}
     else if(/^\/api\/(admin|cleaner|client)\/settlements$/.test(resource))data=settlements();
+    else if(resource==='/api/client/recurring')data={schedules:[{id:1,object_id:objects[0].id,object_code:objects[0].code,object_name:objects[0].name,weekdays:[1,4],planned_start:'10:00',start_date:isoDays(-7),end_date:null,active:true,generated:3}]};
+    else if(/^\/api\/client\/recurring\/\d+$/.test(resource))data={deleted:0,deactivated:1,generatedJobs:3};
+    else if(/^\/api\/client\/bookings\/\d+\/(feedback|note)$/.test(resource))data={ok:true};
     else if(resource==='/api/cleaner/dashboard'){
       const assigned=jobs.filter(j=>j.service_date===(url.searchParams.get('date')||today)&&j.cleaner_name);
       data={availability:{online:true,fromTime:'08:00',toTime:'16:00'},jobs:assigned.map(cleanerJob),nextJob:assigned[0]?cleanerJob(assigned[0]):null,total:assigned.length,earnings:assigned.reduce((n,j)=>n+j.payout,0),projectedFinish:assigned.at(-1)?.eta||'—'};
@@ -87,7 +90,7 @@
     else if(/^\/api\/client\/objects\/\d+$/.test(resource))data={object:clientObject(objects.find(o=>o.id===Number(resource.split('/').at(-1))))};
     else if(resource==='/api/client/slots')data={object:clientObject(objects.find(o=>o.id===Number(url.searchParams.get('objectId')))),window:{from:'11:00',to:'15:00',durationMinutes:90},slots:[]};
     else if(resource==='/api/client/bookings')data={bookings:jobs.map(clientJob)};
-    else if(/^\/api\/client\/bookings\/\d+$/.test(resource))data={booking:clientJob(jobs.find(j=>j.id===Number(resource.split('/').at(-1)))),photos:[],issues:[]};
+    else if(/^\/api\/client\/bookings\/\d+$/.test(resource)){const b=clientJob(jobs.find(j=>j.id===Number(resource.split('/').at(-1))));data={booking:b,photos:[],issues:[],feedback:b.status==='COMPLETED'?{job_id:b.id,rating:5,comment:'Spotless, thank you',complaint:false,created_at:b.completed_at||null,updated_at:b.completed_at||null}:null,rating:{canRate:b.status==='COMPLETED',windowDays:14,closesAt:null}};}
     else if(resource==='/api/client/profile')data={client:{...identities[role],account_type:role}};
     else if(resource==='/api/notifications')data={notifications:[],unread:0};
     else return Promise.reject(Error('No synthetic data for this screen yet: '+resource));
