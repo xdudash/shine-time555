@@ -72,6 +72,14 @@
    (objectRows||'')+(objectRows?'':'<tr><td colspan="7"><div class="empty">'+tr('No completed cleanings in this month.')+'</div></td></tr>')+
    '</tbody></table></div></div>';
  }
+ function reconciliationPaymentAction(job,side,objectId,hasMore){
+  const dueKey=side==='CLIENT'?'clientDueCents':'cleanerDueCents';
+  const partyKey=side==='CLIENT'?'clientId':'cleanerId';
+  const due=Number(job[dueKey]||0);
+  if(due<=0)return '<span class="pill green">'+tr(side==='CLIENT'?'Paid':'Paid out')+'</span>';
+  if(job[partyKey]===null||job[partyKey]===undefined)return '<span class="subtle">'+tr('No party assigned')+'</span>';
+  return '<button class="btn sm" '+(hasMore?'disabled':'')+' onclick="settleReconciliationJob('+Number(job.id)+','+Number(objectId)+',&quot;'+side+'&quot;)">'+tr(side==='CLIENT'?'Record client payment':'Record cleaner payout')+' · '+reconCents(due)+'</button>';
+ }
  function reconciliationDetails(object,jobs,month,hasMore){
   const rows=jobs.filter(j=>Number(j.objectId)===Number(object.objectId)).map(j=>{
    const id=Number(j.id),editable=j.editable===true;
@@ -86,8 +94,8 @@
     :'<strong>'+reconCents(j.cleanerAmountCents)+'</strong>';
    const reason=editable?'<input class="input recon-reason-input" type="text" maxlength="500" data-recon-reason="'+id+'" placeholder="'+esc(tr('Reason for correction'))+'">':'<small class="subtle">'+tr('Locked after first payment')+'</small>';
    const save=editable?'<button class="btn sm primary" onclick="saveMonthlyCorrection('+id+','+Number(object.objectId)+')">'+tr('Save correction')+'</button>':'<span class="subtle">—</span>';
-   return '<tr><td>'+dateCell+'</td><td><strong>'+esc(j.clientName||'—')+'</strong><br><small class="subtle">'+tr('Client')+' · '+reconDue(j.clientDueCents,j.clientPaidCents)+'</small></td><td>'+clientCell+'</td>'+
-    '<td><strong>'+esc(j.cleanerName||tr('No cleaner assigned'))+'</strong><br><small class="subtle">'+tr('Cleaner')+' · '+reconDue(j.cleanerDueCents,j.cleanerPaidCents)+'</small></td><td>'+cleanerCell+'</td><td>'+reason+'</td><td>'+save+'</td></tr>';
+   return '<tr><td>'+dateCell+'</td><td><strong>'+esc(j.clientName||'—')+'</strong><br><small class="subtle">'+tr('Client')+' · '+reconDue(j.clientDueCents,j.clientPaidCents)+'</small><div class="recon-job-payment">'+reconciliationPaymentAction(j,'CLIENT',object.objectId,hasMore)+'</div></td><td>'+clientCell+'</td>'+
+    '<td><strong>'+esc(j.cleanerName||tr('No cleaner assigned'))+'</strong><br><small class="subtle">'+tr('Cleaner')+' · '+reconDue(j.cleanerDueCents,j.cleanerPaidCents)+'</small><div class="recon-job-payment">'+reconciliationPaymentAction(j,'CLEANER',object.objectId,hasMore)+'</div></td><td>'+cleanerCell+'</td><td>'+reason+'</td><td>'+save+'</td></tr>';
   }).join('');
   return '<div class="recon-detail"><div class="section-head compact"><div><h3>'+esc(object.objectCode||'')+' · '+esc(object.objectName||'')+'</h3><p>'+tr('Change dates or total amounts here. Payment records are never overwritten.')+'</p></div>'+
    '<div class="row-actions"><button class="btn sm" '+(hasMore?'disabled':'')+' onclick="settleReconciliationObject('+Number(object.objectId)+',&quot;CLIENT&quot;)">'+tr('Mark client paid')+'</button><button class="btn sm" '+(hasMore?'disabled':'')+' onclick="settleReconciliationObject('+Number(object.objectId)+',&quot;CLEANER&quot;)">'+tr('Mark cleaners paid')+'</button></div></div>'+
@@ -123,6 +131,28 @@
    toast(e.message,'error');
    await statementsScreen();
   }
+ };
+ window.settleReconciliationJob=async(jobId,objectId,side)=>{
+  const data=state.reconciliationData,month=state.statementMonth||today().slice(0,7);
+  if(!data)return;
+  if(data.hasMore)return toast(tr('Narrow the month before recording payments.'),'error');
+  const job=(data.jobs||[]).find(j=>Number(j.id)===Number(jobId)&&Number(j.objectId)===Number(objectId));
+  if(!job)return toast(tr('Cleaning not found. Refresh the page.'),'error');
+  const dueKey=side==='CLIENT'?'clientDueCents':'cleanerDueCents';
+  const partyKey=side==='CLIENT'?'clientId':'cleanerId';
+  const due=Number(job[dueKey]||0),partyId=Number(job[partyKey]);
+  if(due<=0)return toast(tr('No outstanding payments for this cleaning.'),'error');
+  if(!Number.isSafeInteger(partyId)||partyId<=0)return toast(tr('No party assigned.'),'error');
+  try{
+   await api('/api/admin/settlements/batch',{method:'POST',body:{
+    month,side,partyId,items:[{jobId:Number(job.id),amountCents:due}],
+    note:(side==='CLIENT'?'Client payment ':'Cleaner payout ')+month+' · '+String((data.objects||[]).find(o=>Number(o.objectId)===Number(objectId))?.objectCode||objectId)+' · #'+Number(job.id),
+    requestId:crypto.randomUUID()
+   }});
+   toast(tr(side==='CLIENT'?'Client payment recorded.':'Cleaner payout recorded.'),'success');
+   state.reconciliationExpanded?.add(Number(objectId));
+   await statementsScreen();
+  }catch(e){toast(e.message,'error');await statementsScreen()}
  };
  window.saveMonthlyCorrection=async(id,objectId)=>{
   const pick=selector=>document.querySelector('[data-recon-'+selector+'="'+id+'"]');
