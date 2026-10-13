@@ -45,6 +45,30 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(m=path.match(/^\/api\/(?:admin|cleaner)\/jobs\/(\d+)$/))return structuredClone(job(m[1]));
    if(m=path.match(/^\/api\/cleaner\/jobs\/(\d+)\/cancel$/)){Object.assign(job(m[1]),{status:'UNASSIGNED',assigned_cleaner_id:null});return {job:structuredClone(job(m[1]))}}
    if(path.startsWith('/api/cleaner/dashboard'))return {availability:{online:true,fromTime:'08:00',toTime:'20:00'},jobs:[],total:0,earnings:0};
+   if(path.startsWith('/api/admin/settlements/reconciliation')){
+    if(!window.reconciliationData)window.reconciliationData={
+     month:'2099-01',
+     summary:{jobsCount:2,clientAmountCents:7550,clientPaidCents:4000,clientDueCents:3550,cleanerAmountCents:4000,cleanerPaidCents:0,cleanerDueCents:4000},
+     objects:[{objectId:11,objectCode:'BA-101',objectName:'Dunajská apartment',jobsCount:2,clientNames:'Demo stays',cleanerNames:'Test Cleaner',clientAmountCents:7550,clientPaidCents:4000,clientDueCents:3550,cleanerAmountCents:4000,cleanerPaidCents:0,cleanerDueCents:4000}],
+     jobs:[
+      {id:201,objectId:11,objectCode:'BA-101',objectName:'Dunajská apartment',clientId:4,clientName:'Demo stays',cleanerId:1,cleanerName:'Test Cleaner',serviceDate:'2099-01-05',clientAmountCents:4000,clientPaidCents:4000,clientDueCents:0,cleanerAmountCents:2000,cleanerPaidCents:0,cleanerDueCents:2000,clientPriceCents:4000,extraRevenueCents:0,payoutCents:2000,bonusCents:0,editable:false},
+      {id:202,objectId:11,objectCode:'BA-101',objectName:'Dunajská apartment',clientId:4,clientName:'Demo stays',cleanerId:1,cleanerName:'Test Cleaner',serviceDate:'2099-01-06',clientAmountCents:3550,clientPaidCents:0,clientDueCents:3550,cleanerAmountCents:2000,cleanerPaidCents:0,cleanerDueCents:2000,clientPriceCents:3550,extraRevenueCents:0,payoutCents:2000,bonusCents:0,editable:true}
+     ]
+    };
+    return structuredClone(window.reconciliationData)
+   }
+   if(m=path.match(/^\/api\/admin\/settlements\/jobs\/(\d+)\/correct$/)&&opts.method==='PATCH'){
+    window.reconciliationCorrections=(window.reconciliationCorrections||[]).concat([{id:Number(m[1]),body:opts.body}]);
+    const j=window.reconciliationData.jobs.find(x=>x.id===Number(m[1]));
+    Object.assign(j,{serviceDate:opts.body.serviceDate,clientAmountCents:opts.body.clientAmountCents,clientDueCents:opts.body.clientAmountCents-j.clientPaidCents,cleanerAmountCents:opts.body.cleanerAmountCents,cleanerDueCents:opts.body.cleanerAmountCents-j.cleanerPaidCents,clientPriceCents:opts.body.clientAmountCents, payoutCents:opts.body.cleanerAmountCents});
+    const jobs=window.reconciliationData.jobs;
+    const sum=key=>jobs.reduce((n,x)=>n+Number(x[key]||0),0);
+    Object.assign(window.reconciliationData.summary,{clientAmountCents:sum('clientAmountCents'),clientPaidCents:sum('clientPaidCents'),clientDueCents:sum('clientDueCents'),cleanerAmountCents:sum('cleanerAmountCents'),cleanerPaidCents:sum('cleanerPaidCents'),cleanerDueCents:sum('cleanerDueCents')});
+    const o=window.reconciliationData.objects.find(x=>x.objectId===j.objectId);
+    Object.assign(o,{clientAmountCents:sumFor(o.objectId,'clientAmountCents'),clientPaidCents:sumFor(o.objectId,'clientPaidCents'),clientDueCents:sumFor(o.objectId,'clientDueCents'),cleanerAmountCents:sumFor(o.objectId,'cleanerAmountCents'),cleanerPaidCents:sumFor(o.objectId,'cleanerPaidCents'),cleanerDueCents:sumFor(o.objectId,'cleanerDueCents')});
+    function sumFor(objectId,key){return jobs.filter(x=>x.objectId===objectId).reduce((n,x)=>n+Number(x[key]||0),0)}
+    return {job:{id:Number(m[1])}}
+   }
    if(path.startsWith('/api/admin/settlements/monthly')){const q=new URL(path,'https://x.test').searchParams;window.monthlyCalls=(window.monthlyCalls||0)+1;if(q.get('partyId'))return {jobs:window.batchDone?[]:[{id:201,object_name:'Flat A',service_date:'2099-01-05',chargedCents:4000,paidCents:0,dueCents:4000},{id:202,object_name:'Flat B',service_date:'2099-01-06',chargedCents:3550,paidCents:0,dueCents:3550}],hasMore:false};return {groups:[{id:4,name:'Demo stays',count:2,chargedCents:7550,paidCents:window.batchDone?7550:0,dueCents:window.batchDone?0:7550}],jobs:[],hasMore:false,waitingReviewJobs:1}}
    if(path==='/api/admin/settlements/batch'){window.batchBodies=(window.batchBodies||[]).concat([opts.body]);window.batchDone=true;return {count:opts.body.items.length,amountCents:opts.body.items.reduce((n,i)=>n+i.amountCents,0)}}
    if(path.startsWith('/api/admin/settlements'))return {summary:{},jobs:[],hasMore:false};
@@ -228,31 +252,45 @@ try {
   await page.close();
   console.log('PASS monthly batch settlement: approved-only notice, selection total, idempotent request');
  }
- // Admin: client statement with 12-month debt, CSV and printable report.
+ // Admin: monthly reconciliation is grouped by property, supports corrections, and pays client/cleaner separately.
  {
   const {page,errors}=await openApp();
-  await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};location.hash='admin/statements';await new Promise(r=>setTimeout(r,100));await render()});
-  await page.getByRole('button',{name:'Statement',exact:true}).first().waitFor();
-  assert.match(await page.locator('#page').innerText(),/€906/,'12-month outstanding sums every month');
-  // Since fix 21 Statements is the second tab of Finance, not a menu entry.
-  assert.match(await page.locator('#admin-sidebar').innerText(),/Finance/);
-  assert.doesNotMatch(await page.locator('#admin-sidebar').innerText(),/Statements/);
-  assert.equal(await page.locator('[data-route="admin/finance"]').getAttribute('aria-current'),'page','the Finance section is the one highlighted');
-  await page.getByRole('button',{name:'Statement',exact:true}).first().click();
-  await page.locator('.statement-head').waitFor();
-  const text=await page.locator('.modal').innerText();
-  assert.match(text,/Flat A/);assert.match(text,/Flat B/);assert.match(text,/€75\.50/);assert.match(text,/Towels/);
-  const [popup]=await Promise.all([page.waitForEvent('popup'),page.getByRole('button',{name:/Print/}).click()]);
-  await popup.waitForLoadState();
-  const report=await popup.content();
-  assert.match(report,/Demo stays s\.r\.o\./);assert.match(report,/IČO 12345678/);assert.match(report,/Amount due: €75\.50/);assert.doesNotMatch(report,/<script/i);
-  await popup.close();
-  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'CSV'}).click()]);
-  assert.match(download.suggestedFilename(),/^statement-Demo-stays-\d{4}-\d{2}\.csv$/);
+  await page.evaluate(async()=>{
+   state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};
+   state.statementMonth='2099-01';location.hash='admin/statements';await new Promise(r=>setTimeout(r,100));await render();
+  });
+  await page.getByText('BA-101',{exact:true}).waitFor();
+  let text=await page.locator('#page').innerText();
+  assert.match(text,/Demo stays/);
+  assert.match(text,/Test Cleaner/);
+  assert.match(text,/€75\.50/,'client monthly total shown per property');
+  assert.match(text,/€40/,'cleaner monthly total shown separately');
+  assert.match(text,/€35\.50/,'remaining client balance shown');
+  assert.match(text,/€40/,'remaining cleaner balance shown');
+  assert.doesNotMatch(text,/12 months|margin|trend/i,'old finance dashboard clutter is not shown');
+  await page.getByRole('button',{name:'Details',exact:true}).click();
+  await page.locator('[data-recon-date="202"]').waitFor();
+  assert.equal(await page.locator('[data-recon-date="201"]').count(),0,'a cleaning with recorded payments is not editable');
+  await page.fill('[data-recon-date="202"]','2099-01-07');
+  await page.fill('[data-recon-client="202"]','38.50');
+  await page.fill('[data-recon-cleaner="202"]','21.00');
+  await page.fill('[data-recon-reason="202"]','Correction for invoice');
+  await page.getByRole('button',{name:'Save correction',exact:true}).click();
+  await page.waitForFunction(()=>window.reconciliationCorrections?.length===1);
+  const correction=await page.evaluate(()=>reconciliationCorrections[0]);
+  assert.equal(correction.id,202);
+  assert.deepEqual(correction.body,{serviceDate:'2099-01-07',clientAmountCents:3850,cleanerAmountCents:2100,reason:'Correction for invoice'});
+  await page.getByRole('button',{name:'Mark client paid',exact:true}).click();
+  await page.waitForFunction(()=>window.batchBodies?.length===1);
+  const batch=await page.evaluate(()=>batchBodies[0]);
+  assert.equal(batch.side,'CLIENT');
+  assert.equal(batch.partyId,4);
+  assert.deepEqual(batch.items,[{jobId:202,amountCents:3850}],'client receipt uses only the client balance');
   assert.deepEqual(errors,[]);
   await page.close();
-  console.log('PASS client statement: 12-month debt, job lines, extras, printable report and CSV');
+  console.log('PASS monthly reconciliation: per-property totals, locked paid jobs, audited correction and independent client settlement');
  }
+
  // Edit/delete controls: archive or delete property, deactivate accounts, delete reference photo.
  {
   const {page,errors}=await openApp();
