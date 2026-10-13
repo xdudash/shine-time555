@@ -32,6 +32,7 @@ begin
     left join public.st_cleaners e on e.id=j.assigned_cleaner_id
     left join public.st_users eu on eu.id=e.user_id
     where j.status='COMPLETED'
+      and j.review_status='APPROVED'
       and j.service_date>=d
       and j.service_date<d+interval '1 month'
   ), paid as (
