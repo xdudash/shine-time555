@@ -5,6 +5,32 @@ const app = $('#app');
 const state = { me:null, settings:null, map:null, csrf:null, locale:ST_I18N.getLocale(), clients:null };
 window.ShineTimeApp={getState:()=>state};
 const t=(key,fallback)=>ST_I18N.t(key,fallback);
+ST_I18N.addTranslations({
+  ru:{
+    'Cleaning under control — for everyone.':'Уборки под контролем — для всех.',
+    'One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.':'Одна платформа для клинеров и владельцев объектов: заказы, сроки, чек-листы и подтверждение результата.',
+    'Flexible cleaning windows':'Гибкие окна уборки',
+    'Risk monitoring and backup':'Контроль рисков и резерв',
+    'Checklists and photo proof':'Чек-листы и фотоотчёты',
+    'Sign in as a cleaner or property owner.':'Войдите как клинер или владелец объекта.'
+  },
+  sk:{
+    'Cleaning under control — for everyone.':'Upratovanie pod kontrolou — pre všetkých.',
+    'One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.':'Jedna platforma pre upratovačov a majiteľov nehnuteľností: dostupné zákazky, termíny, kontrolné zoznamy a potvrdenie výsledku.',
+    'Flexible cleaning windows':'Flexibilné časové okná upratovania',
+    'Risk monitoring and backup':'Kontrola rizík a záložná kapacita',
+    'Checklists and photo proof':'Kontrolné zoznamy a fotodokumentácia',
+    'Sign in as a cleaner or property owner.':'Prihláste sa ako upratovač alebo majiteľ nehnuteľnosti.'
+  },
+  uk:{
+    'Cleaning under control — for everyone.':'Прибирання під контролем — для всіх.',
+    'One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.':'Єдина платформа для клінерів і власників об’єктів: доступні замовлення, терміни, чек-листи та підтвердження результату.',
+    'Flexible cleaning windows':'Гнучкі часові вікна прибирання',
+    'Risk monitoring and backup':'Контроль ризиків і резерв',
+    'Checklists and photo proof':'Чек-листи та фотозвіти',
+    'Sign in as a cleaner or property owner.':'Увійдіть як клінер або власник об’єкта.'
+  }
+});
 const checklistDrafts=window.ShineTimeChecklistDrafts?.createChecklistDrafts({storage:{getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value),removeItem:key=>localStorage.removeItem(key)}});
 let checklistSession=0;
 const intlLocale=()=>({ru:'ru-RU',sk:'sk-SK',uk:'uk-UA',en:'en-GB'}[ST_I18N.getLocale()]||'ru-RU');
@@ -191,7 +217,7 @@ function ensureRoute(){const r=route();if(['ADMIN','OPERATIONS_MANAGER'].include
 
 function renderLogin(){
   state.me=null;state.csrf=null;
-  app.innerHTML=`<div class="login-page"><section class="login-hero"><div><div class="brand-mark">ST</div><h1>Your team. Every job. In sync.</h1><p>A dispatch platform for short-term rental cleaning. Cleaner freedom on the front end, operational control and rescue capacity behind it.</p><div class="login-stats"><div class="login-stat"><strong>24/7</strong><span>individual service windows</span></div><div class="login-stat"><strong>Live</strong><span>risk & rescue board</span></div><div class="login-stat"><strong>Proof</strong><span>checklists + photos</span></div></div></div><small>Shine Time Operations · Bratislava</small></section><section class="login-box-wrap"><div class="login-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div class="brand-mark">ST</div>${ST_I18N.selector(true)}</div><h2 style="margin-top:18px">Sign in</h2><p class="subtle">Use your operations or cleaner account.</p><form id="login-form"><div class="field"><label>Email</label><input class="input" name="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input class="input" name="password" type="password" autocomplete="current-password" required></div><button class="btn primary full">Sign in</button></form><button class="btn ghost full" type="button" onclick="forgotPassword()" style="margin-top:12px">${t('Forgot password?','Forgot password?')}</button><button class="btn ghost full" type="button" onclick="clientSignupModal()" style="margin-top:8px">${t('I have properties and want an account','I have properties and want an account')}</button><div class="demo-accounts"><span class="subtle">Use the account created during installation or credentials provided by Operations.</span></div></div></section></div>`;
+  app.innerHTML=`<div class="login-page"><section class="login-hero"><div><div class="brand-mark">ST</div><h1>${t('Cleaning under control — for everyone.','Cleaning under control — for everyone.')}</h1><p>${t('One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.','One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.')}</p><div class="login-stats"><div class="login-stat"><strong>24/7</strong><span>${t('Flexible cleaning windows','Flexible cleaning windows')}</span></div><div class="login-stat"><strong>${t('Online','Online')}</strong><span>${t('Risk monitoring and backup','Risk monitoring and backup')}</span></div><div class="login-stat"><strong>${t('Proof','Proof')}</strong><span>${t('Checklists and photo proof','Checklists and photo proof')}</span></div></div></div><small>Shine Time Operations · Bratislava</small></section><section class="login-box-wrap"><div class="login-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div class="brand-mark">ST</div>${ST_I18N.selector(true)}</div><h2 style="margin-top:18px">Sign in</h2><p class="subtle">${t('Sign in as a cleaner or property owner.','Sign in as a cleaner or property owner.')}</p><form id="login-form"><div class="field"><label>Email</label><input class="input" name="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input class="input" name="password" type="password" autocomplete="current-password" required></div><button class="btn primary full">Sign in</button></form><button class="btn ghost full" type="button" onclick="forgotPassword()" style="margin-top:12px">${t('Forgot password?','Forgot password?')}</button><button class="btn ghost full" type="button" onclick="clientSignupModal()" style="margin-top:8px">${t('I have properties and want an account','I have properties and want an account')}</button><div class="demo-accounts"><span class="subtle">Use the account created during installation or credentials provided by Operations.</span></div></div></section></div>`;
   $('#login-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget);try{const data=await api('/api/login',{method:'POST',body:{email:f.get('email'),password:f.get('password')}});state.me=data.user;state.csrf=data.csrf||null;state.locale=ST_I18N.setLocale(data.user.language||state.locale);const me=await api('/api/me');if(!releaseCompatible(me))return;state.settings=me.settings;state.csrf=me.csrf||state.csrf;startLiveUpdates();location.hash=['ADMIN','OPERATIONS_MANAGER'].includes(state.me.role)?'admin/today':state.me.role==='CLEANER'?'cleaner/home':'client/home';render()}catch(err){toast(err.message,'error')}};
 }
 /* Stage 3: client self-registration. The account is created inactive, so
