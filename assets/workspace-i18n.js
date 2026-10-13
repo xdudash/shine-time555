@@ -1942,7 +1942,7 @@ window.ST_I18N.addTranslations({
   'Show inactive and expired':'Показать приостановленные и завершённые','Hide inactive and expired':'Скрыть приостановленные и завершённые',
   'Edit schedule':'Изменить расписание','Save changes':'Сохранить изменения','End date (optional)':'Дата окончания (необязательно)',
   'Existing cleanings are not deleted when a schedule changes.':'Уже созданные уборки не удаляются при изменении расписания.',
-  'Choose at least one weekday':'Выберите хотя бы один день недели','Schedule updated.':'Расписание обновлено.','No active recurring schedules.':'Нет активных повторяющихся расписаний.','No recurring schedules found.':'Повторяющихся расписаний не найдено.'
+  'Choose at least one weekday':'Выберите хотя бы один день недели','Schedule updated.':'Расписание обновлено.','No active recurring schedules.':'Нет активных повторяющихся расписаний.','No recurring schedules found.':'Повторяющихся расписаний не найдено.','No recurring schedules yet.':'Пока нет повторяющихся расписаний.'
  },
  uk:{
   'Monthly reconciliation':'Звірка за місяць',
@@ -1965,7 +1965,7 @@ window.ST_I18N.addTranslations({
   'Show inactive and expired':'Показати призупинені й завершені','Hide inactive and expired':'Сховати призупинені й завершені',
   'Edit schedule':'Змінити розклад','Save changes':'Зберегти зміни','End date (optional)':'Дата завершення (необов’язково)',
   'Existing cleanings are not deleted when a schedule changes.':'Вже створені прибирання не видаляються під час зміни розкладу.',
-  'Choose at least one weekday':'Оберіть хоча б один день тижня','Schedule updated.':'Розклад оновлено.','No active recurring schedules.':'Немає активних регулярних прибирань.','No recurring schedules found.':'Регулярних розкладів не знайдено.'
+  'Choose at least one weekday':'Оберіть хоча б один день тижня','Schedule updated.':'Розклад оновлено.','No active recurring schedules.':'Немає активних регулярних прибирань.','No recurring schedules found.':'Регулярних розкладів не знайдено.','No recurring schedules yet.':'Поки немає повторюваних розкладів.'
  },
  sk:{
   'Monthly reconciliation':'Mesačné vyúčtovanie',
@@ -1988,6 +1988,6 @@ window.ST_I18N.addTranslations({
   'Show inactive and expired':'Zobraziť pozastavené a ukončené','Hide inactive and expired':'Skryť pozastavené a ukončené',
   'Edit schedule':'Upraviť rozvrh','Save changes':'Uložiť zmeny','End date (optional)':'Dátum ukončenia (nepovinné)',
   'Existing cleanings are not deleted when a schedule changes.':'Už vytvorené upratovania sa pri zmene rozvrhu neodstránia.',
-  'Choose at least one weekday':'Vyberte aspoň jeden deň v týždni','Schedule updated.':'Rozvrh aktualizovaný.','No active recurring schedules.':'Žiadne aktívne opakované upratovania.','No recurring schedules found.':'Nenašli sa opakované rozvrhy.'
+  'Choose at least one weekday':'Vyberte aspoň jeden deň v týždni','Schedule updated.':'Rozvrh aktualizovaný.','No active recurring schedules.':'Žiadne aktívne opakované upratovania.','No recurring schedules found.':'Nenašli sa opakované rozvrhy.','No recurring schedules yet.':'Zatiaľ tu nie sú opakované rozvrhy.'
  }
 });
