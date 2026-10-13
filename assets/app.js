@@ -191,9 +191,51 @@ function ensureRoute(){const r=route();if(['ADMIN','OPERATIONS_MANAGER'].include
 
 function renderLogin(){
   state.me=null;state.csrf=null;
-  app.innerHTML=`<div class="login-page"><section class="login-hero"><div><div class="brand-mark">ST</div><h1>Your team. Every job. In sync.</h1><p>A dispatch platform for short-term rental cleaning. Cleaner freedom on the front end, operational control and rescue capacity behind it.</p><div class="login-stats"><div class="login-stat"><strong>24/7</strong><span>individual service windows</span></div><div class="login-stat"><strong>Live</strong><span>risk & rescue board</span></div><div class="login-stat"><strong>Proof</strong><span>checklists + photos</span></div></div></div><small>Shine Time Operations · Bratislava</small></section><section class="login-box-wrap"><div class="login-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div class="brand-mark">ST</div>${ST_I18N.selector(true)}</div><h2 style="margin-top:18px">Sign in</h2><p class="subtle">Use your operations or cleaner account.</p><form id="login-form"><div class="field"><label>Email</label><input class="input" name="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input class="input" name="password" type="password" autocomplete="current-password" required></div><button class="btn primary full">Sign in</button></form><button class="btn ghost full" type="button" onclick="forgotPassword()" style="margin-top:12px">Forgot password?</button><div class="demo-accounts"><span class="subtle">Use the account created during installation or credentials provided by Operations.</span></div></div></section></div>`;
+  app.innerHTML=`<div class="login-page"><section class="login-hero"><div><div class="brand-mark">ST</div><h1>Your team. Every job. In sync.</h1><p>A dispatch platform for short-term rental cleaning. Cleaner freedom on the front end, operational control and rescue capacity behind it.</p><div class="login-stats"><div class="login-stat"><strong>24/7</strong><span>individual service windows</span></div><div class="login-stat"><strong>Live</strong><span>risk & rescue board</span></div><div class="login-stat"><strong>Proof</strong><span>checklists + photos</span></div></div></div><small>Shine Time Operations · Bratislava</small></section><section class="login-box-wrap"><div class="login-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div class="brand-mark">ST</div>${ST_I18N.selector(true)}</div><h2 style="margin-top:18px">Sign in</h2><p class="subtle">Use your operations or cleaner account.</p><form id="login-form"><div class="field"><label>Email</label><input class="input" name="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input class="input" name="password" type="password" autocomplete="current-password" required></div><button class="btn primary full">Sign in</button></form><button class="btn ghost full" type="button" onclick="forgotPassword()" style="margin-top:12px">${t('Forgot password?','Forgot password?')}</button><button class="btn ghost full" type="button" onclick="clientSignupModal()" style="margin-top:8px">${t('I have properties and want an account','I have properties and want an account')}</button><div class="demo-accounts"><span class="subtle">Use the account created during installation or credentials provided by Operations.</span></div></div></section></div>`;
   $('#login-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget);try{const data=await api('/api/login',{method:'POST',body:{email:f.get('email'),password:f.get('password')}});state.me=data.user;state.csrf=data.csrf||null;state.locale=ST_I18N.setLocale(data.user.language||state.locale);const me=await api('/api/me');if(!releaseCompatible(me))return;state.settings=me.settings;state.csrf=me.csrf||state.csrf;startLiveUpdates();location.hash=['ADMIN','OPERATIONS_MANAGER'].includes(state.me.role)?'admin/today':state.me.role==='CLEANER'?'cleaner/home':'client/home';render()}catch(err){toast(err.message,'error')}};
 }
+/* Stage 3: client self-registration. The account is created inactive, so
+   nothing is visible until an administrator approves it — the form says so
+   before it is submitted, not after. */
+window.clientSignupModal=()=>{
+ modal(esc(t('Request an account','Request an account')),`<form id="client-signup" class="form-grid">
+  <p class="wide subtle">${esc(t('Tell us who you are. We check new accounts by hand, so you will get an email once it is open.','Tell us who you are. We check new accounts by hand, so you will get an email once it is open.'))}</p>
+  <div class="field"><label for="cs-name">${esc(t('Full name','Full name'))}</label><input class="input" id="cs-name" name="fullName" required></div>
+  <div class="field"><label for="cs-email">Email</label><input class="input" id="cs-email" name="email" type="email" autocomplete="email" required></div>
+  <div class="field"><label for="cs-password">${esc(t('Password (minimum 12 characters)','Password (minimum 12 characters)'))}</label><input class="input" id="cs-password" name="password" type="password" minlength="12" autocomplete="new-password" required></div>
+  <div class="field"><label for="cs-phone">${esc(t('Phone','Phone'))}</label><input class="input" id="cs-phone" name="phone" autocomplete="tel"></div>
+  <div class="field"><label for="cs-company">${esc(t('Company (optional)','Company (optional)'))}</label><input class="input" id="cs-company" name="companyName"></div>
+  <div class="field"><label for="cs-city">${esc(t('City','City'))}</label><input class="input" id="cs-city" name="city" value="Bratislava"></div>
+  <div class="field"><label for="cs-count">${esc(t('How many properties?','How many properties?'))}</label><input class="input" id="cs-count" name="propertyCount" type="number" min="0" max="1000"></div>
+  <div class="field"><label for="cs-language">${esc(t('Language','Language'))}</label><select class="select" id="cs-language" name="language">${ST_I18N.LANGS.map(l=>`<option value="${l}" ${l===state.locale?'selected':''}>${ST_I18N.NAMES[l]}</option>`).join('')}</select></div>
+  <div class="field wide"><label for="cs-message">${esc(t('Anything we should know? (optional)','Anything we should know? (optional)'))}</label><textarea class="textarea" id="cs-message" name="message" maxlength="1000" rows="2"></textarea></div>
+  <small class="wide" id="cs-status" role="status"></small>
+ </form>`,`<button class="btn" onclick="closeModal()">${esc(t('Cancel','Cancel'))}</button><button class="btn primary" id="cs-submit" onclick="submitClientSignup()">${esc(t('Send request','Send request'))}</button>`);
+};
+window.submitClientSignup=async()=>{
+ const form=$('#client-signup'),status=$('#cs-status'),submit=$('#cs-submit');
+ if(!form.reportValidity())return;
+ const f=new FormData(form);
+ submit.disabled=true;status.className='wide subtle';status.textContent=t('Sending…','Sending…');
+ try{
+  const result=await window.ShineTimeSupabase.registerClient({
+   fullName:f.get('fullName'),email:f.get('email'),password:f.get('password'),phone:f.get('phone'),
+   companyName:f.get('companyName'),city:f.get('city'),propertyCount:f.get('propertyCount'),
+   message:f.get('message'),language:f.get('language'),
+  });
+  closeModal();
+  const confirmEmail=result?.status==='CONFIRM_EMAIL';
+  const already=result?.status==='ACTIVE';
+  modal(esc(t(already?'You already have an account':'Request sent',already?'You already have an account':'Request sent')),
+   `<p>${esc(already?t('Your account is already open — just sign in.','Your account is already open — just sign in.')
+    :confirmEmail?t('Confirm your email address first; we get your request the moment you do.','Confirm your email address first; we get your request the moment you do.')
+    :t('We have your request. You will get an email as soon as the account is open.','We have your request. You will get an email as soon as the account is open.'))}</p>`,
+   `<button class="btn primary" onclick="closeModal()">${esc(t('Close','Close'))}</button>`);
+ }catch(e){
+  if(status.isConnected){status.className='wide error-text';status.textContent=e.message}
+  else toast(e.message,'error');
+ }finally{if(submit?.isConnected)submit.disabled=false}
+};
 window.fillLogin=(email,password)=>{const f=$('#login-form');f.email.value=email;f.password.value=password};
 async function logout(){
   try{await api('/api/logout',{method:'POST'})}catch(e){toast(e.message,'error');return;}
@@ -216,6 +258,7 @@ const ADMIN_SECTION_TABS={
  today:[['board','Dispatch','live'],['map','Map','map'],['tomorrow','Tomorrow','tomorrow'],['monitoring','Monitoring','monitoring']],
  cleanings:[['all','All cleanings','jobs'],['recurring','Repeating','schedule']],
  review:[['queue','Awaiting review','review'],['issues','Issues and complaints','issues']],
+ clients:[['list','Clients','clients'],['requests','Account requests','account-requests']],
  finance:[['overview','Overview','owner'],['statements','Statements','statements'],['settlements','Payments and payouts','settlements'],['entries','Records','finance']],
 };
 const adminSectionTab=(section,tab)=>{
@@ -315,7 +358,7 @@ async function renderAdmin(section,tab){
  state.adminSection={section:direct||key,tab:''};
  return renderAdminPage(key);
 }
-async function renderAdminPage(page){if(!window.ShineTimeUi.adminRouteAllowed(page,state.me.role)){navTo('admin/today');return adminLive()}if(page==='owner')return adminOwnerBoard();if(page==='live')return adminLive();if(page==='map')return adminMap();if(page==='tomorrow')return adminTomorrow();if(page==='jobs')return adminJobs();if(page==='objects')return adminObjects();if(page==='clients')return adminClients();if(page==='cleaners'||page==='team')return adminCleaners();if(page==='finance')return adminFinance(state.financeMonth);if(page==='issues')return adminIssues();if(page==='review')return adminReviewQueue();if(page==='analytics')return adminAnalytics();if(page==='settings')return adminSettings();return adminLive()}
+async function renderAdminPage(page){if(!window.ShineTimeUi.adminRouteAllowed(page,state.me.role)){navTo('admin/today');return adminLive()}if(page==='owner')return adminOwnerBoard();if(page==='live')return adminLive();if(page==='map')return adminMap();if(page==='tomorrow')return adminTomorrow();if(page==='jobs')return adminJobs();if(page==='objects')return adminObjects();if(page==='clients')return adminClients();if(page==='account-requests')return adminAccountRequests();if(page==='cleaners'||page==='team')return adminCleaners();if(page==='finance')return adminFinance(state.financeMonth);if(page==='issues')return adminIssues();if(page==='review')return adminReviewQueue();if(page==='analytics')return adminAnalytics();if(page==='settings')return adminSettings();return adminLive()}
 
 async function adminOwnerBoard(){shellTitle('Owner board','Portfolio, delivery quality, capacity and contribution profit');const month=new Date().toISOString().slice(0,7);const [live,capacityData,analytics,finance]=await Promise.all([api('/api/admin/dashboard'),api(`/api/admin/capacity?date=${today()}`),api(`/api/admin/analytics?from=${month}-01&to=${today()}`),api(`/api/admin/finance?month=${month}${state.financeCursor?`&before=${state.financeCursor}`:''}`)]);const f=finance.summary;$('#page').innerHTML=`<div class="section-head"><div><h2>Company control room</h2><p>Every card opens the operational board where it can be acted on.</p></div><button class="btn primary" onclick="navTo('admin/live')">Open live dispatch</button></div><div class="grid kpis" style="grid-template-columns:repeat(4,1fr)"><button class="card kpi" onclick="navTo('admin/live')"><div class="label">Today jobs</div><div class="value">${live.kpis.total}</div><div class="hint">${live.kpis.completed} complete · ${live.kpis.unassigned} unassigned</div></button><button class="card kpi ${live.kpis.rescue?'danger':''}" onclick="navTo('admin/jobs')"><div class="label">Rescue / SLA risk</div><div class="value">${live.kpis.rescue+live.kpis.atRisk}</div><div class="hint">Projected SLA ${live.sla.projectedReadyPct}%</div></button><button class="card kpi" onclick="navTo('admin/tomorrow')"><div class="label">Available capacity</div><div class="value">${capacityData.capacity.freeMinutes||0}m</div><div class="hint">Reserve ${capacityData.capacity.reservePct||0}%</div></button><button class="card kpi ${f.profit<0?'danger':''}" onclick="navTo('admin/finance')"><div class="label">Month contribution</div><div class="value small-money ${f.profit>=0?'profit-pos':'profit-neg'}">${money(f.profit)}</div><div class="hint">${f.marginPct}% margin · ${money(f.totalRevenue)} revenue</div></button></div><div style="height:14px"></div><div class="two-col"><div class="card pad"><div class="section-head compact"><div><h2>Quality & team</h2><p>Operational performance for the current month</p></div><button class="btn sm" onclick="navTo('admin/analytics')">Details</button></div><div class="detail-grid"><div class="detail-item"><div class="k">Completed</div><div class="v">${analytics.summary.completed}/${analytics.summary.jobs}</div></div><div class="detail-item"><div class="k">On time</div><div class="v">${analytics.summary.onTimePct}%</div></div><div class="detail-item"><div class="k">Issues</div><div class="v">${analytics.summary.issues}</div></div><div class="detail-item"><div class="k">Rescues</div><div class="v">${analytics.summary.rescue}</div></div></div></div><div class="card pad"><div class="section-head compact"><div><h2>Portfolio finance</h2><p>Revenue, costs and profitability by client/object</p></div><button class="btn sm" onclick="navTo('admin/finance')">Open finance</button></div><div class="detail-grid"><div class="detail-item"><div class="k">Revenue</div><div class="v">${money(f.totalRevenue)}</div></div><div class="detail-item"><div class="k">Costs</div><div class="v">${money(f.totalExpenses)}</div></div><div class="detail-item"><div class="k">Outstanding control</div><div class="v">${live.kpis.unassigned}</div></div><div class="detail-item"><div class="k">Objects / clients</div><div class="v">${finance.byObject.length} / ${finance.byClient.length}</div></div></div></div></div>`}
 
@@ -661,6 +704,37 @@ window.saveCleaner=async id=>{const f=new FormData($('#cleaner-form'));const bod
 
 /* Fix 21: the Review section. The approval queue used to be only a bucket on
    the day board; here it is a screen of its own next to issues and complaints. */
+/* Stage 3: who is waiting to be let in. Approving creates the client account;
+   rejecting records why and leaves the sign-in dead. */
+async function adminAccountRequests(){
+ shellTitle(t('Account requests','Account requests'),t('People who registered themselves and are waiting for you','People who registered themselves and are waiting for you'));
+ const status=state.accountRequestStatus||'PENDING';
+ const d=await api(`/api/admin/accounts/requests?status=${status}`);
+ const rows=d.requests||[];
+ const filters=[['PENDING','Waiting'],['APPROVED','Approved'],['REJECTED','Rejected'],['ALL','All']];
+ $('#page').innerHTML=`<div class="section-head"><div><h2>${esc(t('Account requests','Account requests'))}</h2><p>${rows.length} ${esc(t('requests','requests'))}</p></div><div class="row-actions">${filters.map(([value,label])=>`<button class="btn sm ${status===value?'primary':''}" onclick="setAccountRequestStatus('${value}')">${esc(t(label,label))}</button>`).join('')}</div></div>
+ ${rows.length?`<div class="card"><div class="table-wrap"><table><thead><tr><th>${esc(t('When','When'))}</th><th>${esc(t('Who','Who'))}</th><th>${esc(t('Properties','Properties'))}</th><th>${esc(t('Message','Message'))}</th><th>${esc(t('State','State'))}</th><th></th></tr></thead><tbody>
+ ${rows.map(r=>`<tr><td>${esc(fmtStamp(r.created_at))}</td>
+  <td><strong>${esc(r.company_name||r.full_name)}</strong><br><small class="subtle">${esc(r.full_name)} · ${esc(r.email)}${r.phone?' · '+esc(r.phone):''}${r.city?' · '+esc(r.city):''}</small></td>
+  <td>${r.property_count??'—'}</td>
+  <td>${esc(r.message||'—')}</td>
+  <td>${r.status==='PENDING'?`<span class="pill orange">${esc(t('Waiting','Waiting'))}</span>`:r.status==='APPROVED'?`<span class="pill green">${esc(t('Approved','Approved'))}</span>`:`<span class="pill gray">${esc(t('Rejected','Rejected'))}</span>`}${r.decided_at?`<br><small class="subtle">${esc(fmtStamp(r.decided_at))}${r.decided_by?' · '+esc(r.decided_by):''}${r.decision_note?'<br>'+esc(r.decision_note):''}</small>`:''}</td>
+  <td>${r.status==='PENDING'?`<div class="row-actions"><button class="btn sm primary" onclick="decideAccountRequest(${r.id},true)">${esc(t('Approve','Approve'))}</button><button class="btn sm red" onclick="decideAccountRequest(${r.id},false)">${esc(t('Reject','Reject'))}</button></div>`:''}</td></tr>`).join('')}
+ </tbody></table></div></div>`:`<div class="card pad"><div class="empty">${esc(t('Nobody is waiting.','Nobody is waiting.'))}</div></div>`}`;
+}
+window.setAccountRequestStatus=value=>{state.accountRequestStatus=value;renderAdmin('clients','requests')};
+window.decideAccountRequest=async(id,approve)=>{
+ const note=await askDialog({
+  title:approve?'Approve this account':'Reject this account',
+  message:approve?'They get an email and can add their properties straight away.':'They keep no access. The reason is kept with the request.',
+  label:approve?'Note (optional)':'Reason',required:!approve,confirmLabel:approve?'Approve':'Reject',danger:!approve});
+ if(note===null)return;
+ try{
+  const r=await api(`/api/admin/accounts/requests/${id}/${approve?'approve':'reject'}`,{method:'POST',body:{note}});
+  toast(approve?`${t('Account opened','Account opened')}: ${r.email||''}`:t('Request rejected','Request rejected'),'success');
+  await renderAdmin('clients','requests');
+ }catch(e){toast(e.message,'error')}
+};
 async function adminReviewQueue(){
  shellTitle(t('Review','Review'),t('Reports waiting for your decision','Reports waiting for your decision'));
  const d=await api('/api/admin/jobs?review=PENDING');

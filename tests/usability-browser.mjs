@@ -56,6 +56,16 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(path==='/api/admin/managers'&&(opts.method||'GET')==='GET')return {managers:[{id:7,full_name:'Dispatcher One',email:'d1@test.invalid',phone:'',language:'en',active:true}]};
    if(path==='/api/admin/managers'&&opts.method==='POST'){window.createdManager=opts.body;return {manager:{id:8}}}
    if(path==='/api/notifications')return {notifications:[],unread:0};
+   if(path.startsWith('/api/admin/accounts/requests')){
+    let mm;
+    if(mm=path.match(/requests\/(\d+)\/(approve|reject)$/)){window.accountDecisions=(window.accountDecisions||[]).concat([{id:Number(mm[1]),action:mm[2],note:opts.body?.note}]);return {status:mm[2]==='approve'?'APPROVED':'REJECTED',email:'nina@test.invalid',userId:7,clientId:3}}
+    const q=new URL(path,'https://x.test').searchParams;
+    window.accountQueries=(window.accountQueries||[]).concat([q.get('status')]);
+    const all=[{id:1,status:'PENDING',created_at:'2099-01-02T09:00:00Z',full_name:'Nina New',email:'nina@test.invalid',phone:'+421900111222',company_name:'Nina stays',city:'Bratislava',property_count:3,message:'Two flats in the old town',language:'sk'},
+               {id:2,status:'REJECTED',created_at:'2099-01-01T09:00:00Z',full_name:'Spam Sender',email:'spam@test.invalid',company_name:null,city:null,property_count:0,message:null,language:'en',decided_at:'2099-01-01T10:00:00Z',decided_by:'Admin',decision_note:'Looks like spam'}];
+    const status=q.get('status')||'PENDING';
+    return {requests:status==='ALL'?all:all.filter(r=>r.status===status)};
+   }
    if(path.startsWith('/api/client/bookings?')||path==='/api/client/bookings'){
     if((opts.method||'GET')==='GET'){
      const q=new URL(path,'https://x.test').searchParams;
@@ -655,6 +665,92 @@ try {
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS owner archive: filters drive the query, totals follow the filter, rows export as a table');
+ }
+ // Stage 3: a client registers themselves, and the administrator decides.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(()=>{
+   window.registrations=[];
+   ShineTimeSupabase.registerClient=async input=>{registrations.push(input);return input.email==='taken@test.invalid'?{status:'ACTIVE'}:{status:'PENDING',requestId:1}};
+   renderLogin();
+  });
+  await page.locator('#login-form').waitFor();
+  await page.getByRole('button',{name:'I have properties and want an account'}).click();
+  await page.locator('#client-signup').waitFor();
+  // The form says what happens before it is sent, not after.
+  assert.match(await page.locator('#client-signup').innerText(),/check new accounts by hand/i);
+  assert.equal(await page.locator('#cs-password').getAttribute('minlength'),'12');
+  await page.fill('#cs-name','Nina New');
+  await page.fill('#cs-email','nina@test.invalid');
+  await page.fill('#cs-password','Long-enough-pass-2026');
+  await page.fill('#cs-phone','+421900111222');
+  await page.fill('#cs-company','Nina stays');
+  await page.fill('#cs-count','3');
+  await page.fill('#cs-message','Two flats in the old town');
+  await page.getByRole('button',{name:'Send request'}).click();
+  await page.waitForFunction(()=>window.registrations?.length);
+  const sent=await page.evaluate(()=>registrations.at(-1));
+  assert.equal(sent.fullName,'Nina New');
+  assert.equal(sent.companyName,'Nina stays');
+  assert.equal(sent.propertyCount,'3');
+  await page.waitForFunction(()=>document.querySelector('#modal-root')?.innerText.includes('Request sent'));
+  assert.match(await page.locator('#modal-root').innerText(),/email as soon as the account is open/i);
+  await page.locator('.modal-foot button').click();
+
+  // Someone who already has an account is told to sign in, not left guessing.
+  await page.getByRole('button',{name:'I have properties and want an account'}).click();
+  await page.locator('#client-signup').waitFor();
+  await page.fill('#cs-name','Taken');await page.fill('#cs-email','taken@test.invalid');await page.fill('#cs-password','Long-enough-pass-2026');
+  await page.getByRole('button',{name:'Send request'}).click();
+  await page.waitForFunction(()=>document.querySelector('#modal-root')?.innerText.includes('already'));
+  assert.match(await page.locator('#modal-root').innerText(),/just sign in/i);
+  await page.locator('.modal-foot button').click();
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS client self-registration: the form warns, sends the request, and an existing account is told to sign in');
+ }
+ // The administrator's queue: approve with a note, reject with a required reason.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={};location.hash='admin/clients/requests';await new Promise(r=>setTimeout(r,80));await render()});
+  await page.locator('tbody tr').first().waitFor();
+  assert.equal(await page.evaluate(()=>accountQueries.at(-1)),'PENDING','the queue opens on who is waiting');
+  const row=await page.locator('tbody tr').first().innerText();
+  assert.match(row,/Nina stays[\s\S]*nina@test\.invalid/);
+  assert.match(row,/Two flats in the old town/);
+  assert.equal(await page.locator('.section-tabs button').count(),2,'Clients carries its two tabs');
+
+  // Rejecting requires a reason: an empty dialog does not send. (The filter
+  // buttons are called Approved/Rejected, so the row buttons need exact names.)
+  await page.getByRole('button',{name:'Reject',exact:true}).first().click();
+  await page.locator('#ask-input').waitFor();
+  await page.locator('#ask-ok').click();
+  await page.waitForFunction(()=>document.querySelector('#ask-error')?.textContent);
+  assert.equal(await page.evaluate(()=>window.accountDecisions?.length||0),0,'nothing was sent without a reason');
+  await page.fill('#ask-input','No properties, looks like spam');
+  await page.locator('#ask-ok').click();
+  await page.waitForFunction(()=>window.accountDecisions?.length);
+  assert.deepEqual(await page.evaluate(()=>accountDecisions.at(-1)),{id:1,action:'reject',note:'No properties, looks like spam'});
+
+  // Approving takes an optional note and says whose account was opened.
+  await page.waitForFunction(()=>!document.querySelector('#modal-root .modal'));
+  await page.evaluate(async()=>{await renderAdmin('clients','requests')});
+  await page.locator('tbody tr').first().waitFor();
+  await page.getByRole('button',{name:'Approve',exact:true}).first().click();
+  await page.locator('#ask-input').waitFor();
+  await page.locator('#ask-ok').click();
+  await page.waitForFunction(()=>accountDecisions.at(-1)?.action==='approve');
+  assert.equal((await page.evaluate(()=>accountDecisions.at(-1))).note,'','the note is optional when approving');
+  await page.waitForFunction(()=>document.querySelector('#toast-root')?.innerText.includes('nina@test.invalid'));
+
+  // A rejected request keeps its reason visible in the history.
+  await page.evaluate(()=>setAccountRequestStatus('ALL'));
+  await page.waitForFunction(()=>accountQueries.at(-1)==='ALL');
+  await page.waitForFunction(()=>document.querySelectorAll('tbody tr').length===2);
+  assert.match(await page.locator('tbody').innerText(),/Rejected[\s\S]*Looks like spam/);
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS account requests: queue, required reason to reject, optional note to approve, decided history');
  }
  // Language switch re-renders navigation, not only the page body.
  {

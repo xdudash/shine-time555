@@ -25,9 +25,9 @@ test('the function is the only gate, and it knows it', () => {
   assert.match(api, /if \(!appUser \|\| !appUser\.active\) throw new ApiError\('This account is not activated by Operations', 403\)/);
 });
 
-test('exactly two routes are served before authentication, and both guard themselves', () => {
+test('only the three known routes are served before authentication, and each guards itself', () => {
   const routesBeforeAuth = [...beforeAuth.matchAll(/route === '([^']+)'/g)].map((match) => match[1]);
-  assert.deepEqual([...new Set(routesBeforeAuth)].sort(), ['bootstrap', 'dispatch/outbox'],
+  assert.deepEqual([...new Set(routesBeforeAuth)].sort(), ['account/request', 'bootstrap', 'dispatch/outbox'],
     'a new route must sit after context(req), or it is open to the internet');
 
   // bootstrap still requires a signed-in Supabase user, and can only ever
@@ -42,6 +42,23 @@ test('exactly two routes are served before authentication, and both guard themse
   assert.match(dispatchBlock, /secretMatches\(notificationConfig\.secret, req\.headers\.get\('x-st-worker-secret'\)\)/);
   assert.ok(dispatchBlock.indexOf('secretMatches') < dispatchBlock.indexOf('drainOutbox'),
     'the secret is checked before any work is done');
+
+  // account/request (stage 3) is the self-registration ask. It cannot sit
+  // behind context(), which requires an ACTIVE application account, so it
+  // authenticates the caller itself and takes the identity from the token —
+  // never from the request body.
+  const requestBlock = beforeAuth.slice(beforeAuth.indexOf("route === 'account/request'"), beforeAuth.indexOf("route === 'dispatch/outbox'"));
+  assert.match(requestBlock, /const \{ authUser \} = await authOnly\(req\)/, 'the caller must be a signed-in Supabase user');
+  assert.match(requestBlock, /p_auth_user_id: authUser\.id/, 'the account is bound to the token, not to a body field');
+  assert.match(requestBlock, /p_email: String\(authUser\.email \|\| ''\)/, 'the email comes from the token too');
+  assert.ok(!/role/i.test(requestBlock.replace(/\/\/[^\n]*/g, '')), 'the caller cannot ask for a role');
+  // The account it creates is inactive, so context() keeps it out until a
+  // human approves it, and the whole thing can be switched off from settings.
+  const migration = read('supabase/migrations/20261012210000_self_registration.sql');
+  assert.match(migration, /'OWNER', left\(v_name,200\),[\s\S]{0,200}false\)/, 'the new account is created inactive');
+  assert.match(migration, /selfRegistrationOpen/);
+  assert.match(migration, /raise exception 'Self-registration is closed at the moment'/);
+  assert.match(migration, /if a\.role='OPERATIONS_MANAGER' then raise exception 'Forbidden: accounts require administrator'/);
 });
 
 test('no privileged client is used before the caller is known', () => {

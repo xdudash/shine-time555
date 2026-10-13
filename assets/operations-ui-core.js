@@ -39,7 +39,7 @@
     }).filter(Boolean);
   }
 
-  const restrictedAdminRoutes = new Set(['owner', 'clients', 'finance', 'settlements', 'statements', 'settings']);
+  const restrictedAdminRoutes = new Set(['owner', 'clients', 'finance', 'settlements', 'statements', 'settings', 'account-requests']);
   /* The nine approved sections (fix 21). The old page names still work, so a
      bookmark or an old link keeps opening the right screen; this maps them to
      the section that now hosts them. */
@@ -47,7 +47,7 @@
     live: 'today', map: 'today', tomorrow: 'today', monitoring: 'today',
     jobs: 'cleanings', schedule: 'cleanings', recurring: 'cleanings',
     issues: 'review',
-    cleaners: 'team', managers: 'team',
+    cleaners: 'team', managers: 'team', 'account-requests': 'clients',
     // 'finance' is its own section; the three screens that used to be separate
     // menu entries are its tabs.
     owner: 'finance', settlements: 'finance', statements: 'finance', entries: 'finance',

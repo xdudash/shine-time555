@@ -66,6 +66,46 @@ async function request(path, opts = {}) {
   return invoke(path, opts);
 }
 
+/* Stage 3: a client signs themselves up and asks for an account. The same
+   two steps as the first-administrator path, but the account that comes out is
+   inactive until an administrator approves it, so there is nothing to see yet. */
+async function registerClient(input) {
+  const email = String(input.email || '').trim().toLowerCase();
+  const password = String(input.password || '');
+  if (password.length < 12) throw new Error('Choose a password of at least 12 characters');
+  let session = null;
+  const signedUp = await getClient().auth.signUp({ email, password, options: { data: { full_name: String(input.fullName || '') } } });
+  if (signedUp.error) {
+    const message = String(signedUp.error.message || '');
+    if (/already registered|already exists/i.test(message)) {
+      const signedIn = await getClient().auth.signInWithPassword({ email, password });
+      if (signedIn.error) throw new Error('This email already has an account. Sign in, or use "Forgot password?".');
+      session = signedIn.data.session;
+    } else {
+      throw new Error(message);
+    }
+  } else {
+    session = signedUp.data.session;
+  }
+  if (!session) {
+    // Email confirmation is on: the request is made after they confirm.
+    return { status: 'CONFIRM_EMAIL' };
+  }
+  const { data, error } = await getClient().functions.invoke(config.functionName, {
+    body: {
+      route: 'account/request', method: 'POST', query: {},
+      body: {
+        fullName: input.fullName, phone: input.phone || '', companyName: input.companyName || '',
+        city: input.city || '', propertyCount: input.propertyCount || '', message: input.message || '',
+        language: input.language || 'sk',
+      },
+      clientBuild: window.ST_BUILD,
+    },
+  });
+  if (error) throw new Error(data?.error || error.message);
+  return data;
+}
+
 async function bootstrapFirstAdmin(input) {
   const email = String(input.email || '').trim();
   const password = String(input.password || '');
@@ -132,4 +172,4 @@ async function uploadProofFile(jobId,category,file,onStage=()=>{}) {
     throw error||finalizeError;
   }
 }
-window.ShineTimeSupabase = { request, uploadProofFile, bootstrapFirstAdmin, subscribeJobs, resetPassword, recoverPassword, onRecovery, client: getClient };
+window.ShineTimeSupabase = { request, uploadProofFile, bootstrapFirstAdmin, registerClient, subscribeJobs, resetPassword, recoverPassword, onRecovery, client: getClient };
