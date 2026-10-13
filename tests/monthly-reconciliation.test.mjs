@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createDatabase,seedDatabase} from './helpers/database.mjs';
 
 async function setup(){const db=await createDatabase();await seedDatabase(db);return db}
-async function currentMonth(db){return (await db.query("select to_char(current_date,'YYYY-MM') as month_value")).rows[0].month}
+async function currentMonth(db){return (await db.query("select to_char(current_date,'YYYY-MM') as month_value")).rows[0].month_value}
 
 test('monthly reconciliation groups the property total and tracks client and cleaner payments independently',async()=>{
  const db=await setup();try{
