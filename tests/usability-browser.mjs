@@ -675,7 +675,7 @@ try {
    renderLogin();
   });
   await page.locator('#login-form').waitFor();
-  await page.getByRole('button',{name:'I have properties and want an account'}).click();
+  await page.getByRole('button',{name:'Manage properties? Request access'}).click();
   await page.locator('#client-signup').waitFor();
   // The form says what happens before it is sent, not after.
   assert.match(await page.locator('#client-signup').innerText(),/check new accounts by hand/i);
@@ -698,7 +698,7 @@ try {
   await page.locator('.modal-foot button').click();
 
   // Someone who already has an account is told to sign in, not left guessing.
-  await page.getByRole('button',{name:'I have properties and want an account'}).click();
+  await page.getByRole('button',{name:'Manage properties? Request access'}).click();
   await page.locator('#client-signup').waitFor();
   await page.fill('#cs-name','Taken');await page.fill('#cs-email','taken@test.invalid');await page.fill('#cs-password','Long-enough-pass-2026');
   await page.getByRole('button',{name:'Send request'}).click();
