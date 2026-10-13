@@ -257,7 +257,7 @@ try {
   const {page,errors}=await openApp();
   await page.evaluate(async()=>{
    state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};
-   state.statementMonth='2099-01';location.hash='admin/statements';await new Promise(r=>setTimeout(r,100));await render();
+   state.statementMonth='2099-01';location.hash='admin/finance';await new Promise(r=>setTimeout(r,100));await render();
   });
   await page.getByText('BA-101',{exact:true}).waitFor();
   let text=await page.locator('#page').innerText();
