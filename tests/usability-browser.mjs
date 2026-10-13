@@ -72,7 +72,7 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
     };
     return structuredClone(window.reconciliationData)
    }
-   if(m=path.match(/^\/api\/admin\/settlements\/jobs\/(\d+)\/correct$/)&&opts.method==='PATCH'){
+   if((m=path.match(/^\/api\/admin\/settlements\/jobs\/(\d+)\/correct$/))&&opts.method==='PATCH'){
     window.reconciliationCorrections=(window.reconciliationCorrections||[]).concat([{id:Number(m[1]),body:opts.body}]);
     const j=window.reconciliationData.jobs.find(x=>x.id===Number(m[1]));
     Object.assign(j,{serviceDate:opts.body.serviceDate,clientAmountCents:opts.body.clientAmountCents,clientDueCents:opts.body.clientAmountCents-j.clientPaidCents,cleanerAmountCents:opts.body.cleanerAmountCents,cleanerDueCents:opts.body.cleanerAmountCents-j.cleanerPaidCents,clientPriceCents:opts.body.clientAmountCents, payoutCents:opts.body.cleanerAmountCents});
