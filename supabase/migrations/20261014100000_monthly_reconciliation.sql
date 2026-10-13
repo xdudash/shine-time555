@@ -119,7 +119,7 @@ begin
   if actor.role<>'ADMIN' then raise exception 'Forbidden'; end if;
 
   select * into strict job from public.st_jobs where id=p_job_id for update;
-  if job.status<>'COMPLETED' then raise exception 'Only completed cleanings can be corrected'; end if;
+  if job.status<>'COMPLETED' or job.review_status<>'APPROVED' then raise exception 'Only quality-approved completed cleanings can be corrected'; end if;
   if exists(select 1 from public.st_settlements where job_id=job.id) or coalesce(job.financial_status,'')='PAID' then
     raise exception 'This cleaning has payment history. Record a refund or return instead of editing it';
   end if;
