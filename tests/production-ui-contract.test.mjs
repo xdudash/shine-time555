@@ -49,6 +49,16 @@ test('operational extensions expose monitoring, CSV export and exact-money entry
 });
 
 
+test('monthly property reconciliation is the default Finance tab', () => {
+  const app = read('assets/app.js');
+  assert.match(app, /finance:\[\['overview','Monthly reconciliation','statements'\],\['settlements','Payments and payouts','settlements'\],\['entries','Records','finance'\]\]/);
+  const reconciliation = read('assets/finance-statements.js');
+  assert.match(reconciliation, /admin\/settlements\/reconciliation\?month=/);
+  assert.match(reconciliation, /Mark client paid/);
+  assert.match(reconciliation, /Mark cleaners paid/);
+  assert.match(reconciliation, /saveMonthlyCorrection/);
+});
+
 test('signed-out landing addresses property owners and the cleaning team', () => {
   const app = read('assets/app.js');
   const styles = read('assets/styles.css');

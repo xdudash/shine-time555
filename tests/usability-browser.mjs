@@ -32,6 +32,21 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(path==='/api/admin/cleaners')return {cleaners:[{id:1,full_name:'Test Cleaner',mode:'FLEX',reliability_score:95,active:true}]};
    if(path==='/api/admin/clients'&&(opts.method||'GET')==='GET')return {clients:[{id:5,full_name:'Manager',email:'m@test.invalid',account_type:'PROPERTY_MANAGER',user_active:true,language:'en'},{id:4,full_name:'Olga Owner',company_name:'Demo stays',billing_name:'Demo stays s.r.o.',billing_address:'Hlavná 1, Bratislava',ico:'12345678',email:'o@test.invalid',account_type:'OWNER',user_active:true,language:'en'}]};
    if((m=path.match(/^\/api\/admin\/(clients|cleaners|objects)\/(\d+)$/))&&['PATCH','DELETE'].includes(opts.method)){window.mutations=(window.mutations||[]).concat([{path,method:opts.method,body:opts.body}]);if(opts.method==='DELETE'&&m[2]==='11')throw Object.assign(Error('update or delete on table "st_objects" violates foreign key constraint on table "st_jobs"'),{status:409});return {ok:true}}
+   if((m=path.match(/^\/api\/admin\/recurring\/(\d+)$/))&&opts.method==='PATCH'){
+    window.recurringSchedules ||= [];
+    const item=window.recurringSchedules.find(s=>s.id===Number(m[1]));
+    Object.assign(item,{start_date:opts.body.startDate,end_date:opts.body.endDate,planned_start:opts.body.plannedStart,weekdays:opts.body.weekdays});
+    window.recurringWrites=(window.recurringWrites||[]).concat([{id:Number(m[1]),body:opts.body}]);
+    return {schedule:structuredClone(item)};
+   }
+   if(path.startsWith('/api/admin/recurring')){
+    if(!window.recurringSchedules)window.recurringSchedules=[
+     {id:91,active:true,start_date:'2099-01-01',end_date:null,planned_start:'10:00:00',weekdays:[1,3,5],st_objects:{code:'BA-101',name:'Dunajská apartment'}},
+     {id:92,active:true,start_date:'2026-09-09',end_date:'2026-09-18',planned_start:'10:00:00',weekdays:[1,2,3],st_objects:{code:'BA-102',name:'Expired property'}}
+    ];
+    const history=path.includes('includeHistory=true');
+    return {schedules:structuredClone(history?window.recurringSchedules:window.recurringSchedules.filter(s=>s.active&&(!s.end_date||s.end_date>=new Date().toISOString().slice(0,10))))};
+   }
    if(path.startsWith('/api/admin/finance?'))return {entries:[{id:1,client_id:4,entry_date:'2099-01-09',entry_type:'INCOME',category:'LAUNDRY',amount:12,description:'Towels'}]};
    if(m=path.match(/^\/api\/objects\/11\/reference-photos(?:\/(\d+))?$/)){window.photos ||= [{id:1,caption:'Entrance',mime:'image/png'},{id:2,caption:'Door',mime:'image/png'}];if(opts.method==='DELETE'){photos=photos.filter(p=>p.id!==Number(m[1]));return {ok:true}}if(m[1])return {dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aBZkAAAAASUVORK5CYII='};return {photos:structuredClone(photos)}}
    if(path==='/api/admin/objects')return {objects:structuredClone(objects)};
@@ -45,6 +60,30 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(m=path.match(/^\/api\/(?:admin|cleaner)\/jobs\/(\d+)$/))return structuredClone(job(m[1]));
    if(m=path.match(/^\/api\/cleaner\/jobs\/(\d+)\/cancel$/)){Object.assign(job(m[1]),{status:'UNASSIGNED',assigned_cleaner_id:null});return {job:structuredClone(job(m[1]))}}
    if(path.startsWith('/api/cleaner/dashboard'))return {availability:{online:true,fromTime:'08:00',toTime:'20:00'},jobs:[],total:0,earnings:0};
+   if(path.startsWith('/api/admin/settlements/reconciliation')){
+    if(!window.reconciliationData)window.reconciliationData={
+     month:'2099-01',
+     summary:{jobsCount:2,clientAmountCents:7550,clientPaidCents:4000,clientDueCents:3550,cleanerAmountCents:4000,cleanerPaidCents:0,cleanerDueCents:4000},
+     objects:[{objectId:11,objectCode:'BA-101',objectName:'Dunajská apartment',jobsCount:2,clientNames:'Demo stays',cleanerNames:'Test Cleaner',clientAmountCents:7550,clientPaidCents:4000,clientDueCents:3550,cleanerAmountCents:4000,cleanerPaidCents:0,cleanerDueCents:4000}],
+     jobs:[
+      {id:201,objectId:11,objectCode:'BA-101',objectName:'Dunajská apartment',clientId:4,clientName:'Demo stays',cleanerId:1,cleanerName:'Test Cleaner',serviceDate:'2099-01-05',clientAmountCents:4000,clientPaidCents:4000,clientDueCents:0,cleanerAmountCents:2000,cleanerPaidCents:0,cleanerDueCents:2000,clientPriceCents:4000,extraRevenueCents:0,payoutCents:2000,bonusCents:0,editable:false},
+      {id:202,objectId:11,objectCode:'BA-101',objectName:'Dunajská apartment',clientId:4,clientName:'Demo stays',cleanerId:1,cleanerName:'Test Cleaner',serviceDate:'2099-01-06',clientAmountCents:3550,clientPaidCents:0,clientDueCents:3550,cleanerAmountCents:2000,cleanerPaidCents:0,cleanerDueCents:2000,clientPriceCents:3550,extraRevenueCents:0,payoutCents:2000,bonusCents:0,editable:true}
+     ]
+    };
+    return structuredClone(window.reconciliationData)
+   }
+   if((m=path.match(/^\/api\/admin\/settlements\/jobs\/(\d+)\/correct$/))&&opts.method==='PATCH'){
+    window.reconciliationCorrections=(window.reconciliationCorrections||[]).concat([{id:Number(m[1]),body:opts.body}]);
+    const j=window.reconciliationData.jobs.find(x=>x.id===Number(m[1]));
+    Object.assign(j,{serviceDate:opts.body.serviceDate,clientAmountCents:opts.body.clientAmountCents,clientDueCents:opts.body.clientAmountCents-j.clientPaidCents,cleanerAmountCents:opts.body.cleanerAmountCents,cleanerDueCents:opts.body.cleanerAmountCents-j.cleanerPaidCents,clientPriceCents:opts.body.clientAmountCents, payoutCents:opts.body.cleanerAmountCents});
+    const jobs=window.reconciliationData.jobs;
+    const sum=key=>jobs.reduce((n,x)=>n+Number(x[key]||0),0);
+    Object.assign(window.reconciliationData.summary,{clientAmountCents:sum('clientAmountCents'),clientPaidCents:sum('clientPaidCents'),clientDueCents:sum('clientDueCents'),cleanerAmountCents:sum('cleanerAmountCents'),cleanerPaidCents:sum('cleanerPaidCents'),cleanerDueCents:sum('cleanerDueCents')});
+    const o=window.reconciliationData.objects.find(x=>x.objectId===j.objectId);
+    Object.assign(o,{clientAmountCents:sumFor(o.objectId,'clientAmountCents'),clientPaidCents:sumFor(o.objectId,'clientPaidCents'),clientDueCents:sumFor(o.objectId,'clientDueCents'),cleanerAmountCents:sumFor(o.objectId,'cleanerAmountCents'),cleanerPaidCents:sumFor(o.objectId,'cleanerPaidCents'),cleanerDueCents:sumFor(o.objectId,'cleanerDueCents')});
+    function sumFor(objectId,key){return jobs.filter(x=>x.objectId===objectId).reduce((n,x)=>n+Number(x[key]||0),0)}
+    return {job:{id:Number(m[1])}}
+   }
    if(path.startsWith('/api/admin/settlements/monthly')){const q=new URL(path,'https://x.test').searchParams;window.monthlyCalls=(window.monthlyCalls||0)+1;if(q.get('partyId'))return {jobs:window.batchDone?[]:[{id:201,object_name:'Flat A',service_date:'2099-01-05',chargedCents:4000,paidCents:0,dueCents:4000},{id:202,object_name:'Flat B',service_date:'2099-01-06',chargedCents:3550,paidCents:0,dueCents:3550}],hasMore:false};return {groups:[{id:4,name:'Demo stays',count:2,chargedCents:7550,paidCents:window.batchDone?7550:0,dueCents:window.batchDone?0:7550}],jobs:[],hasMore:false,waitingReviewJobs:1}}
    if(path==='/api/admin/settlements/batch'){window.batchBodies=(window.batchBodies||[]).concat([opts.body]);window.batchDone=true;return {count:opts.body.items.length,amountCents:opts.body.items.reduce((n,i)=>n+i.amountCents,0)}}
    if(path.startsWith('/api/admin/settlements'))return {summary:{},jobs:[],hasMore:false};
@@ -228,31 +267,76 @@ try {
   await page.close();
   console.log('PASS monthly batch settlement: approved-only notice, selection total, idempotent request');
  }
- // Admin: client statement with 12-month debt, CSV and printable report.
+ // Admin: recurring schedules hide expired rows by default and remain editable from the list.
  {
   const {page,errors}=await openApp();
-  await page.evaluate(async()=>{state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};location.hash='admin/statements';await new Promise(r=>setTimeout(r,100));await render()});
-  await page.getByRole('button',{name:'Statement',exact:true}).first().waitFor();
-  assert.match(await page.locator('#page').innerText(),/€906/,'12-month outstanding sums every month');
-  // Since fix 21 Statements is the second tab of Finance, not a menu entry.
-  assert.match(await page.locator('#admin-sidebar').innerText(),/Finance/);
-  assert.doesNotMatch(await page.locator('#admin-sidebar').innerText(),/Statements/);
-  assert.equal(await page.locator('[data-route="admin/finance"]').getAttribute('aria-current'),'page','the Finance section is the one highlighted');
-  await page.getByRole('button',{name:'Statement',exact:true}).first().click();
-  await page.locator('.statement-head').waitFor();
-  const text=await page.locator('.modal').innerText();
-  assert.match(text,/Flat A/);assert.match(text,/Flat B/);assert.match(text,/€75\.50/);assert.match(text,/Towels/);
-  const [popup]=await Promise.all([page.waitForEvent('popup'),page.getByRole('button',{name:/Print/}).click()]);
-  await popup.waitForLoadState();
-  const report=await popup.content();
-  assert.match(report,/Demo stays s\.r\.o\./);assert.match(report,/IČO 12345678/);assert.match(report,/Amount due: €75\.50/);assert.doesNotMatch(report,/<script/i);
-  await popup.close();
-  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'CSV'}).click()]);
-  assert.match(download.suggestedFilename(),/^statement-Demo-stays-\d{4}-\d{2}\.csv$/);
+  await page.evaluate(async()=>{
+   state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={};
+   window.recurringSchedules=[
+    {id:91,active:true,start_date:'2099-01-01',end_date:null,planned_start:'10:00:00',weekdays:[1,3,5],st_objects:{code:'BA-101',name:'Dunajská apartment'}},
+    {id:92,active:true,start_date:'2026-09-09',end_date:'2026-09-18',planned_start:'10:00:00',weekdays:[1,2,3],st_objects:{code:'BA-102',name:'Expired property'}}
+   ];
+   location.hash='admin/schedule';await new Promise(r=>setTimeout(r,100));await render();
+  });
+  await page.getByText('BA-101',{exact:true}).waitFor();
+  assert.doesNotMatch(await page.locator('#page').innerText(),/BA-102/,'expired schedules are hidden by default');
+  await page.getByRole('button',{name:'Show inactive and expired',exact:true}).click();
+  await page.getByText('BA-102',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Edit schedule',exact:true}).nth(1).click();
+  await page.locator('#edit-recurring-form').waitFor();
+  await page.fill('#edit-recurring-form [name="startDate"]','2026-09-10');
+  await page.fill('#edit-recurring-form [name="endDate"]','2026-09-20');
+  await page.fill('#edit-recurring-form [name="plannedStart"]','11:00');
+  await page.locator('#edit-recurring-form [name="weekdays"][value="2"]').uncheck();
+  await page.locator('#edit-recurring-form [name="weekdays"][value="4"]').check();
+  await page.getByRole('button',{name:'Save changes',exact:true}).click();
+  await page.waitForFunction(()=>window.recurringWrites?.length===1);
+  const write=await page.evaluate(()=>recurringWrites[0]);
+  assert.equal(write.id,92);
+  assert.deepEqual(write.body,{startDate:'2026-09-10',endDate:'2026-09-20',plannedStart:'11:00',weekdays:[1,3,4]});
   assert.deepEqual(errors,[]);
   await page.close();
-  console.log('PASS client statement: 12-month debt, job lines, extras, printable report and CSV');
+  console.log('PASS recurring schedules: hidden history, editable dates and weekdays');
  }
+ // Admin: monthly reconciliation is grouped by property, supports corrections, and pays client/cleaner separately.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(async()=>{
+   state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};
+   state.statementMonth='2099-01';location.hash='admin/finance';await new Promise(r=>setTimeout(r,100));await render();
+  });
+  await page.getByText('BA-101',{exact:true}).waitFor();
+  let text=await page.locator('#page').innerText();
+  assert.match(text,/Demo stays/);
+  assert.match(text,/Test Cleaner/);
+  assert.match(text,/€75\.50/,'client monthly total shown per property');
+  assert.match(text,/€40/,'cleaner monthly total shown separately');
+  assert.match(text,/€35\.50/,'remaining client balance shown');
+  assert.match(text,/€40/,'remaining cleaner balance shown');
+  assert.doesNotMatch(text,/12 months|margin|trend/i,'old finance dashboard clutter is not shown');
+  await page.getByRole('button',{name:'Details',exact:true}).click();
+  await page.locator('[data-recon-date="202"]').waitFor();
+  assert.equal(await page.locator('[data-recon-date="201"]').count(),0,'a cleaning with recorded payments is not editable');
+  await page.fill('[data-recon-date="202"]','2099-01-07');
+  await page.fill('[data-recon-client="202"]','38.50');
+  await page.fill('[data-recon-cleaner="202"]','21.00');
+  await page.fill('[data-recon-reason="202"]','Correction for invoice');
+  await page.getByRole('button',{name:'Save correction',exact:true}).click();
+  await page.waitForFunction(()=>window.reconciliationCorrections?.length===1);
+  const correction=await page.evaluate(()=>reconciliationCorrections[0]);
+  assert.equal(correction.id,202);
+  assert.deepEqual(correction.body,{serviceDate:'2099-01-07',clientAmountCents:3850,cleanerAmountCents:2100,reason:'Correction for invoice'});
+  await page.getByRole('button',{name:'Mark client paid',exact:true}).first().click();
+  await page.waitForFunction(()=>window.batchBodies?.length===1);
+  const batch=await page.evaluate(()=>batchBodies[0]);
+  assert.equal(batch.side,'CLIENT');
+  assert.equal(batch.partyId,4);
+  assert.deepEqual(batch.items,[{jobId:202,amountCents:3850}],'client receipt uses only the client balance');
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS monthly reconciliation: per-property totals, locked paid jobs, audited correction and independent client settlement');
+ }
+
  // Edit/delete controls: archive or delete property, deactivate accounts, delete reference photo.
  {
   const {page,errors}=await openApp();

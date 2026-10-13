@@ -8,6 +8,26 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
     if(before!==null&&(!Number.isSafeInteger(before)||before<=0))throw new ApiError('Invalid cursor');
     return result(service.rpc('st_settlement_report',{p_actor_id:ctx.appUser.id,p_month:month,p_before:before,p_limit:100}));
   }
+  if(route==='admin/settlements/reconciliation' && method==='GET') {
+    if(role!=='ADMIN')throw new ApiError('Forbidden',403);
+    const month=String(query.month||today().slice(0,7));
+    if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw new ApiError('Invalid period');
+    return result(service.rpc('st_monthly_reconciliation',{p_actor_id:ctx.appUser.id,p_month:month}));
+  }
+  const correction=route.match(/^admin\/settlements\/jobs\/(\d+)\/correct$/);
+  if(correction && method==='PATCH') {
+    if(role!=='ADMIN')throw new ApiError('Forbidden',403);
+    const serviceDate=String(body.serviceDate||'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(serviceDate))throw new ApiError('Enter a valid service date');
+    for(const key of ['clientAmountCents','cleanerAmountCents']) {
+      if(!Number.isSafeInteger(body[key])||body[key]<0||body[key]>100000000)throw new ApiError('Amounts must be whole cents between 0 and 100000000');
+    }
+    if(!String(body.reason||'').trim()||String(body.reason).trim().length>500)throw new ApiError('A correction reason (up to 500 characters) is required');
+    return {job:await result(service.rpc('st_correct_completed_job_finance',{
+      p_actor_id:ctx.appUser.id,p_job_id:Number(correction[1]),
+      p_body:{serviceDate,clientAmountCents:body.clientAmountCents,cleanerAmountCents:body.cleanerAmountCents,reason:String(body.reason).trim()}
+    }).single())};
+  }
   if(route==='admin/settlements/monthly' && method==='GET') {
     if(role!=='ADMIN')throw new ApiError('Forbidden',403);
     return result(service.rpc('st_monthly_settlements',{p_actor_id:ctx.appUser.id,p_month:String(query.month||today().slice(0,7)),p_side:String(query.side||'CLIENT'),p_party_id:query.partyId?Number(query.partyId):null}));
@@ -43,7 +63,10 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
     return {outcomes};
   }
   if(route==='admin/recurring'&&method==='GET') {
-    admin();return {schedules:await result(service.from('st_recurring').select('*,st_objects(code,name,service_category)').order('id',{ascending:false}).limit(500))};
+    admin();
+    let builder=service.from('st_recurring').select('*,st_objects(code,name,service_category)').order('id',{ascending:false}).limit(500);
+    if(String(query.includeHistory||'')!=='true')builder=builder.eq('active',true).or(`end_date.is.null,end_date.gte.${today()}`);
+    return {schedules:await result(builder)};
   }
   if(route==='admin/recurring'&&method==='POST') {
     admin();
@@ -58,7 +81,19 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
   if(recurring) {
     admin();const id=Number(recurring[1]);
     if(recurring[2]==='generate'&&method==='POST')return result(service.rpc('st_generate_recurring',{p_actor_id:ctx.appUser.id,p_recurring_id:id,p_until:body.until}));
-    if(!recurring[2]&&method==='PATCH')return {schedule:await result(service.from('st_recurring').update({active:body.active===true}).eq('id',id).select().single())};
+    if(!recurring[2]&&method==='PATCH'){
+      const current=await result(service.from('st_recurring').select('*').eq('id',id).single());
+      const startDate=body.startDate===undefined?String(current.start_date):String(body.startDate);
+      const endDate=body.endDate===undefined?current.end_date:(body.endDate?String(body.endDate):null);
+      const plannedStart=body.plannedStart===undefined?String(current.planned_start).slice(0,5):String(body.plannedStart);
+      const weekdays=body.weekdays===undefined?current.weekdays:body.weekdays;
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||endDate!==null&&!/^\d{4}-\d{2}-\d{2}$/.test(String(endDate))||!/^([01]\d|2[0-3]):[0-5]\d$/.test(plannedStart))throw new ApiError('Invalid date or time');
+      if(endDate&&endDate<startDate)throw new ApiError('End date must be on or after the start date');
+      if(!Array.isArray(weekdays)||!weekdays.length||weekdays.some(n=>!Number.isInteger(n)||n<1||n>7))throw new ApiError('Choose at least one weekday');
+      const updates={start_date:startDate,end_date:endDate,planned_start:plannedStart,weekdays:[...new Set(weekdays)].sort((a,b)=>a-b)};
+      if(body.active!==undefined){if(typeof body.active!=='boolean')throw new ApiError('Active must be boolean');updates.active=body.active;}
+      return {schedule:await result(service.from('st_recurring').update(updates).eq('id',id).select().single())};
+    }
   }
   const checklist=route.match(/^admin\/objects\/(\d+)\/checklist$/);
   if(checklist&&method==='GET') {

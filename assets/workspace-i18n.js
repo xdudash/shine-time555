@@ -1917,3 +1917,77 @@ window.ST_I18N.addTranslations({
   "All": "Všetko"
  }
 });
+
+
+/* Monthly property reconciliation and recurring-schedule cleanup. */
+window.ST_I18N.addTranslations({
+ ru:{
+  'Monthly reconciliation':'Сверка за месяц',
+  'One monthly total per property, with client and cleaner payments separate.':'Месячные суммы по каждому объекту: отдельно оплата клиента и выплаты клинерам.',
+  'Correct cleanings first, then record client receipts and cleaner payouts separately.':'Сначала исправьте уборки, затем отдельно отмечайте оплату клиента и выплаты клинерам.',
+  'Client total':'Начислено клиентам','Cleaner total':'Начислено клинерам','Paid':'Оплачено','Paid out':'Выплачено','Due':'Остаток',
+  'Client · total / paid / due':'Клиент · начислено / оплачено / остаток','Cleaner · total / paid / due':'Клинер · начислено / выплачено / остаток',
+  'Mark client paid':'Отметить оплату клиента','Mark cleaners paid':'Отметить выплаты клинерам','Details':'Подробнее','Hide details':'Скрыть детали',
+  'Partially paid':'Частично оплачено','Unpaid':'Не оплачено','No cleaner assigned':'Клинер не назначен',
+  'Totals cover the whole month, but only the first 5000 cleanings are loaded. Payment actions are disabled until the list is narrowed.':'Итоги рассчитаны за весь месяц, но загружены только первые 5000 уборок. Сузьте список, чтобы отмечать оплаты.',
+  'Object':'Объект','Cleanings':'Уборки','No completed cleanings in this month.':'В этом месяце нет завершённых уборок.',
+  'Cleaning date':'Дата уборки','Client / status':'Клиент / статус','Client total (€)':'Сумма клиенту (€)','Cleaner / status':'Клинер / статус','Cleaner total (€)':'Сумма клинеру (€)',
+  'Correction reason':'Причина корректировки','Reason for correction':'Причина корректировки','Save correction':'Сохранить корректировку','Locked after first payment':'Заблокировано после первой оплаты',
+  'Change dates or total amounts here. Payment records are never overwritten.':'Здесь можно изменить дату или итоговые суммы. Записи об оплате не переписываются.',
+  'After a payment is recorded, use a refund or return entry to correct the financial history.':'После проведения оплаты используйте возврат для корректировки финансовой истории.',
+  'No cleanings to show here.':'Нет уборок для отображения.','No outstanding payments for this side.':'Нет неоплаченных сумм с этой стороны.',
+  'Enter the date, non-negative amounts and a correction reason.':'Заполните дату, неотрицательные суммы и причину корректировки.',
+  'Correction saved.':'Корректировка сохранена.','Client payment recorded.':'Оплата клиента записана.','Cleaner payout recorded.':'Выплата клинеру записана.',
+  'Only active schedules that have not ended are shown by default.':'По умолчанию отображаются только активные расписания, период которых ещё не закончился.',
+  'Show inactive and expired':'Показать приостановленные и завершённые','Hide inactive and expired':'Скрыть приостановленные и завершённые',
+  'Edit schedule':'Изменить расписание','Save changes':'Сохранить изменения','End date (optional)':'Дата окончания (необязательно)',
+  'Existing cleanings are not deleted when a schedule changes.':'Уже созданные уборки не удаляются при изменении расписания.',
+  'Choose at least one weekday':'Выберите хотя бы один день недели','Schedule updated.':'Расписание обновлено.','No active recurring schedules.':'Нет активных повторяющихся расписаний.','No recurring schedules found.':'Повторяющихся расписаний не найдено.','No recurring schedules yet.':'Пока нет повторяющихся расписаний.'
+ },
+ uk:{
+  'Monthly reconciliation':'Звірка за місяць',
+  'One monthly total per property, with client and cleaner payments separate.':'Місячні суми за кожним об’єктом: окремо оплата клієнта та виплати клінерам.',
+  'Correct cleanings first, then record client receipts and cleaner payouts separately.':'Спочатку виправте прибирання, потім окремо відмічайте оплати клієнтів і виплати клінерам.',
+  'Client total':'Нараховано клієнтам','Cleaner total':'Нараховано клінерам','Paid':'Оплачено','Paid out':'Виплачено','Due':'Залишок',
+  'Client · total / paid / due':'Клієнт · нараховано / оплачено / залишок','Cleaner · total / paid / due':'Клінер · нараховано / виплачено / залишок',
+  'Mark client paid':'Позначити оплату клієнта','Mark cleaners paid':'Позначити виплати клінерам','Details':'Деталі','Hide details':'Сховати деталі',
+  'Partially paid':'Частково оплачено','Unpaid':'Не оплачено','No cleaner assigned':'Клінера не призначено',
+  'Totals cover the whole month, but only the first 5000 cleanings are loaded. Payment actions are disabled until the list is narrowed.':'Підсумки враховують увесь місяць, але завантажено лише перші 5000 прибирань. Звузьте список, щоб відмічати оплати.',
+  'Object':'Об’єкт','Cleanings':'Прибирання','No completed cleanings in this month.':'Цього місяця немає завершених прибирань.',
+  'Cleaning date':'Дата прибирання','Client / status':'Клієнт / статус','Client total (€)':'Сума клієнту (€)','Cleaner / status':'Клінер / статус','Cleaner total (€)':'Сума клінеру (€)',
+  'Correction reason':'Причина коригування','Reason for correction':'Причина коригування','Save correction':'Зберегти коригування','Locked after first payment':'Заблоковано після першої оплати',
+  'Change dates or total amounts here. Payment records are never overwritten.':'Тут можна змінити дату або підсумкові суми. Записи про оплати не перезаписуються.',
+  'After a payment is recorded, use a refund or return entry to correct the financial history.':'Після проведення оплати використовуйте повернення для коригування фінансової історії.',
+  'No cleanings to show here.':'Немає прибирань для відображення.','No outstanding payments for this side.':'Немає неоплачених сум із цього боку.',
+  'Enter the date, non-negative amounts and a correction reason.':'Вкажіть дату, невід’ємні суми та причину коригування.',
+  'Correction saved.':'Коригування збережено.','Client payment recorded.':'Оплату клієнта записано.','Cleaner payout recorded.':'Виплату клінеру записано.',
+  'Only active schedules that have not ended are shown by default.':'За замовчуванням показані лише активні розклади, період яких ще не завершився.',
+  'Show inactive and expired':'Показати призупинені й завершені','Hide inactive and expired':'Сховати призупинені й завершені',
+  'Edit schedule':'Змінити розклад','Save changes':'Зберегти зміни','End date (optional)':'Дата завершення (необов’язково)',
+  'Existing cleanings are not deleted when a schedule changes.':'Вже створені прибирання не видаляються під час зміни розкладу.',
+  'Choose at least one weekday':'Оберіть хоча б один день тижня','Schedule updated.':'Розклад оновлено.','No active recurring schedules.':'Немає активних регулярних прибирань.','No recurring schedules found.':'Регулярних розкладів не знайдено.','No recurring schedules yet.':'Поки немає повторюваних розкладів.'
+ },
+ sk:{
+  'Monthly reconciliation':'Mesačné vyúčtovanie',
+  'One monthly total per property, with client and cleaner payments separate.':'Mesačné sumy za každý objekt: platby klientov a výplaty upratovačom osobitne.',
+  'Correct cleanings first, then record client receipts and cleaner payouts separately.':'Najprv opravte upratovania a potom samostatne zaznamenajte platby klientov a výplaty upratovačom.',
+  'Client total':'Účtované klientom','Cleaner total':'Účtované upratovačom','Paid':'Uhradené','Paid out':'Vyplatené','Due':'Zostáva',
+  'Client · total / paid / due':'Klient · účtované / uhradené / zostáva','Cleaner · total / paid / due':'Upratovač · účtované / vyplatené / zostáva',
+  'Mark client paid':'Označiť platbu klienta','Mark cleaners paid':'Označiť výplaty upratovačom','Details':'Podrobnosti','Hide details':'Skryť podrobnosti',
+  'Partially paid':'Čiastočne uhradené','Unpaid':'Neuhradené','No cleaner assigned':'Upratovač nie je priradený',
+  'Totals cover the whole month, but only the first 5000 cleanings are loaded. Payment actions are disabled until the list is narrowed.':'Súčet pokrýva celý mesiac, ale načítaných je iba prvých 5000 upratovaní. Platby budú dostupné po zúžení zoznamu.',
+  'Object':'Objekt','Cleanings':'Upratovania','No completed cleanings in this month.':'V tomto mesiaci nie sú dokončené upratovania.',
+  'Cleaning date':'Dátum upratovania','Client / status':'Klient / stav','Client total (€)':'Suma klientovi (€)','Cleaner / status':'Upratovač / stav','Cleaner total (€)':'Suma upratovačovi (€)',
+  'Correction reason':'Dôvod opravy','Reason for correction':'Dôvod opravy','Save correction':'Uložiť opravu','Locked after first payment':'Uzamknuté po prvej platbe',
+  'Change dates or total amounts here. Payment records are never overwritten.':'Tu môžete zmeniť dátum alebo celkové sumy. Záznamy o platbách sa neprepisujú.',
+  'After a payment is recorded, use a refund or return entry to correct the financial history.':'Po zaznamenaní platby opravte finančnú históriu cez vrátenie.',
+  'No cleanings to show here.':'Nie sú tu žiadne upratovania.','No outstanding payments for this side.':'Na tejto strane nie sú nedoplatky.',
+  'Enter the date, non-negative amounts and a correction reason.':'Zadajte dátum, nezáporné sumy a dôvod opravy.',
+  'Correction saved.':'Oprava uložená.','Client payment recorded.':'Platba klienta zaznamenaná.','Cleaner payout recorded.':'Výplata upratovačovi zaznamenaná.',
+  'Only active schedules that have not ended are shown by default.':'Predvolene sa zobrazujú len aktívne rozvrhy, ktoré sa ešte neskončili.',
+  'Show inactive and expired':'Zobraziť pozastavené a ukončené','Hide inactive and expired':'Skryť pozastavené a ukončené',
+  'Edit schedule':'Upraviť rozvrh','Save changes':'Uložiť zmeny','End date (optional)':'Dátum ukončenia (nepovinné)',
+  'Existing cleanings are not deleted when a schedule changes.':'Už vytvorené upratovania sa pri zmene rozvrhu neodstránia.',
+  'Choose at least one weekday':'Vyberte aspoň jeden deň v týždni','Schedule updated.':'Rozvrh aktualizovaný.','No active recurring schedules.':'Žiadne aktívne opakované upratovania.','No recurring schedules found.':'Nenašli sa opakované rozvrhy.','No recurring schedules yet.':'Zatiaľ tu nie sú opakované rozvrhy.'
+ }
+});

@@ -120,3 +120,26 @@
   .login-box-wrap{padding:20px 12px 30px}
   .login-box{padding:21px}
 }
+
+
+/* Monthly reconciliation: compact property-first finance view. */
+.recon-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+.recon-amount strong{display:block;white-space:nowrap}
+.recon-amount small{display:block;margin-top:3px;font-size:12px;line-height:1.45;white-space:normal}
+.recon-table-card{margin-top:16px}
+.recon-detail-row>td{padding:0!important;background:var(--surface-soft,#f6f8f7)}
+.recon-detail{padding:16px;min-width:920px}
+.recon-detail .section-head{align-items:flex-start}
+.recon-detail-table{min-width:900px}
+.recon-detail-table th,.recon-detail-table td{vertical-align:middle}
+.recon-detail-table input{min-width:0}
+.recon-date-input{width:140px}
+.recon-money-input{width:112px}
+.recon-reason-input{width:155px}
+.recon-detail-table .pill{display:inline-block;white-space:nowrap;margin-top:4px}
+@media(max-width:700px){
+ .recon-kpis{grid-template-columns:minmax(0,1fr)}
+ .recon-detail{padding:12px}
+ .recon-detail .section-head{display:block}
+ .recon-detail .row-actions{margin:10px 0}
+}
