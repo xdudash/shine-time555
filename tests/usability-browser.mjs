@@ -32,6 +32,21 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(path==='/api/admin/cleaners')return {cleaners:[{id:1,full_name:'Test Cleaner',mode:'FLEX',reliability_score:95,active:true}]};
    if(path==='/api/admin/clients'&&(opts.method||'GET')==='GET')return {clients:[{id:5,full_name:'Manager',email:'m@test.invalid',account_type:'PROPERTY_MANAGER',user_active:true,language:'en'},{id:4,full_name:'Olga Owner',company_name:'Demo stays',billing_name:'Demo stays s.r.o.',billing_address:'Hlavná 1, Bratislava',ico:'12345678',email:'o@test.invalid',account_type:'OWNER',user_active:true,language:'en'}]};
    if((m=path.match(/^\/api\/admin\/(clients|cleaners|objects)\/(\d+)$/))&&['PATCH','DELETE'].includes(opts.method)){window.mutations=(window.mutations||[]).concat([{path,method:opts.method,body:opts.body}]);if(opts.method==='DELETE'&&m[2]==='11')throw Object.assign(Error('update or delete on table "st_objects" violates foreign key constraint on table "st_jobs"'),{status:409});return {ok:true}}
+   if((m=path.match(/^\/api\/admin\/recurring\/(\d+)$/))&&opts.method==='PATCH'){
+    window.recurringSchedules ||= [];
+    const item=window.recurringSchedules.find(s=>s.id===Number(m[1]));
+    Object.assign(item,{start_date:opts.body.startDate,end_date:opts.body.endDate,planned_start:opts.body.plannedStart,weekdays:opts.body.weekdays});
+    window.recurringWrites=(window.recurringWrites||[]).concat([{id:Number(m[1]),body:opts.body}]);
+    return {schedule:structuredClone(item)};
+   }
+   if(path.startsWith('/api/admin/recurring')){
+    if(!window.recurringSchedules)window.recurringSchedules=[
+     {id:91,active:true,start_date:'2099-01-01',end_date:null,planned_start:'10:00:00',weekdays:[1,3,5],st_objects:{code:'BA-101',name:'Dunajská apartment'}},
+     {id:92,active:true,start_date:'2026-09-09',end_date:'2026-09-18',planned_start:'10:00:00',weekdays:[1,2,3],st_objects:{code:'BA-102',name:'Expired property'}}
+    ];
+    const history=path.includes('includeHistory=true');
+    return {schedules:structuredClone(history?window.recurringSchedules:window.recurringSchedules.filter(s=>s.active&&(!s.end_date||s.end_date>=new Date().toISOString().slice(0,10))))};
+   }
    if(path.startsWith('/api/admin/finance?'))return {entries:[{id:1,client_id:4,entry_date:'2099-01-09',entry_type:'INCOME',category:'LAUNDRY',amount:12,description:'Towels'}]};
    if(m=path.match(/^\/api\/objects\/11\/reference-photos(?:\/(\d+))?$/)){window.photos ||= [{id:1,caption:'Entrance',mime:'image/png'},{id:2,caption:'Door',mime:'image/png'}];if(opts.method==='DELETE'){photos=photos.filter(p=>p.id!==Number(m[1]));return {ok:true}}if(m[1])return {dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aBZkAAAAASUVORK5CYII='};return {photos:structuredClone(photos)}}
    if(path==='/api/admin/objects')return {objects:structuredClone(objects)};
@@ -251,6 +266,37 @@ try {
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS monthly batch settlement: approved-only notice, selection total, idempotent request');
+ }
+ // Admin: recurring schedules hide expired rows by default and remain editable from the list.
+ {
+  const {page,errors}=await openApp();
+  await page.evaluate(async()=>{
+   state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={};
+   window.recurringSchedules=[
+    {id:91,active:true,start_date:'2099-01-01',end_date:null,planned_start:'10:00:00',weekdays:[1,3,5],st_objects:{code:'BA-101',name:'Dunajská apartment'}},
+    {id:92,active:true,start_date:'2026-09-09',end_date:'2026-09-18',planned_start:'10:00:00',weekdays:[1,2,3],st_objects:{code:'BA-102',name:'Expired property'}}
+   ];
+   location.hash='admin/schedule';await new Promise(r=>setTimeout(r,100));await render();
+  });
+  await page.getByText('BA-101',{exact:true}).waitFor();
+  assert.doesNotMatch(await page.locator('#page').innerText(),/BA-102/,'expired schedules are hidden by default');
+  await page.getByRole('button',{name:'Show inactive and expired',exact:true}).click();
+  await page.getByText('BA-102',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Edit schedule',exact:true}).nth(1).click();
+  await page.locator('#edit-recurring-form').waitFor();
+  await page.fill('#edit-recurring-form [name="startDate"]','2026-09-10');
+  await page.fill('#edit-recurring-form [name="endDate"]','2026-09-20');
+  await page.fill('#edit-recurring-form [name="plannedStart"]','11:00');
+  await page.locator('#edit-recurring-form [name="weekdays"][value="2"]').uncheck();
+  await page.locator('#edit-recurring-form [name="weekdays"][value="4"]').check();
+  await page.getByRole('button',{name:'Save changes',exact:true}).click();
+  await page.waitForFunction(()=>window.recurringWrites?.length===1);
+  const write=await page.evaluate(()=>recurringWrites[0]);
+  assert.equal(write.id,92);
+  assert.deepEqual(write.body,{startDate:'2026-09-10',endDate:'2026-09-20',plannedStart:'11:00',weekdays:[1,3,4]});
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS recurring schedules: hidden history, editable dates and weekdays');
  }
  // Admin: monthly reconciliation is grouped by property, supports corrections, and pays client/cleaner separately.
  {
