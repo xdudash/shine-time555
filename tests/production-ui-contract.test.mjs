@@ -47,3 +47,37 @@ test('operational extensions expose monitoring, CSV export and exact-money entry
   assert.match(read('assets/export.js'), /window\.exportVisibleTable/);
   assert.match(read('assets/money.js'), /window\.ShineTimeMoney=\{toMinorUnits/);
 });
+
+
+test('signed-out landing addresses property owners and the cleaning team', () => {
+  const app = read('assets/app.js');
+  const styles = read('assets/styles.css');
+  const start = app.indexOf('function renderLogin()');
+  const end = app.indexOf('/* Stage 3: client self-registration.', start);
+  assert.notEqual(start, -1, 'login renderer exists');
+  assert.notEqual(end, -1, 'login renderer boundary exists');
+  const login = app.slice(start, end);
+
+  for (const phrase of [
+    'login-audience-grid',
+    'Cleaning that runs smoothly.',
+    'For property owners',
+    'For the cleaning team',
+    'Sign in to your Shine Time account.',
+    'Manage properties? Request access',
+    'For team access, contact your Shine Time coordinator.',
+  ]) assert.ok(login.includes(phrase), `signed-out landing is missing: ${phrase}`);
+
+  assert.doesNotMatch(login, /Use the account created during installation|A dispatch platform for short-term rental cleaning|Risk monitoring and backup/,
+    'customer-facing copy must not read like internal operations documentation');
+  assert.match(styles, /\.login-audience-grid/);
+  assert.match(styles, /@media\(max-width:800px\)[\s\S]*?\.login-hero\{display:flex/,
+    'the audience message remains visible on mobile');
+});
+
+
+test('Hostinger frontend package keeps referenced SVG brand assets', () => {
+  const packager = read('scripts/package-frontend.py');
+  assert.match(packager, /p\.suffix in \{[^}]*['"]\.svg['"][^}]*\}/,
+    'the deployment archive must include assets/favicon.svg referenced by index.php and the service worker');
+});

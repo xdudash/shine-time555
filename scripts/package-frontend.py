@@ -5,7 +5,7 @@ import hashlib
 import json
 root = Path(__file__).resolve().parents[1]
 files = ['index.php', 'sw.js', 'manifest.webmanifest', 'config/supabase.php']
-files += [str(p.relative_to(root)) for p in sorted((root / 'assets').iterdir()) if p.suffix in {'.js', '.css', '.png'}]
+files += [str(p.relative_to(root)) for p in sorted((root / 'assets').iterdir()) if p.suffix in {'.js', '.css', '.png', '.svg'}]
 output = root / 'artifacts' / 'shine-time-frontend.zip'
 output.parent.mkdir(exist_ok=True)
 manifest = {}

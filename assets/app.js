@@ -7,28 +7,49 @@ window.ShineTimeApp={getState:()=>state};
 const t=(key,fallback)=>ST_I18N.t(key,fallback);
 ST_I18N.addTranslations({
   ru:{
-    'Cleaning under control — for everyone.':'Уборки под контролем — для всех.',
-    'One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.':'Одна платформа для клинеров и владельцев объектов: заказы, сроки, чек-листы и подтверждение результата.',
-    'Flexible cleaning windows':'Гибкие окна уборки',
-    'Risk monitoring and backup':'Контроль рисков и резерв',
-    'Checklists and photo proof':'Чек-листы и фотоотчёты',
-    'Sign in as a cleaner or property owner.':'Войдите как клинер или владелец объекта.'
+    'Property care & cleaning':'Уход за объектами и уборка',
+    'FOR PROPERTY OWNERS & CLEANING TEAMS':'ДЛЯ ВЛАДЕЛЬЦЕВ ОБЪЕКТОВ И КЛИНИНГОВОЙ КОМАНДЫ',
+    'Cleaning that runs smoothly.':'Уборка без лишних хлопот.',
+    'Clear schedules, visible progress and a confirmed result — for property owners and the cleaning team.':'Понятные сроки, видимый ход работ и подтверждённый результат — для владельцев объектов и команды уборки.',
+    'For property owners':'Для владельцев объектов',
+    'See bookings, cleaning status and the result of every service in one place.':'Следите за бронированиями, статусом уборки и результатом каждой услуги в одном месте.',
+    'For the cleaning team':'Для команды уборки',
+    'Clear assignments, property instructions and a simple handover after each job.':'Понятные задания, инструкции по объекту и удобная передача каждой выполненной работы.',
+    'Clear jobs. Confirmed results.':'Понятные задачи. Подтверждённый результат.',
+    'Secure access to your workspace':'Вход в рабочий кабинет',
+    'Sign in to your Shine Time account.':'Войдите в свой аккаунт Shine Time.',
+    'Manage properties? Request access':'Управляете объектами? Запросите доступ',
+    'For team access, contact your Shine Time coordinator.':'Для доступа команды обратитесь к координатору Shine Time.'
   },
   sk:{
-    'Cleaning under control — for everyone.':'Upratovanie pod kontrolou — pre všetkých.',
-    'One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.':'Jedna platforma pre upratovačov a majiteľov nehnuteľností: dostupné zákazky, termíny, kontrolné zoznamy a potvrdenie výsledku.',
-    'Flexible cleaning windows':'Flexibilné časové okná upratovania',
-    'Risk monitoring and backup':'Kontrola rizík a záložná kapacita',
-    'Checklists and photo proof':'Kontrolné zoznamy a fotodokumentácia',
-    'Sign in as a cleaner or property owner.':'Prihláste sa ako upratovač alebo majiteľ nehnuteľnosti.'
+    'Property care & cleaning':'Správa objektov a upratovanie',
+    'FOR PROPERTY OWNERS & CLEANING TEAMS':'PRE MAJITEĽOV OBJEKTOV A UPRATOVACÍ TÍM',
+    'Cleaning that runs smoothly.':'Upratovanie bez zbytočných starostí.',
+    'Clear schedules, visible progress and a confirmed result — for property owners and the cleaning team.':'Jasné termíny, prehľad o priebehu a potvrdený výsledok — pre majiteľov objektov aj upratovací tím.',
+    'For property owners':'Pre majiteľov objektov',
+    'See bookings, cleaning status and the result of every service in one place.':'Majte prehľad o rezerváciách, stave upratovania a výsledku každej zákazky.',
+    'For the cleaning team':'Pre upratovací tím',
+    'Clear assignments, property instructions and a simple handover after each job.':'Jasné zadania, pokyny k objektu a jednoduché odovzdanie hotovej práce.',
+    'Clear jobs. Confirmed results.':'Jasné zadania. Potvrdený výsledok.',
+    'Secure access to your workspace':'Prihlásenie do pracovného účtu',
+    'Sign in to your Shine Time account.':'Prihláste sa do svojho účtu Shine Time.',
+    'Manage properties? Request access':'Spravujete objekty? Požiadajte o prístup',
+    'For team access, contact your Shine Time coordinator.':'Ak potrebujete tímový účet, obráťte sa na koordinátora Shine Time.'
   },
   uk:{
-    'Cleaning under control — for everyone.':'Прибирання під контролем — для всіх.',
-    'One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.':'Єдина платформа для клінерів і власників об’єктів: доступні замовлення, терміни, чек-листи та підтвердження результату.',
-    'Flexible cleaning windows':'Гнучкі часові вікна прибирання',
-    'Risk monitoring and backup':'Контроль ризиків і резерв',
-    'Checklists and photo proof':'Чек-листи та фотозвіти',
-    'Sign in as a cleaner or property owner.':'Увійдіть як клінер або власник об’єкта.'
+    'Property care & cleaning':'Обслуговування об’єктів і прибирання',
+    'FOR PROPERTY OWNERS & CLEANING TEAMS':'ДЛЯ ВЛАСНИКІВ ОБ’ЄКТІВ І КОМАНДИ ПРИБИРАННЯ',
+    'Cleaning that runs smoothly.':'Прибирання без зайвого клопоту.',
+    'Clear schedules, visible progress and a confirmed result — for property owners and the cleaning team.':'Зрозумілі строки, видимий перебіг робіт і підтверджений результат — для власників об’єктів і команди прибирання.',
+    'For property owners':'Для власників об’єктів',
+    'See bookings, cleaning status and the result of every service in one place.':'Стежте за бронюваннями, статусом прибирання та результатом кожної послуги в одному місці.',
+    'For the cleaning team':'Для команди прибирання',
+    'Clear assignments, property instructions and a simple handover after each job.':'Зрозумілі завдання, інструкції щодо об’єкта та просте передавання виконаної роботи.',
+    'Clear jobs. Confirmed results.':'Чіткі завдання. Підтверджений результат.',
+    'Secure access to your workspace':'Вхід до робочого кабінету',
+    'Sign in to your Shine Time account.':'Увійдіть до свого облікового запису Shine Time.',
+    'Manage properties? Request access':'Керуєте об’єктами? Запитайте доступ',
+    'For team access, contact your Shine Time coordinator.':'Для доступу команди зверніться до координатора Shine Time.'
   }
 });
 const checklistDrafts=window.ShineTimeChecklistDrafts?.createChecklistDrafts({storage:{getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value),removeItem:key=>localStorage.removeItem(key)}});
@@ -217,7 +238,50 @@ function ensureRoute(){const r=route();if(['ADMIN','OPERATIONS_MANAGER'].include
 
 function renderLogin(){
   state.me=null;state.csrf=null;
-  app.innerHTML=`<div class="login-page"><section class="login-hero"><div><div class="brand-mark">ST</div><h1>${t('Cleaning under control — for everyone.','Cleaning under control — for everyone.')}</h1><p>${t('One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.','One platform for cleaners and property owners: available jobs, deadlines, checklists and proof of every result.')}</p><div class="login-stats"><div class="login-stat"><strong>24/7</strong><span>${t('Flexible cleaning windows','Flexible cleaning windows')}</span></div><div class="login-stat"><strong>${t('Online','Online')}</strong><span>${t('Risk monitoring and backup','Risk monitoring and backup')}</span></div><div class="login-stat"><strong>${t('Proof','Proof')}</strong><span>${t('Checklists and photo proof','Checklists and photo proof')}</span></div></div></div><small>Shine Time Operations · Bratislava</small></section><section class="login-box-wrap"><div class="login-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div class="brand-mark">ST</div>${ST_I18N.selector(true)}</div><h2 style="margin-top:18px">Sign in</h2><p class="subtle">${t('Sign in as a cleaner or property owner.','Sign in as a cleaner or property owner.')}</p><form id="login-form"><div class="field"><label>Email</label><input class="input" name="email" type="email" autocomplete="username" required></div><div class="field"><label>Password</label><input class="input" name="password" type="password" autocomplete="current-password" required></div><button class="btn primary full">Sign in</button></form><button class="btn ghost full" type="button" onclick="forgotPassword()" style="margin-top:12px">${t('Forgot password?','Forgot password?')}</button><button class="btn ghost full" type="button" onclick="clientSignupModal()" style="margin-top:8px">${t('I have properties and want an account','I have properties and want an account')}</button><div class="demo-accounts"><span class="subtle">Use the account created during installation or credentials provided by Operations.</span></div></div></section></div>`;
+  app.innerHTML=`<div class="login-page">
+    <section class="login-hero">
+      <div class="login-hero-main">
+        <div class="login-brand-lockup">
+          <div class="brand-mark" aria-hidden="true">ST</div>
+          <div class="login-brand-copy"><strong>Shine Time</strong><span>${t('Property care & cleaning','Property care & cleaning')}</span></div>
+        </div>
+        <div class="login-hero-copy">
+          <div class="login-eyebrow"><span class="login-eyebrow-dot" aria-hidden="true"></span>${t('FOR PROPERTY OWNERS & CLEANING TEAMS','FOR PROPERTY OWNERS & CLEANING TEAMS')}</div>
+          <h1>${t('Cleaning that runs smoothly.','Cleaning that runs smoothly.')}</h1>
+          <p>${t('Clear schedules, visible progress and a confirmed result — for property owners and the cleaning team.','Clear schedules, visible progress and a confirmed result — for property owners and the cleaning team.')}</p>
+          <div class="login-audience-grid">
+            <article class="login-audience-card">
+              <span class="login-audience-number" aria-hidden="true">01</span>
+              <h2>${t('For property owners','For property owners')}</h2>
+              <p>${t('See bookings, cleaning status and the result of every service in one place.','See bookings, cleaning status and the result of every service in one place.')}</p>
+            </article>
+            <article class="login-audience-card">
+              <span class="login-audience-number" aria-hidden="true">02</span>
+              <h2>${t('For the cleaning team','For the cleaning team')}</h2>
+              <p>${t('Clear assignments, property instructions and a simple handover after each job.','Clear assignments, property instructions and a simple handover after each job.')}</p>
+            </article>
+          </div>
+        </div>
+      </div>
+      <small class="login-hero-footer"><span>Shine Time · Bratislava</span><span>${t('Clear jobs. Confirmed results.','Clear jobs. Confirmed results.')}</span></small>
+    </section>
+    <section class="login-box-wrap">
+      <div class="login-box">
+        <div class="login-box-top">${ST_I18N.selector(true)}</div>
+        <div class="login-access-kicker">${t('Secure access to your workspace','Secure access to your workspace')}</div>
+        <h2>${t('Sign in','Sign in')}</h2>
+        <p class="subtle login-intro">${t('Sign in to your Shine Time account.','Sign in to your Shine Time account.')}</p>
+        <form id="login-form">
+          <div class="field"><label for="login-email">${t('Email','Email')}</label><input class="input" id="login-email" name="email" type="email" autocomplete="username" required></div>
+          <div class="field"><label for="login-password">${t('Password','Password')}</label><input class="input" id="login-password" name="password" type="password" autocomplete="current-password" required></div>
+          <button class="btn primary full">${t('Sign in','Sign in')}</button>
+        </form>
+        <button class="btn ghost full" type="button" onclick="forgotPassword()" style="margin-top:12px">${t('Forgot password?','Forgot password?')}</button>
+        <button class="btn ghost full" type="button" onclick="clientSignupModal()" style="margin-top:8px">${t('Manage properties? Request access','Manage properties? Request access')}</button>
+        <div class="demo-accounts login-help"><span class="subtle">${t('For team access, contact your Shine Time coordinator.','For team access, contact your Shine Time coordinator.')}</span></div>
+      </div>
+    </section>
+  </div>`;
   $('#login-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget);try{const data=await api('/api/login',{method:'POST',body:{email:f.get('email'),password:f.get('password')}});state.me=data.user;state.csrf=data.csrf||null;state.locale=ST_I18N.setLocale(data.user.language||state.locale);const me=await api('/api/me');if(!releaseCompatible(me))return;state.settings=me.settings;state.csrf=me.csrf||state.csrf;startLiveUpdates();location.hash=['ADMIN','OPERATIONS_MANAGER'].includes(state.me.role)?'admin/today':state.me.role==='CLEANER'?'cleaner/home':'client/home';render()}catch(err){toast(err.message,'error')}};
 }
 /* Stage 3: client self-registration. The account is created inactive, so
