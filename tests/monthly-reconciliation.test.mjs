@@ -30,7 +30,7 @@ test('monthly reconciliation groups the property total and tracks client and cle
 
 test('finance correction can fix the date and total amounts before payment and leaves an audit event',async()=>{
  const db=await setup();try{
-  await db.exec("insert into st_jobs(object_id,client_id,service_date,status,review_status,assigned_cleaner_id,client_price,payout) values(2,1,current_date,'COMPLETED','APPROVED',1,45,25)");
+  await db.exec("insert into st_jobs(object_id,client_id,service_date,status,review_status,assigned_cleaner_id,client_price,payout) values(2,1,current_date,'COMPLETED','APPROVED',1,45,25),(2,1,current_date+1,'COMPLETED','APPROVED',1,10,5)");
   const {rows:[{j}]}=await db.query(
    "select to_jsonb(st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+2)::text,'clientAmountCents',5000,'cleanerAmountCents',2700,'reason','Corrected monthly sheet'))) as j"
   );
@@ -41,7 +41,7 @@ test('finance correction can fix the date and total amounts before payment and l
   assert.equal(events.event_type,'FINANCE_CORRECTION');
   assert.equal(events.payload_json.reason,'Corrected monthly sheet');
   await assert.rejects(db.query(
-   "select st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',current_date::text,'clientAmountCents',5000,'cleanerAmountCents',2700,'reason','Wrong date'))"
+   "select st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+1)::text,'clientAmountCents',5000,'cleanerAmountCents',2700,'reason','Wrong date'))"
   ),/already has a cleaning/i);
  }finally{await db.close()}
 });
