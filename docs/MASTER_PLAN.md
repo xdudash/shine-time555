@@ -175,10 +175,13 @@ First block (specification `docs/ssd/specs/018-client-voice-and-earnings.md`, ev
 - [x] Fix 16 — client rating (1–5, correctable for `feedbackWindowDays`) and a complaint that opens a `CLIENT_COMPLAINT` issue and notifies staff. `st_cleaners.rating` is now the average of real ratings instead of a default that never moved; the cleaner sees the number, never the client's words.
 - [x] Fix 17 — the client can change the note on a booking until the cleaner arrives (the cleaner is notified), and has a **Repeat** section to create, correct, pause, resume and remove repeating cleanings on their own properties. A schedule that already produced cleanings is switched off rather than deleted, so `st_jobs.recurring_id` stays readable.
 - [x] Fix 24 — `st_cleaner_earnings` answers today / this week / this month / waiting for review / ready to be paid / already paid in cents, from the jobs and the settlements. The page renders those cards and adds no money up itself; the month-by-month settlement list moved to `cleaner/settlements`, which it used to replace.
-- [ ] Fix 21 — reorganize the admin menu into the nine sections of the approved plan.
-- [ ] Fix 22 — the remaining inherited screens in all four locales.
-- [ ] Fix 23 — owner archive of past cleanings with filters and export.
-- [ ] Fix 25 — editable finance entries and reference-photo captions (needs new API commands).
+
+Second block (specification `docs/ssd/specs/019-admin-sections-archive-records.md`, evidence `docs/verification/2026-10-12-stage2-admin-tidy.md`). **Deployment:** apply `supabase/migrations/20261012190000_finance_entry_audit.sql` with the first block's migration, deploy `st-api`, publish the frontend. The build string stays `2026-10-12-stage2`.
+
+- [x] Fix 21 — the nine approved sections (Today · Cleanings · Review · Objects · Clients · Team · Finance · Analytics · Settings), several with sub-tabs. Nothing was rewritten to get there: `renderAdmin` resolves a section and delegates to the former dispatcher, the three extensions wrap that instead of adding menu entries, and every old page name still routes to the section that hosts it. New: a Review → Awaiting review screen, and `admin/jobs?review=PENDING` which spans days.
+- [x] Fix 22 — the inherited operations screens (recurring schedules, payments and payouts, generation) had 20 hard-coded English labels; they now go through `t()` and are translated. The crawl over every screen of every role reports only `Email`, `IČ DPH` and `🧭 Google Maps`.
+- [x] Fix 23 — the owner archive: `client/bookings` filters by date range, property and status, returns the properties to choose from, and totals the whole filtered set rather than the page; the screen is filters plus a table the existing CSV export picks up.
+- [x] Fix 25 — finance entries are corrected in place and every change keeps its before, after, reason and author in `st_finance_entry_audit`; a delete keeps the whole row so it can be read back. Recorded settlements stay append-only, corrected only by their counter-entries. Reference-photo captions are corrected in place by the people who may edit the property.
 
 ### Stage 3 — open the front door
 

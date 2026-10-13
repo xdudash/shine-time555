@@ -32,18 +32,27 @@ test('runtime retains core workflows without duplicate or simulated control pane
 });
 
 test('direct extension routes enforce the same operations-manager boundary as navigation',async()=>{
+  // Since fix 21 the extensions wrap renderAdminPage (the page dispatcher) and
+  // the nine sections sit above it, so the boundary is asserted at that seam.
   const calls=[];
-  const context=vm.createContext({window:{},state:{me:{role:'OPERATIONS_MANAGER'}},adminNav:[],renderAdmin:async p=>calls.push(p),renderCleaner:()=>{},clientFinance:()=>{},navTo:p=>calls.push(p),settlementScreen:()=>calls.push('settlement'),scheduleScreen:()=>calls.push('schedule')});
+  const context=vm.createContext({window:{},state:{me:{role:'OPERATIONS_MANAGER'}},adminNav:[],renderAdminPage:async p=>calls.push(p),renderCleaner:()=>{},clientFinance:()=>{},navTo:p=>calls.push(p),settlementScreen:()=>calls.push('settlement'),scheduleScreen:()=>calls.push('schedule')});
   vm.runInContext(read('assets/operations-ui-core.js'),context);
   vm.runInContext(read('assets/operations-extension.js').split('async function scheduleScreen')[0],context);
-  await context.renderAdmin('settlements');
+  await context.renderAdminPage('settlements');
   assert.equal(calls.includes('settlement'),false);
-  assert.ok(calls.includes('admin/live'));
+  assert.ok(calls.includes('admin/today'),'an operations manager is sent back to the day board');
   calls.length=0;
-  await context.renderAdmin('schedule');
+  await context.renderAdminPage('schedule');
   assert.deepEqual(calls,['schedule']);
+  calls.length=0;
+  // The finance section itself stays closed to an operations manager.
+  assert.equal(context.window.ShineTimeUi.adminRouteAllowed('finance','OPERATIONS_MANAGER'),false);
+  assert.equal(context.window.ShineTimeUi.adminRouteAllowed('statements','OPERATIONS_MANAGER'),false);
+  assert.equal(context.window.ShineTimeUi.adminRouteAllowed('owner','OPERATIONS_MANAGER'),false);
+  assert.equal(context.window.ShineTimeUi.adminRouteAllowed('today','OPERATIONS_MANAGER'),true);
+  assert.equal(context.window.ShineTimeUi.adminRouteAllowed('review','OPERATIONS_MANAGER'),true);
   context.state.me.role='ADMIN';
-  await context.renderAdmin('settlements');
+  await context.renderAdminPage('settlements');
   assert.equal(calls.at(-1),'settlement');
 });
 
@@ -74,13 +83,22 @@ test('export neutralizes formula cells and uses the selected month and visible r
 });
 
 test('finance mutation redraws pass through the shared render lifecycle',async()=>{
-  const lines=read('assets/app.js').split('\n').filter(line=>/^window\.(saveFinanceEntry|deleteFinanceEntry)=/.test(line));
-  let rendered=0;const context=vm.createContext({window:{},state:{},$:()=>({value:'2026-08'}),api:async()=>({}),askConfirm:async()=>true,closeModal:()=>{},toast:()=>{},render:async()=>rendered++,FormData:class {get(){return ''}}});
-  vm.runInContext(lines.join('\n'),context);
+  // Both handlers are multi-line since fix 25 (edit, reason, audit trail), so
+  // the whole blocks are taken rather than single lines.
+  const source=read('assets/app.js');
+  const block=name=>{const start=source.indexOf(`window.${name}=async`);return source.slice(start,source.indexOf('\n};',start)+3)};
+  let rendered=0;const asked=[];
+  const context=vm.createContext({window:{},state:{},$:()=>({value:'2026-08'}),api:async()=>({}),
+    askDialog:async opts=>{asked.push(opts);return 'wrong amount'},toast:()=>{},closeModal:()=>{},t:(k)=>k,
+    render:async()=>rendered++,FormData:class {get(){return ''}}});
+  vm.runInContext([block('saveFinanceEntry'),block('deleteFinanceEntry')].join('\n'),context);
   await context.window.saveFinanceEntry();
   await context.window.deleteFinanceEntry(1);
   assert.equal(rendered,2);
   assert.equal(context.state.financeMonth,'2026-08');
+  // A delete asks for a reason, and the reason is what the audit keeps.
+  assert.equal(asked.length,1);
+  assert.match(String(asked[0].message),/kept in the history/i);
 });
 
 test('cleaner detail failures reach the central renderer without replacing job content',async()=>{

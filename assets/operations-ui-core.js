@@ -40,8 +40,23 @@
   }
 
   const restrictedAdminRoutes = new Set(['owner', 'clients', 'finance', 'settlements', 'statements', 'settings']);
+  /* The nine approved sections (fix 21). The old page names still work, so a
+     bookmark or an old link keeps opening the right screen; this maps them to
+     the section that now hosts them. */
+  const adminSectionAliases = {
+    live: 'today', map: 'today', tomorrow: 'today', monitoring: 'today',
+    jobs: 'cleanings', schedule: 'cleanings', recurring: 'cleanings',
+    issues: 'review',
+    cleaners: 'team', managers: 'team',
+    // 'finance' is its own section; the three screens that used to be separate
+    // menu entries are its tabs.
+    owner: 'finance', settlements: 'finance', statements: 'finance', entries: 'finance',
+  };
+  const adminSectionFor = (page) => adminSectionAliases[String(page)] || String(page);
   function adminRouteAllowed(page, role) {
-    return role === 'ADMIN' || (role === 'OPERATIONS_MANAGER' && !restrictedAdminRoutes.has(page));
+    if (role === 'ADMIN') return true;
+    if (role !== 'OPERATIONS_MANAGER') return false;
+    return !restrictedAdminRoutes.has(page) && !restrictedAdminRoutes.has(adminSectionFor(page));
   }
   function adminNavigationForRole(items, role) {
     return items.filter(([page]) => adminRouteAllowed(page, role));
@@ -49,10 +64,11 @@
 
   function navigationRoute(route) {
     const [area, page] = String(route).split('?')[0].split('/');
+    if (area === 'admin') return `admin/${adminSectionFor(page || 'today')}`;
     if (area === 'cleaner' && page === 'job') return 'cleaner/myday';
     if (area === 'client' && page === 'booking') return 'client/bookings';
     return `${area}/${page}`;
   }
 
-  window.ShineTimeUi = { navigationRoute, adminRouteAllowed, adminNavigationForRole, parseCoordinate, mapPoints };
+  window.ShineTimeUi = { navigationRoute, adminRouteAllowed, adminNavigationForRole, adminSectionFor, parseCoordinate, mapPoints };
 })();

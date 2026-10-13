@@ -36,6 +36,14 @@ export async function propertyPhotosRoute({ctx,route,method,body,service,result,
    // No bearer URLs: every file read is authenticated and rechecks assignment.
    return {dataUrl:`data:${photo.mime};base64,${btoa(binary)}`};
   }
+  if(method==='PATCH'){
+   // A caption is corrected in place (fix 25): the file and its path never move,
+   // so the photo keeps its identity and nothing has to be re-uploaded.
+   const caption=String(body.caption||'').trim();
+   if(caption.length>300)throw new ApiError('Caption is too long',400);
+   const updated=await result(service.rpc('st_update_photo_caption',{p_actor_id:ctx.appUser.id,p_object_id:objectId,p_photo_id:photo.id,p_caption:caption}).single());
+   return {photo:{id:updated.id,caption:updated.caption,mime:updated.mime}};
+  }
   if(method==='DELETE'){
    await result(service.storage.from(bucket).remove([photo.storage_path]));
    await result(service.from('st_object_photos').delete().eq('id',photo.id).eq('object_id',objectId));

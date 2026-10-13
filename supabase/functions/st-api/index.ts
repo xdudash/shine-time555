@@ -556,9 +556,41 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
             return { date, object, window: { from: String(object.checkout_time || '10:00').slice(0, 5), to: String(object.deadline_time || '15:00').slice(0, 5), durationMinutes: object.duration_minutes }, capacity: cleaners.filter((cleaner) => cleaner.available).length };
         }
         if (route === 'client/bookings' && method === 'GET') {
+            // Fix 23: the archive is filterable and paged, and the totals are
+            // computed over the whole filtered set, not over the page shown.
             const objects = await clientPortfolioObjects(ctx);
-            const rows = objects.length ? await result(service.from('st_jobs').select('*').in('object_id', objects.map((object) => object.id)).order('service_date', { ascending: false })) as AnyRow[] : [];
-            return { bookings: await hydrateJobs(rows) };
+            const objectIds = objects.map((object) => object.id);
+            const date = (value: unknown) => (/^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? String(value) : null);
+            const from = date(query.from), to = date(query.to);
+            const status = String(query.status || '').toUpperCase();
+            const objectFilter = number(query.objectId) || null;
+            if (objectFilter && !objectIds.some((id) => same(id, objectFilter))) throw new ApiError('Property not found', 404);
+            const limit = Math.min(200, Math.max(10, number(query.limit, 50)));
+            let rows: AnyRow[] = [];
+            if (objectIds.length) {
+                let select = service.from('st_jobs').select('*').in('object_id', objectFilter ? [objectFilter] : objectIds);
+                if (from) select = select.gte('service_date', from);
+                if (to) select = select.lte('service_date', to);
+                if (status && status !== 'ALL') {
+                    if (status === 'OPEN') select = select.not('status', 'in', '(COMPLETED,CANCELLED,EXPIRED)');
+                    else select = select.eq('status', status);
+                }
+                rows = await result(select.order('service_date', { ascending: false }).order('id', { ascending: false })) as AnyRow[];
+            }
+            const summary = {
+                bookings: rows.length,
+                completed: rows.filter((job) => job.status === 'COMPLETED').length,
+                cancelled: rows.filter((job) => job.status === 'CANCELLED').length,
+                expired: rows.filter((job) => job.status === 'EXPIRED').length,
+                chargedCents: rows.filter((job) => job.status === 'COMPLETED')
+                    .reduce((sum, job) => sum + Math.round((number(job.client_price) + number(job.extra_revenue)) * 100), 0),
+            };
+            const page = rows.slice(0, limit);
+            return {
+                bookings: await hydrateJobs(page), summary, hasMore: rows.length > page.length,
+                filters: { from, to, status: status || 'ALL', objectId: objectFilter, limit },
+                properties: objects.map((object) => ({ id: object.id, code: object.code, name: object.name })),
+            };
         }
         if (route === 'client/bookings' && method === 'POST') {
             const object = await clientObject(ctx, number(body.objectId));
@@ -788,7 +820,16 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             }
         }
         if (route === 'admin/jobs' && method === 'GET') {
-            let builder: any = service.from('st_jobs').select('*').eq('service_date', date).order('planned_start');
+            let builder: any = service.from('st_jobs').select('*');
+            if (query.review) {
+                // The review queue spans days: a report submitted on Friday is
+                // still waiting on Monday, so the date filter is dropped here.
+                const review = String(query.review).toUpperCase();
+                if (!['PENDING', 'REWORK_REQUIRED', 'APPROVED'].includes(review)) throw new ApiError('Unknown review state');
+                builder = builder.eq('review_status', review).order('completed_at', { ascending: true }).limit(200);
+            } else {
+                builder = builder.eq('service_date', date).order('planned_start');
+            }
             if (query.status)
                 builder = builder.eq('status', query.status);
             if (query.cleanerId)
@@ -957,16 +998,24 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             const report = financeBoardReport({ jobs, entries: detailedEntries, month, trendJobs, trendEntries });
             return { month, from, to, ...report, entries: detailedEntries, jobs };
         }
-        if (route === 'admin/finance/entries' && method === 'POST') {
-            if (number(body.amount) <= 0 || !['INCOME', 'EXPENSE'].includes(String(body.entryType)))
-                throw new ApiError('Valid type and positive amount are required');
-            return { entry: await one(service.from('st_financial_entries').insert({ entry_date: body.entryDate || today(), entry_type: body.entryType, category: body.category || 'OTHER', amount: number(body.amount), description: body.description || null, client_id: body.clientId || null, object_id: body.objectId || null, job_id: body.jobId || null, created_by_user_id: ctx.appUser.id }).select().single()) };
-        }
-        const financeEntry = route.match(/^admin\/finance\/entries\/(\d+)$/);
-        if (financeEntry && method === 'DELETE') {
-            await result(service.from('st_financial_entries').delete().eq('id', number(financeEntry[1])));
-            return { ok: true };
-        }
+        // Finance entries are written through the audited command, never straight
+        // into the table: every create, change and delete leaves a before/after
+        // row behind (fix 25). Recorded settlements stay append-only.
+        const financeBody = (id: number | null) => ({
+            id, entryType: String(body.entryType || ''), amount: number(body.amount),
+            entryDate: body.entryDate || today(), category: body.category || 'OTHER',
+            description: body.description ?? '', clientId: body.clientId ?? null,
+            objectId: body.objectId ?? null, jobId: body.jobId ?? null, reason: body.reason ?? '',
+        });
+        if (route === 'admin/finance/entries' && method === 'POST')
+            return { entry: await one(service.rpc('st_save_finance_entry', { p_actor_id: ctx.appUser.id, p_body: financeBody(null) })) };
+        const financeEntry = route.match(/^admin\/finance\/entries\/(\d+)(?:\/(history))?$/);
+        if (financeEntry && financeEntry[2] === 'history' && method === 'GET')
+            return one(service.rpc('st_finance_entry_history', { p_actor_id: ctx.appUser.id, p_entry_id: number(financeEntry[1]) }));
+        if (financeEntry && !financeEntry[2] && method === 'PATCH')
+            return { entry: await one(service.rpc('st_save_finance_entry', { p_actor_id: ctx.appUser.id, p_body: financeBody(number(financeEntry[1])) })) };
+        if (financeEntry && !financeEntry[2] && method === 'DELETE')
+            return one(service.rpc('st_delete_finance_entry', { p_actor_id: ctx.appUser.id, p_id: number(financeEntry[1]), p_reason: String(body.reason || '') }));
         if (route === 'admin/issues' && method === 'GET') {
             const issues = await result(service.from('st_issues').select('*').order('status').order('priority').order('id', { ascending: false })) as AnyRow[];
             const jobs = await fetchRows('st_jobs', issues.map((issue) => issue.job_id));

@@ -26,7 +26,18 @@
  const alive=()=>gallery.isConnected&&state.me===user;
  async function refresh(){gallery.textContent=label(3);try{const d=await api(route(id,job));if(!alive())return;gallery.innerHTML='';if(!d.photos?.length)gallery.textContent=label(4);
  for(const photo of d.photos||[]){const figure=document.createElement('figure'),caption=document.createElement('figcaption'),button=document.createElement('button');caption.textContent=photo.caption||label(0);button.className='btn';button.textContent=label(3);figure.append(button,caption);
- if(editable){const del=document.createElement('button');del.type='button';del.className='btn sm red photo-delete';del.textContent='🗑 '+tr('Delete photo');let armed=null;del.onclick=async()=>{if(!armed){del.textContent=tr('Tap again to delete');del.classList.add('armed');armed=setTimeout(()=>{armed=null;del.textContent='🗑 '+tr('Delete photo');del.classList.remove('armed')},4000);return}clearTimeout(armed);armed=null;del.disabled=true;try{await api(route(id,job)+'/'+photo.id,{method:'DELETE'});toast(tr('Photo deleted'),'success');await refresh();if(source?.isConnected){source.querySelector('img')?.remove();schedule(()=>cover(source))}}catch(err){del.disabled=false;toast(err.message,'error')}};figure.append(del)}
+ if(editable){
+  /* Fix 25: the caption is corrected in place — the file never moves, so the
+     photo keeps its identity and nothing has to be re-uploaded. */
+  const rename=document.createElement('button');rename.type='button';rename.className='btn sm photo-rename';rename.textContent='✎ '+tr('Edit caption');
+  rename.onclick=async()=>{
+   const next=await window.askDialog({title:'Edit caption',label:'Caption: building, entrance, landmark',value:photo.caption||'',confirmLabel:'Save'});
+   if(next===null)return;
+   try{const r=await api(route(id,job)+'/'+photo.id,{method:'PATCH',body:{caption:next}});photo.caption=r.photo?.caption??next;caption.textContent=photo.caption||label(0);toast(tr('Saved'),'success')}
+   catch(err){toast(err.message,'error')}
+  };
+  figure.append(rename);
+  const del=document.createElement('button');del.type='button';del.className='btn sm red photo-delete';del.textContent='🗑 '+tr('Delete photo');let armed=null;del.onclick=async()=>{if(!armed){del.textContent=tr('Tap again to delete');del.classList.add('armed');armed=setTimeout(()=>{armed=null;del.textContent='🗑 '+tr('Delete photo');del.classList.remove('armed')},4000);return}clearTimeout(armed);armed=null;del.disabled=true;try{await api(route(id,job)+'/'+photo.id,{method:'DELETE'});toast(tr('Photo deleted'),'success');await refresh();if(source?.isConnected){source.querySelector('img')?.remove();schedule(()=>cover(source))}}catch(err){del.disabled=false;toast(err.message,'error')}};figure.append(del)}
  gallery.append(figure);
  const load=async()=>{if(!alive())return;try{const p=await api(route(id,job)+'/'+photo.id);if(!alive())return;if(!validData(p.dataUrl))throw Error(label(6));const img=document.createElement('img');img.src=p.dataUrl;img.alt=photo.caption||label(0);button.replaceWith(img)}catch(e){if(alive()){button.textContent=label(5);button.title=e.message;button.onclick=()=>schedule(load)}}};schedule(load)}
  }catch(e){if(alive()){gallery.textContent=e.message+' ';const retry=document.createElement('button');retry.className='btn';retry.textContent=label(5);retry.onclick=refresh;gallery.append(retry)}}}
