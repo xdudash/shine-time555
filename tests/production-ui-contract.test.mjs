@@ -74,3 +74,10 @@ test('signed-out landing addresses property owners and the cleaning team', () =>
   assert.match(styles, /@media\(max-width:800px\)[\s\S]*?\.login-hero\{display:flex/,
     'the audience message remains visible on mobile');
 });
+
+
+test('Hostinger frontend package keeps referenced SVG brand assets', () => {
+  const packager = read('scripts/package-frontend.py');
+  assert.match(packager, /p\.suffix in \{[^}]*['"]\.svg['"][^}]*\}/,
+    'the deployment archive must include assets/favicon.svg referenced by index.php and the service worker');
+});
