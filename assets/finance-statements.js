@@ -79,10 +79,10 @@
     ?'<input class="input recon-date-input" type="date" data-recon-date="'+id+'" value="'+esc(j.serviceDate)+'"><small class="subtle">'+esc(reconWeekday(j.serviceDate))+'</small>'
     :'<strong>'+esc(fmtDate(j.serviceDate))+'</strong><br><small class="subtle">'+esc(reconWeekday(j.serviceDate))+' · #'+id+'</small>';
    const clientCell=editable
-    ?'<input class="input recon-money-input" type="number" min="0" step="0.01" data-recon-client="'+id+'" value="'+reconMajor(j.clientAmountCents)+'">'
+    ?'<input class="input recon-money-input" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" data-recon-client="'+id+'" value="'+reconMajor(j.clientAmountCents)+'">'
     :'<strong>'+reconCents(j.clientAmountCents)+'</strong>';
    const cleanerCell=editable
-    ?'<input class="input recon-money-input" type="number" min="0" step="0.01" data-recon-cleaner="'+id+'" value="'+reconMajor(j.cleanerAmountCents)+'">'
+    ?'<input class="input recon-money-input" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" data-recon-cleaner="'+id+'" value="'+reconMajor(j.cleanerAmountCents)+'">'
     :'<strong>'+reconCents(j.cleanerAmountCents)+'</strong>';
    const reason=editable?'<input class="input recon-reason-input" type="text" maxlength="500" data-recon-reason="'+id+'" placeholder="'+esc(tr('Reason for correction'))+'">':'<small class="subtle">'+tr('Locked after first payment')+'</small>';
    const save=editable?'<button class="btn sm primary" onclick="saveMonthlyCorrection('+id+','+Number(object.objectId)+')">'+tr('Save correction')+'</button>':'<span class="subtle">—</span>';
@@ -127,10 +127,11 @@
  window.saveMonthlyCorrection=async(id,objectId)=>{
   const pick=selector=>document.querySelector('[data-recon-'+selector+'="'+id+'"]');
   const date=pick('date')?.value;
-  const clientValue=pick('client')?.value;
-  const cleanerValue=pick('cleaner')?.value;
+  const clientValue=String(pick('client')?.value??'').trim();
+  const cleanerValue=String(pick('cleaner')?.value??'').trim();
   const reason=pick('reason')?.value?.trim();
-  if(!date||clientValue===''||cleanerValue===''||!Number.isFinite(Number(clientValue))||!Number.isFinite(Number(cleanerValue))||Number(clientValue)<0||Number(cleanerValue)<0||!reason){
+  const validMoney=value=>/^\d+(?:[.,]\d{1,2})?$/.test(value);
+  if(!date||!validMoney(clientValue)||!validMoney(cleanerValue)||!reason){
    return toast(tr('Enter the date, non-negative amounts and a correction reason.'),'error');
   }
   try{
