@@ -349,7 +349,7 @@ const ADMIN_SECTION_TABS={
  cleanings:[['all','All cleanings','jobs'],['recurring','Repeating','schedule']],
  review:[['queue','Awaiting review','review'],['issues','Issues and complaints','issues']],
  clients:[['list','Clients','clients'],['requests','Account requests','account-requests']],
- finance:[['overview','Overview','owner'],['statements','Statements','statements'],['settlements','Payments and payouts','settlements'],['entries','Records','finance']],
+ finance:[['overview','Monthly reconciliation','statements'],['settlements','Payments and payouts','settlements'],['entries','Records','finance']],
 };
 const adminSectionTab=(section,tab)=>{
  const tabs=ADMIN_SECTION_TABS[section];
