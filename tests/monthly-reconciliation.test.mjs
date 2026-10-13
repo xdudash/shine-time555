@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {createDatabase,seedDatabase} from './helpers/database.mjs';
 
 async function setup(){const db=await createDatabase();await seedDatabase(db);return db}
-async function currentMonth(db){return (await db.query("select to_char(current_date,'YYYY-MM') month")).rows[0].month}
+async function currentMonth(db){return (await db.query("select to_char(current_date,'YYYY-MM') as month_value")).rows[0].month}
 
 test('monthly reconciliation groups the property total and tracks client and cleaner payments independently',async()=>{
  const db=await setup();try{
   const month=await currentMonth(db);
-  await db.exec("insert into st_jobs(object_id,client_id,service_date,status,assigned_cleaner_id,client_price,payout,bonus,extra_revenue) values(1,1,current_date,'COMPLETED',1,40,20,3,2),(1,1,current_date+1,'COMPLETED',1,40,20,0,0)");
+  await db.exec("insert into st_jobs(object_id,client_id,service_date,status,review_status,assigned_cleaner_id,client_price,payout,bonus,extra_revenue) values(1,1,current_date,'COMPLETED','APPROVED',1,40,20,3,2),(1,1,current_date+1,'COMPLETED','APPROVED',1,40,20,0,0)");
   await db.query("select st_record_settlement(1,1,'CLIENT_PAYMENT',1000,'Part receipt','recon-client')");
   await db.query("select st_record_settlement(1,1,'CLEANER_PAYOUT',500,'Part payout','recon-cleaner')");
   const {rows:[{r}]}=await db.query('select st_monthly_reconciliation(1,$1) r',[month]);
@@ -30,11 +30,11 @@ test('monthly reconciliation groups the property total and tracks client and cle
 
 test('finance correction can fix the date and total amounts before payment and leaves an audit event',async()=>{
  const db=await setup();try{
-  await db.exec("insert into st_jobs(object_id,client_id,service_date,status,assigned_cleaner_id,client_price,payout) values(2,1,current_date,'COMPLETED',1,45,25)");
+  await db.exec("insert into st_jobs(object_id,client_id,service_date,status,review_status,assigned_cleaner_id,client_price,payout) values(2,1,current_date,'COMPLETED','APPROVED',1,45,25)");
   const {rows:[{j}]}=await db.query(
-   "select st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+2)::text,'clientAmountCents',5000,'cleanerAmountCents',2700,'reason','Corrected monthly sheet')) j"
+   "select to_jsonb(st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+2)::text,'clientAmountCents',5000,'cleanerAmountCents',2700,'reason','Corrected monthly sheet'))) as j"
   );
-  assert.equal(j.service_date.toISOString?j.service_date.toISOString().slice(0,10):String(j.service_date).slice(0,10), (await db.query("select to_char(current_date+2,'YYYY-MM-DD') d")).rows[0].d);
+  assert.equal(String(j.service_date).slice(0,10), (await db.query("select to_char(current_date+2,'YYYY-MM-DD') as day_value")).rows[0].day_value);
   assert.equal(Number(j.client_price),50);
   assert.equal(Number(j.payout),27);
   const events=(await db.query("select event_type,payload_json from st_job_events where job_id=1 order by id desc limit 1")).rows[0];
@@ -48,7 +48,7 @@ test('finance correction can fix the date and total amounts before payment and l
 
 test('finance correction cannot rewrite an existing client or cleaner payment',async()=>{
  const db=await setup();try{
-  await db.exec("insert into st_jobs(object_id,client_id,service_date,status,assigned_cleaner_id,client_price,payout) values(1,1,current_date,'COMPLETED',1,40,20)");
+  await db.exec("insert into st_jobs(object_id,client_id,service_date,status,review_status,assigned_cleaner_id,client_price,payout) values(1,1,current_date,'COMPLETED','APPROVED',1,40,20)");
   await db.query("select st_record_settlement(1,1,'CLIENT_PAYMENT',100,'Receipt','recon-protected')");
   await assert.rejects(db.query(
    "select st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',current_date::text,'clientAmountCents',4000,'cleanerAmountCents',2000,'reason','Try to rewrite payment'))"
