@@ -143,3 +143,8 @@
  .recon-detail .section-head{display:block}
  .recon-detail .row-actions{margin:10px 0}
 }
+
+/* Per-cleaning settlement controls in expanded monthly reconciliation. */
+.recon-job-payment{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px}
+.recon-job-payment .btn{white-space:nowrap;max-width:100%}
+.recon-job-payment .pill{margin-top:0}
