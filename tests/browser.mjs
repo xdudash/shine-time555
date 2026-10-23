@@ -94,7 +94,7 @@ try{
  assert.match(await page.locator('#page').innerText(),/No recurring schedules yet/);
  await page.evaluate(async()=>{location.hash='admin/settlements';await render()});
  assert.match(await page.locator('#page').innerText(),/123[.,]45/);
- assert.equal(await page.locator('#page button[disabled]').count(),1,'pending report cannot open payment form');
+ assert.equal(await page.locator('#page button',{hasText:/^(Record|Записать|Zaznamenať|Записати)/}).count(),0,'payments are confirmed in bulk, not recorded per cleaning');
  assert.match(await page.locator('#page').innerText(),/Awaiting review/);
  console.log('PASS: recurring schedules, review gate and exact settlement amounts render');
  assert.equal(errors.length,0,errors.join('\n'));
