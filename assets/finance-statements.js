@@ -41,6 +41,7 @@
   const summary=data.summary||{};
   const objects=data.objects||[];
   const jobs=data.jobs||[];
+  const reconSide=state.reconSide||'OBJECT';
   const expanded=state.reconciliationExpanded||(state.reconciliationExpanded=new Set());
   const objectRows=objects.map(o=>{
    const id=Number(o.objectId);
@@ -67,10 +68,11 @@
    '<div class="grid finance-kpis recon-kpis">'+
     '<div class="card kpi"><div class="label">'+tr('Client total')+'</div><div class="value small-money">'+reconCents(summary.clientAmountCents)+'</div><div class="hint">'+tr('Paid')+' '+reconCents(summary.clientPaidCents)+' · '+tr('Due')+' <strong>'+reconCents(expandedClientDue)+'</strong></div></div>'+
     '<div class="card kpi"><div class="label">'+tr('Cleaner total')+'</div><div class="value small-money">'+reconCents(summary.cleanerAmountCents)+'</div><div class="hint">'+tr('Paid out')+' '+reconCents(summary.cleanerPaidCents)+' · '+tr('Due')+' <strong>'+reconCents(expandedCleanerDue)+'</strong></div></div>'+
-   '</div>'+overLimit+
+   '</div>'+overLimit+reconSwitcher(reconSide)+
+   (reconSide!=='OBJECT'?reconPartyCard(reconSide,data,month):
    '<div class="card recon-table-card"><div class="table-wrap"><table><thead><tr><th>'+tr('Object')+'</th><th>'+tr('Cleanings')+'</th><th>'+tr('Client · total / paid / due')+'</th><th></th><th>'+tr('Cleaner · total / paid / due')+'</th><th></th><th></th></tr></thead><tbody>'+
    (objectRows||'')+(objectRows?'':'<tr><td colspan="7"><div class="empty">'+tr('No completed cleanings in this month.')+'</div></td></tr>')+
-   '</tbody></table></div></div>';
+   '</tbody></table></div></div>');
  }
  function reconciliationPaymentAction(job,side,objectId,hasMore){
   const dueKey=side==='CLIENT'?'clientDueCents':'cleanerDueCents';
@@ -103,6 +105,85 @@
    (rows||'')+(rows?'':'<tr><td colspan="7"><div class="empty">'+tr('No cleanings to show here.')+'</div></td></tr>')+
    '</tbody></table></div><p class="subtle">'+tr('After a payment is recorded, use a refund or return entry to correct the financial history.')+'</p></div>';
  }
+ ST_I18N.addTranslations({
+  ru:{'By object':'По объектам','By client':'По клиентам','By cleaner':'По клинерам','Select all':'Выбрать всё','Clear selection':'Снять выделение','Selected':'Выбрано','Pay selected':'Оплатить выбранные','Pay all':'Оплатить всё','Total':'Итого','Status':'Статус','Open cleanings':'Открытых уборок','Cleaner':'Клинер','Payments recorded.':'Оплаты записаны.','Record payments for all outstanding cleanings of the selected people?':'Записать оплату по всем непогашенным уборкам выбранных?','Record payments for all outstanding cleanings of this person?':'Записать оплату по всем непогашенным уборкам?'},
+  uk:{'By object':'За об’єктами','By client':'За клієнтами','By cleaner':'За клінерами','Select all':'Обрати все','Clear selection':'Зняти виділення','Selected':'Обрано','Pay selected':'Оплатити вибрані','Pay all':'Оплатити все','Total':'Разом','Status':'Статус','Open cleanings':'Відкритих прибирань','Cleaner':'Клінер','Payments recorded.':'Платежі записано.','Record payments for all outstanding cleanings of the selected people?':'Записати оплату за всі непогашені прибирання вибраних?','Record payments for all outstanding cleanings of this person?':'Записати оплату за всі непогашені прибирання?'},
+  sk:{'By object':'Podľa objektu','By client':'Podľa klientov','By cleaner':'Podľa upratovačov','Select all':'Vybrať všetko','Clear selection':'Zrušiť výber','Selected':'Vybrané','Pay selected':'Zaplatiť vybrané','Pay all':'Zaplatiť všetko','Total':'Spolu','Status':'Stav','Open cleanings':'Otvorených upratovaní','Cleaner':'Upratovač','Payments recorded.':'Platby zaznamenané.','Record payments for all outstanding cleanings of the selected people?':'Zaznamenať platby za všetky nezaplatené upratovania vybraných?','Record payments for all outstanding cleanings of this person?':'Zaznamenať platby za všetky nezaplatené upratovania?'}
+ });
+ const reconSides=[['OBJECT','By object'],['CLIENT','By client'],['CLEANER','By cleaner']];
+ function reconSwitcher(active){
+  return '<div class="row-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px">'+reconSides.map(([k,label])=>'<button class="btn sm'+(k===active?' primary':'')+'" onclick="setReconSide(&quot;'+k+'&quot;)">'+tr(label)+'</button>').join('')+'</div>';
+ }
+ function reconParties(side,data){
+  const partyKey=side==='CLIENT'?'clientId':'cleanerId';
+  const nameKey=side==='CLIENT'?'clientName':'cleanerName';
+  const amountKey=side==='CLIENT'?'clientAmountCents':'cleanerAmountCents';
+  const paidKey=side==='CLIENT'?'clientPaidCents':'cleanerPaidCents';
+  const dueKey=side==='CLIENT'?'clientDueCents':'cleanerDueCents';
+  const map=new Map();
+  (data.jobs||[]).forEach(j=>{
+   if(j[partyKey]===null||j[partyKey]===undefined)return;
+   const id=Number(j[partyKey]);
+   const p=map.get(id)||{id,name:j[nameKey]||('#'+id),jobs:0,open:0,amount:0,paid:0,due:0};
+   const due=Number(j[dueKey]||0);
+   p.jobs++;if(due>0)p.open++;p.amount+=Number(j[amountKey]||0);p.paid+=Number(j[paidKey]||0);p.due+=due;
+   map.set(id,p);
+  });
+  return [...map.values()].sort((a,b)=>b.due-a.due||String(a.name).localeCompare(String(b.name)));
+ }
+ function reconPartyCard(side,data,month){
+  const parties=reconParties(side,data);
+  const sel=state.reconSelected||(state.reconSelected=new Set());
+  const locked=data.hasMore===true;
+  const payable=parties.filter(p=>p.due>0);
+  const chosen=payable.filter(p=>sel.has(side+':'+p.id));
+  const chosenDue=chosen.reduce((a,p)=>a+p.due,0);
+  const allChecked=payable.length>0&&payable.every(p=>sel.has(side+':'+p.id));
+  const toolbar='<div class="row-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px">'+
+   '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" '+(allChecked?'checked ':'')+(locked||!payable.length?'disabled ':'')+'onchange="toggleReconSelectAll(this.checked)"> '+tr('Select all')+'</label>'+
+   '<button class="btn sm" '+(sel.size?'':'disabled ')+'onclick="clearReconSelection()">'+tr('Clear selection')+'</button>'+
+   '<span class="subtle">'+tr('Selected')+': '+chosen.length+' · '+reconCents(chosenDue)+'</span>'+
+   '<button class="btn sm primary" '+(locked||!chosen.length?'disabled ':'')+'onclick="settleReconSelected(&quot;'+side+'&quot;)">'+tr('Pay selected')+'</button></div>';
+  const rows=parties.map(p=>{
+   const key=side+':'+p.id,canPay=p.due>0&&!locked;
+   return '<tr><td><input type="checkbox" '+(sel.has(key)?'checked ':'')+(p.due>0?'':'disabled ')+'onchange="toggleReconParty(&quot;'+key+'&quot;,this.checked)"></td>'+
+    '<td><strong>'+esc(p.name)+'</strong><br><small class="subtle">'+tr('Open cleanings')+': '+p.open+'</small></td>'+
+    '<td>'+p.jobs+'</td><td class="recon-amount">'+reconCents(p.amount)+'</td><td>'+reconCents(p.paid)+'</td>'+
+    '<td>'+reconDue(p.due,p.paid)+'</td>'+
+    '<td><button class="btn sm primary" '+(canPay?'':'disabled ')+'onclick="settleReconParty('+p.id+',&quot;'+side+'&quot;)">'+tr('Pay all')+(p.due>0?' · '+reconCents(p.due):'')+'</button></td></tr>';
+  }).join('');
+  return toolbar+'<div class="card recon-table-card"><div class="table-wrap"><table><thead><tr><th></th><th>'+tr(side==='CLIENT'?'Client':'Cleaner')+'</th><th>'+tr('Cleanings')+'</th><th>'+tr('Total')+'</th><th>'+tr('Paid')+'</th><th>'+tr('Status')+'</th><th></th></tr></thead><tbody>'+
+   (rows||'<tr><td colspan="7"><div class="empty">'+tr('No cleanings to show here.')+'</div></td></tr>')+'</tbody></table></div></div>';
+ }
+ const rerenderRecon=()=>renderReconciliation(state.reconciliationData,state.statementMonth||today().slice(0,7));
+ window.setReconSide=side=>{state.reconSide=side;state.reconSelected=new Set();rerenderRecon()};
+ window.toggleReconParty=(key,on)=>{const sel=state.reconSelected||(state.reconSelected=new Set());if(on)sel.add(key);else sel.delete(key);rerenderRecon()};
+ window.toggleReconSelectAll=on=>{
+  const side=state.reconSide||'OBJECT',sel=state.reconSelected||(state.reconSelected=new Set());
+  reconParties(side,state.reconciliationData||{jobs:[]}).filter(p=>p.due>0).forEach(p=>{const key=side+':'+p.id;if(on)sel.add(key);else sel.delete(key)});
+  rerenderRecon();
+ };
+ window.clearReconSelection=()=>{state.reconSelected=new Set();rerenderRecon()};
+ async function payReconParties(side,partyIds){
+  const data=state.reconciliationData,month=state.statementMonth||today().slice(0,7);
+  if(!data)return;
+  if(data.hasMore)return toast(tr('Narrow the month before recording payments.'),'error');
+  const dueKey=side==='CLIENT'?'clientDueCents':'cleanerDueCents';
+  const partyKey=side==='CLIENT'?'clientId':'cleanerId';
+  const groups=partyIds.map(id=>({partyId:Number(id),items:(data.jobs||[]).filter(j=>Number(j[partyKey])===Number(id)&&Number(j[dueKey]||0)>0).map(j=>({jobId:Number(j.id),amountCents:Number(j[dueKey])}))})).filter(g=>g.items.length);
+  if(!groups.length)return toast(tr('No outstanding payments for this side.'),'error');
+  if(!confirm(tr(partyIds.length>1?'Record payments for all outstanding cleanings of the selected people?':'Record payments for all outstanding cleanings of this person?')))return;
+  try{
+   for(const g of groups){
+    await api('/api/admin/settlements/batch',{method:'POST',body:{month,side,partyId:g.partyId,items:g.items,note:(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month,requestId:crypto.randomUUID()}});
+   }
+   state.reconSelected=new Set();
+   toast(tr('Payments recorded.'),'success');
+   await statementsScreen();
+  }catch(e){toast(e.message,'error');await statementsScreen()}
+ }
+ window.settleReconParty=(id,side)=>payReconParties(side,[id]);
+ window.settleReconSelected=side=>{const sel=state.reconSelected||new Set();return payReconParties(side,[...sel].filter(k=>k.startsWith(side+':')).map(k=>k.split(':')[1]))};
  window.toggleReconciliationObject=id=>{
   const expanded=state.reconciliationExpanded||(state.reconciliationExpanded=new Set());
   if(expanded.has(Number(id)))expanded.delete(Number(id));else expanded.add(Number(id));
