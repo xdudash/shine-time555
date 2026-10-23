@@ -47,7 +47,9 @@ test('direct extension routes enforce the same operations-manager boundary as na
   calls.length=0;
   // The finance section itself stays closed to an operations manager.
   assert.equal(context.window.ShineTimeUi.adminRouteAllowed('finance','OPERATIONS_MANAGER'),false);
-  assert.equal(context.window.ShineTimeUi.adminRouteAllowed('statements','OPERATIONS_MANAGER'),false);
+  // Monthly confirmation (statements) is open to the operations manager by design.
+  assert.equal(context.window.ShineTimeUi.adminRouteAllowed('statements','OPERATIONS_MANAGER'),true);
+  assert.equal(context.window.ShineTimeUi.adminRouteAllowed('statements','OWNER'),false);
   assert.equal(context.window.ShineTimeUi.adminRouteAllowed('owner','OPERATIONS_MANAGER'),false);
   assert.equal(context.window.ShineTimeUi.adminRouteAllowed('today','OPERATIONS_MANAGER'),true);
   assert.equal(context.window.ShineTimeUi.adminRouteAllowed('review','OPERATIONS_MANAGER'),true);
