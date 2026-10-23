@@ -110,6 +110,11 @@
   uk:{'By object':'За об’єктами','By client':'За клієнтами','By cleaner':'За клінерами','Select all':'Обрати все','Clear selection':'Зняти виділення','Selected':'Обрано','Pay selected':'Оплатити вибрані','Pay all':'Оплатити все','Total':'Разом','Status':'Статус','Open cleanings':'Відкритих прибирань','Cleaner':'Клінер','Payments recorded.':'Платежі записано.','Record payments for all outstanding cleanings of the selected people?':'Записати оплату за всі непогашені прибирання вибраних?','Record payments for all outstanding cleanings of this person?':'Записати оплату за всі непогашені прибирання?'},
   sk:{'By object':'Podľa objektu','By client':'Podľa klientov','By cleaner':'Podľa upratovačov','Select all':'Vybrať všetko','Clear selection':'Zrušiť výber','Selected':'Vybrané','Pay selected':'Zaplatiť vybrané','Pay all':'Zaplatiť všetko','Total':'Spolu','Status':'Stav','Open cleanings':'Otvorených upratovaní','Cleaner':'Upratovač','Payments recorded.':'Platby zaznamenané.','Record payments for all outstanding cleanings of the selected people?':'Zaznamenať platby za všetky nezaplatené upratovania vybraných?','Record payments for all outstanding cleanings of this person?':'Zaznamenať platby za všetky nezaplatené upratovania?'}
  });
+ ST_I18N.addTranslations({
+  ru:{'Confirm payments':'Подтвердить оплаты'},
+  uk:{'Confirm payments':'Підтвердити оплати'},
+  sk:{'Confirm payments':'Potvrdiť platby'}
+ });
  const reconSides=[['OBJECT','By object'],['CLIENT','By client'],['CLEANER','By cleaner']];
  ST_I18N.addTranslations({
   ru:{'Search by name':'Поиск по имени','Still due':'Осталось получить','Nothing matches the search.':'Ничего не найдено.','Pay':'Оплатить'},
