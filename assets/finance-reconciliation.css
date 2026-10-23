@@ -1,0 +1,35 @@
+/* Monthly reconciliation: party views (clients / cleaners), toolbar and expandable rows. */
+.recon-seg{display:inline-flex;gap:4px;padding:4px;background:#eef2ef;border-radius:12px;margin:0 0 16px;flex-wrap:wrap;max-width:100%}
+.recon-seg-btn{border:0;background:transparent;padding:8px 14px;border-radius:9px;font:inherit;font-weight:600;color:#4b5a54;cursor:pointer}
+.recon-seg-btn:hover{color:#123c32}
+.recon-seg-btn.is-active{background:#fff;color:#123c32;box-shadow:0 1px 3px rgba(18,60,50,.15)}
+.recon-seg-btn:focus-visible,.recon-expand:focus-visible{outline:2px solid #123c32;outline-offset:2px}
+
+.recon-panel-head{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;margin:0 0 12px}
+.recon-search{flex:1 1 240px;max-width:340px;min-width:200px}
+.recon-summary{display:flex;gap:18px;flex-wrap:wrap;color:#5b6472;font-size:14px;flex:1 1 auto}
+.recon-summary strong{color:#111827}
+.recon-actions{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+
+.recon-party-table th,.recon-party-table td,.recon-job-table th,.recon-job-table td{vertical-align:middle}
+.recon-party-table th.num,.recon-party-table td.num,.recon-job-table th.num,.recon-job-table td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.recon-check{width:44px;text-align:center}
+.recon-check input{width:16px;height:16px;cursor:pointer}
+.recon-expand{display:inline-flex;gap:8px;align-items:center;background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.recon-caret{display:inline-block;width:12px;color:#5b6472}
+.recon-party-row:hover td{background:#f7faf8}
+.recon-party-row.is-open td{background:#f3f8f5}
+.recon-due{color:#b42318;font-weight:700}
+.recon-pay{text-align:right;white-space:nowrap}
+.recon-detail-row>td{background:#fbfcfb;padding:12px 16px 16px}
+.recon-job-table th,.recon-job-table td{font-size:13px}
+.recon-party-card .table-wrap,.recon-detail-row .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+@media (max-width:720px){
+ .recon-search{flex:1 1 100%;max-width:none}
+ .recon-actions{margin-left:0;width:100%}
+ .recon-actions .btn{flex:1 1 auto}
+ .recon-summary{gap:8px 14px}
+ .recon-seg{display:flex;width:100%}
+ .recon-seg-btn{flex:1 1 0;padding:8px 6px;font-size:13px}
+}

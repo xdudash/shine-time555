@@ -34,6 +34,7 @@ $publicConfig = [
   <link rel="stylesheet" href="assets/mobile-ui.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/mobile-ui.css')) ?>">
   <link rel="stylesheet" href="assets/job-lifecycle.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/job-lifecycle.css')) ?>">
   <link rel="stylesheet" href="assets/operations-workspace.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/operations-workspace.css')) ?>">
+  <link rel="stylesheet" href="assets/finance-reconciliation.css?v=<?= rawurlencode((string)filemtime(__DIR__ . '/assets/finance-reconciliation.css')) ?>">
 </head>
 <body>
   <div id="app"></div>
