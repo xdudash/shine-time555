@@ -56,6 +56,7 @@
   function adminRouteAllowed(page, role) {
     if (role === 'ADMIN') return true;
     if (role !== 'OPERATIONS_MANAGER') return false;
+    if (String(page) === 'statements') return true; // payment confirmation (reconciliation)
     return !restrictedAdminRoutes.has(page) && !restrictedAdminRoutes.has(adminSectionFor(page));
   }
   function adminNavigationForRole(items, role) {

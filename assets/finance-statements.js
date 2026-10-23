@@ -10,7 +10,7 @@
 
  /* Statements is the second tab of Finance since fix 21. */
  const originalRenderAdmin=renderAdminPage;
- renderAdminPage=async function(page){if(page==='statements'&&window.ShineTimeUi.adminRouteAllowed('finance',state.me.role))return statementsScreen();return originalRenderAdmin(page)};
+ renderAdminPage=async function(page){if(page==='statements'&&window.ShineTimeUi.adminRouteAllowed('statements',state.me.role))return statementsScreen();return originalRenderAdmin(page)};
 
  async function statementsScreen(){
   const month=state.statementMonth||today().slice(0,7);
@@ -298,6 +298,7 @@
    await statementsScreen();
   }catch(e){toast(e.message,'error')}
  }
+ window.statementsScreen=()=>statementsScreen();
  window.setStatementSide=side=>{state.statementSide=side;render()};
  window.setStatementMonth=month=>{if(/^\d{4}-\d{2}$/.test(month)){state.statementMonth=month;render()}};
 

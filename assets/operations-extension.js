@@ -10,7 +10,7 @@ const originalCleanerRenderer=renderCleaner;
    awaiting review, payable, paid); the month-by-month settlement list is one tap
    away from it rather than replacing it. */
 renderCleaner=async function(page){if(page==='settlements')return settlementScreen();return originalCleanerRenderer(page)};
-clientFinance=async function(){return settlementScreen()};
+clientFinance=async function(){if(state.me.role==='PROPERTY_MANAGER')return window.statementsScreen();return settlementScreen()};
 
 async function scheduleScreen(){
  shellTitle(t('Recurring jobs','Recurring jobs'),t('Plan repeat visits and generate the next service period','Plan repeat visits and generate the next service period'));

@@ -9,7 +9,7 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
     return result(service.rpc('st_settlement_report',{p_actor_id:ctx.appUser.id,p_month:month,p_before:before,p_limit:100}));
   }
   if(route==='admin/settlements/reconciliation' && method==='GET') {
-    if(role!=='ADMIN')throw new ApiError('Forbidden',403);
+    if(!['ADMIN','OPERATIONS_MANAGER','PROPERTY_MANAGER'].includes(role))throw new ApiError('Forbidden',403);
     const month=String(query.month||today().slice(0,7));
     if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw new ApiError('Invalid period');
     return result(service.rpc('st_monthly_reconciliation',{p_actor_id:ctx.appUser.id,p_month:month}));
@@ -29,11 +29,11 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
     }).single())};
   }
   if(route==='admin/settlements/monthly' && method==='GET') {
-    if(role!=='ADMIN')throw new ApiError('Forbidden',403);
+    if(!['ADMIN','OPERATIONS_MANAGER','PROPERTY_MANAGER'].includes(role))throw new ApiError('Forbidden',403);
     return result(service.rpc('st_monthly_settlements',{p_actor_id:ctx.appUser.id,p_month:String(query.month||today().slice(0,7)),p_side:String(query.side||'CLIENT'),p_party_id:query.partyId?Number(query.partyId):null}));
   }
   if(route==='admin/settlements/batch' && method==='POST') {
-    if(role!=='ADMIN')throw new ApiError('Forbidden',403);
+    if(!['ADMIN','OPERATIONS_MANAGER','PROPERTY_MANAGER'].includes(role))throw new ApiError('Forbidden',403);
     return result(service.rpc('st_settle_batch',{p_actor_id:ctx.appUser.id,p_month:body.month,p_side:body.side,p_party_id:Number(body.partyId),p_items:body.items,p_note:String(body.note||''),p_request_id:String(body.requestId||'')}));
   }
   if(route==='admin/finance'&&method==='GET') {
