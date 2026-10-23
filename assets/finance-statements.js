@@ -10,7 +10,7 @@
 
  /* Statements is the second tab of Finance since fix 21. */
  const originalRenderAdmin=renderAdminPage;
- renderAdminPage=async function(page){if(page==='statements'&&window.ShineTimeUi.adminRouteAllowed('finance',state.me.role))return statementsScreen();return originalRenderAdmin(page)};
+ renderAdminPage=async function(page){if(page==='statements'&&window.ShineTimeUi.adminRouteAllowed('statements',state.me.role))return statementsScreen();return originalRenderAdmin(page)};
 
  async function statementsScreen(){
   const month=state.statementMonth||today().slice(0,7);
@@ -110,9 +110,19 @@
   uk:{'By object':'За об’єктами','By client':'За клієнтами','By cleaner':'За клінерами','Select all':'Обрати все','Clear selection':'Зняти виділення','Selected':'Обрано','Pay selected':'Оплатити вибрані','Pay all':'Оплатити все','Total':'Разом','Status':'Статус','Open cleanings':'Відкритих прибирань','Cleaner':'Клінер','Payments recorded.':'Платежі записано.','Record payments for all outstanding cleanings of the selected people?':'Записати оплату за всі непогашені прибирання вибраних?','Record payments for all outstanding cleanings of this person?':'Записати оплату за всі непогашені прибирання?'},
   sk:{'By object':'Podľa objektu','By client':'Podľa klientov','By cleaner':'Podľa upratovačov','Select all':'Vybrať všetko','Clear selection':'Zrušiť výber','Selected':'Vybrané','Pay selected':'Zaplatiť vybrané','Pay all':'Zaplatiť všetko','Total':'Spolu','Status':'Stav','Open cleanings':'Otvorených upratovaní','Cleaner':'Upratovač','Payments recorded.':'Platby zaznamenané.','Record payments for all outstanding cleanings of the selected people?':'Zaznamenať platby za všetky nezaplatené upratovania vybraných?','Record payments for all outstanding cleanings of this person?':'Zaznamenať platby za všetky nezaplatené upratovania?'}
  });
+ ST_I18N.addTranslations({
+  ru:{'Confirm payments':'Подтвердить оплаты'},
+  uk:{'Confirm payments':'Підтвердити оплати'},
+  sk:{'Confirm payments':'Potvrdiť platby'}
+ });
  const reconSides=[['OBJECT','By object'],['CLIENT','By client'],['CLEANER','By cleaner']];
+ ST_I18N.addTranslations({
+  ru:{'Search by name':'Поиск по имени','Still due':'Осталось получить','Nothing matches the search.':'Ничего не найдено.','Pay':'Оплатить'},
+  uk:{'Search by name':'Пошук за іменем','Still due':'Залишилось','Nothing matches the search.':'Нічого не знайдено.','Pay':'Оплатити'},
+  sk:{'Search by name':'Hľadať podľa mena','Still due':'Zostáva','Nothing matches the search.':'Nič sa nenašlo.','Pay':'Zaplatiť'}
+ });
  function reconSwitcher(active){
-  return '<div class="row-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px">'+reconSides.map(([k,label])=>'<button class="btn sm'+(k===active?' primary':'')+'" onclick="setReconSide(&quot;'+k+'&quot;)">'+tr(label)+'</button>').join('')+'</div>';
+  return '<div class="recon-seg" role="tablist">'+reconSides.map(([k,label])=>'<button role="tab" aria-selected="'+(k===active)+'" class="recon-seg-btn'+(k===active?' is-active':'')+'" onclick="setReconSide(&quot;'+k+'&quot;)">'+tr(label)+'</button>').join('')+'</div>';
  }
  function reconParties(side,data){
   const partyKey=side==='CLIENT'?'clientId':'cleanerId';
@@ -131,36 +141,67 @@
   });
   return [...map.values()].sort((a,b)=>b.due-a.due||String(a.name).localeCompare(String(b.name)));
  }
+ function reconPartyJobs(side,party,data,locked){
+  const partyKey=side==='CLIENT'?'clientId':'cleanerId';
+  const dueKey=side==='CLIENT'?'clientDueCents':'cleanerDueCents';
+  const amountKey=side==='CLIENT'?'clientAmountCents':'cleanerAmountCents';
+  const paidKey=side==='CLIENT'?'clientPaidCents':'cleanerPaidCents';
+  const objectName=new Map((data.objects||[]).map(o=>[Number(o.objectId),o.objectCode||('#'+o.objectId)]));
+  const list=(data.jobs||[]).filter(j=>Number(j[partyKey])===party.id).sort((a,b)=>String(a.serviceDate).localeCompare(String(b.serviceDate)));
+  if(!list.length)return '<div class="empty">'+tr('No cleanings to show here.')+'</div>';
+  return '<div class="table-wrap"><table class="recon-job-table"><thead><tr><th>'+tr('Cleaning date')+'</th><th>'+tr('Object')+'</th><th class="num">'+tr('Total')+'</th><th class="num">'+tr('Paid')+'</th><th>'+tr('Status')+'</th><th></th></tr></thead><tbody>'+
+   list.map(j=>{
+    const due=Number(j[dueKey]||0);
+    return '<tr><td>'+esc(fmtDate(j.serviceDate))+'</td><td>'+esc(objectName.get(Number(j.objectId))||'—')+'</td><td class="num">'+reconCents(j[amountKey])+'</td><td class="num">'+reconCents(j[paidKey])+'</td><td>'+reconDue(due,j[paidKey])+'</td><td class="recon-pay">'+
+     (due>0&&!locked?'<button class="btn sm" onclick="settleReconciliationJob('+Number(j.id)+','+Number(j.objectId)+',&quot;'+side+'&quot;)">'+tr('Pay')+' · '+reconCents(due)+'</button>':'')+'</td></tr>';
+   }).join('')+'</tbody></table></div>';
+ }
  function reconPartyCard(side,data,month){
   const parties=reconParties(side,data);
   const sel=state.reconSelected||(state.reconSelected=new Set());
+  const open=state.reconOpenParties||(state.reconOpenParties=new Set());
+  const q=String(state.reconSearch||'').trim().toLowerCase();
   const locked=data.hasMore===true;
-  const payable=parties.filter(p=>p.due>0);
-  const chosen=payable.filter(p=>sel.has(side+':'+p.id));
+  const visible=parties.filter(p=>!q||String(p.name).toLowerCase().includes(q));
+  const payable=visible.filter(p=>p.due>0);
+  const chosen=parties.filter(p=>p.due>0&&sel.has(side+':'+p.id));
   const chosenDue=chosen.reduce((a,p)=>a+p.due,0);
+  const totalDue=parties.reduce((a,p)=>a+p.due,0);
   const allChecked=payable.length>0&&payable.every(p=>sel.has(side+':'+p.id));
-  const toolbar='<div class="row-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px">'+
-   '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" '+(allChecked?'checked ':'')+(locked||!payable.length?'disabled ':'')+'onchange="toggleReconSelectAll(this.checked)"> '+tr('Select all')+'</label>'+
-   '<button class="btn sm" '+(sel.size?'':'disabled ')+'onclick="clearReconSelection()">'+tr('Clear selection')+'</button>'+
-   '<span class="subtle">'+tr('Selected')+': '+chosen.length+' · '+reconCents(chosenDue)+'</span>'+
-   '<button class="btn sm primary" '+(locked||!chosen.length?'disabled ':'')+'onclick="settleReconSelected(&quot;'+side+'&quot;)">'+tr('Pay selected')+'</button></div>';
-  const rows=parties.map(p=>{
-   const key=side+':'+p.id,canPay=p.due>0&&!locked;
-   return '<tr><td><input type="checkbox" '+(sel.has(key)?'checked ':'')+(p.due>0?'':'disabled ')+'onchange="toggleReconParty(&quot;'+key+'&quot;,this.checked)"></td>'+
-    '<td><strong>'+esc(p.name)+'</strong><br><small class="subtle">'+tr('Open cleanings')+': '+p.open+'</small></td>'+
-    '<td>'+p.jobs+'</td><td class="recon-amount">'+reconCents(p.amount)+'</td><td>'+reconCents(p.paid)+'</td>'+
-    '<td>'+reconDue(p.due,p.paid)+'</td>'+
-    '<td><button class="btn sm primary" '+(canPay?'':'disabled ')+'onclick="settleReconParty('+p.id+',&quot;'+side+'&quot;)">'+tr('Pay all')+(p.due>0?' · '+reconCents(p.due):'')+'</button></td></tr>';
+  const head='<div class="recon-panel-head"><input class="input recon-search" type="search" placeholder="'+esc(tr('Search by name'))+'" value="'+esc(state.reconSearch||'')+'" oninput="setReconSearch(this.value)">'+
+   '<div class="recon-summary"><span>'+tr('Still due')+': <strong>'+reconCents(totalDue)+'</strong></span><span>'+tr('Selected')+': <strong>'+chosen.length+'</strong> · '+reconCents(chosenDue)+'</span></div>'+
+   '<div class="recon-actions"><button class="btn sm" '+(sel.size?'':'disabled ')+'onclick="clearReconSelection()">'+tr('Clear selection')+'</button>'+
+   '<button class="btn sm primary" '+(locked||!chosen.length?'disabled ':'')+'onclick="settleReconSelected(&quot;'+side+'&quot;)">'+tr('Pay selected')+'</button></div></div>';
+  const rows=visible.map(p=>{
+   const key=side+':'+p.id,isOpen=open.has(key),canPay=p.due>0&&!locked;
+   const main='<tr class="recon-party-row'+(isOpen?' is-open':'')+'">'+
+    '<td class="recon-check"><input type="checkbox" '+(sel.has(key)?'checked ':'')+(p.due>0?'':'disabled ')+'onchange="toggleReconParty(&quot;'+key+'&quot;,this.checked)" aria-label="'+esc(p.name)+'"></td>'+
+    '<td><button class="recon-expand" aria-expanded="'+isOpen+'" onclick="toggleReconPartyOpen(&quot;'+key+'&quot;)"><span class="recon-caret">'+(isOpen?'▾':'▸')+'</span><strong>'+esc(p.name)+'</strong></button>'+
+    '<div><small class="subtle">'+tr('Open cleanings')+': '+p.open+' / '+p.jobs+'</small></div></td>'+
+    '<td class="num">'+p.jobs+'</td><td class="num">'+reconCents(p.amount)+'</td><td class="num">'+reconCents(p.paid)+'</td>'+
+    '<td class="num">'+(p.due>0?'<strong class="recon-due">'+reconCents(p.due)+'</strong>':'<span class="pill green">'+tr('Paid')+'</span>')+'</td>'+
+    '<td class="recon-pay"><button class="btn sm primary" '+(canPay?'':'disabled ')+'onclick="settleReconParty('+p.id+',&quot;'+side+'&quot;)">'+tr('Pay all')+'</button></td></tr>';
+   return isOpen?main+'<tr class="recon-detail-row"><td colspan="7">'+reconPartyJobs(side,p,data,locked)+'</td></tr>':main;
   }).join('');
-  return toolbar+'<div class="card recon-table-card"><div class="table-wrap"><table><thead><tr><th></th><th>'+tr(side==='CLIENT'?'Client':'Cleaner')+'</th><th>'+tr('Cleanings')+'</th><th>'+tr('Total')+'</th><th>'+tr('Paid')+'</th><th>'+tr('Status')+'</th><th></th></tr></thead><tbody>'+
-   (rows||'<tr><td colspan="7"><div class="empty">'+tr('No cleanings to show here.')+'</div></td></tr>')+'</tbody></table></div></div>';
+  return head+'<div class="card recon-table-card recon-party-card"><div class="table-wrap"><table class="recon-party-table"><thead><tr>'+
+   '<th class="recon-check"><input type="checkbox" '+(allChecked?'checked ':'')+(locked||!payable.length?'disabled ':'')+'onchange="toggleReconSelectAll(this.checked)" aria-label="'+esc(tr('Select all'))+'"></th>'+
+   '<th>'+tr(side==='CLIENT'?'Client':'Cleaner')+'</th><th class="num">'+tr('Cleanings')+'</th><th class="num">'+tr('Total')+'</th><th class="num">'+tr('Paid')+'</th><th class="num">'+tr('Due')+'</th><th></th></tr></thead><tbody>'+
+   (rows||'<tr><td colspan="7"><div class="empty">'+tr(q?'Nothing matches the search.':'No cleanings to show here.')+'</div></td></tr>')+'</tbody></table></div></div>';
  }
+ window.setReconSearch=value=>{
+  state.reconSearch=value;
+  rerenderRecon();
+  const input=document.querySelector('.recon-search');
+  if(input){input.focus();input.setSelectionRange(input.value.length,input.value.length)}
+ };
+ window.toggleReconPartyOpen=key=>{const open=state.reconOpenParties||(state.reconOpenParties=new Set());if(open.has(key))open.delete(key);else open.add(key);rerenderRecon()};
  const rerenderRecon=()=>renderReconciliation(state.reconciliationData,state.statementMonth||today().slice(0,7));
- window.setReconSide=side=>{state.reconSide=side;state.reconSelected=new Set();rerenderRecon()};
+ window.setReconSide=side=>{state.reconSide=side;state.reconSelected=new Set();state.reconSearch='';state.reconOpenParties=new Set();rerenderRecon()};
  window.toggleReconParty=(key,on)=>{const sel=state.reconSelected||(state.reconSelected=new Set());if(on)sel.add(key);else sel.delete(key);rerenderRecon()};
  window.toggleReconSelectAll=on=>{
   const side=state.reconSide||'OBJECT',sel=state.reconSelected||(state.reconSelected=new Set());
-  reconParties(side,state.reconciliationData||{jobs:[]}).filter(p=>p.due>0).forEach(p=>{const key=side+':'+p.id;if(on)sel.add(key);else sel.delete(key)});
+  const q=String(state.reconSearch||'').trim().toLowerCase();
+  reconParties(side,state.reconciliationData||{jobs:[]}).filter(p=>p.due>0&&(!q||String(p.name).toLowerCase().includes(q))).forEach(p=>{const key=side+':'+p.id;if(on)sel.add(key);else sel.delete(key)});
   rerenderRecon();
  };
  window.clearReconSelection=()=>{state.reconSelected=new Set();rerenderRecon()};
@@ -257,6 +298,7 @@
    await statementsScreen();
   }catch(e){toast(e.message,'error')}
  }
+ window.statementsScreen=()=>statementsScreen();
  window.setStatementSide=side=>{state.statementSide=side;render()};
  window.setStatementMonth=month=>{if(/^\d{4}-\d{2}$/.test(month)){state.statementMonth=month;render()}};
 

@@ -111,11 +111,9 @@ try {
   ShineTimeSupabase.request=async(path,opts={})=>path.startsWith('/api/admin/settlements')?{summary:{payableCents:2000},jobs:[{id:101,service_date:'2026-09-29',object_name:'Test',payableCents:2000}]}:original(path,opts);
   await settlementScreen();
  });
- assert.equal(await page.getByRole('button',{name:'Record',exact:true}).isEnabled(),true,'legacy completed settlement is usable');
- await page.getByRole('button',{name:'Record',exact:true}).click();
- await page.locator('#settlement-form').waitFor();
- await page.evaluate(()=>{closeModal();state.settlementData.jobs[0].review_status='PENDING';settlementModal(101)});
- assert.equal(await page.locator('#settlement-form').count(),0,'explicit pending approval never bypassed');
+ assert.equal(await page.getByRole('button',{name:'Record',exact:true}).count(),0,'no per-cleaning payment dialog');
+ assert.equal(await page.getByRole('button',{name:'Confirm payments',exact:true}).isEnabled(),true,'payments are confirmed in bulk');
+ assert.equal(await page.locator('#settlement-form').count(),0,'no manual payment form on the payments page');
  console.log('PASS live API compatibility, honest completed labels and settlement controls');
  assert.deepEqual(errors,[]);console.log('PASS owner status, mobile layouts and console');
 } finally {await browser.close()}

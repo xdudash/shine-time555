@@ -41,7 +41,9 @@ test('historical completed and settled jobs migrate approved without changing am
  for(const name of files.filter(n=>n>'20260902094500_manager_assignment_audit_index.sql'&&!n.endsWith('_quality_review.sql'))) await db.exec(await readFile(`supabase/migrations/${name}`,'utf8'));
  await seedDatabase(db);
  await db.exec("insert into st_jobs(object_id,client_id,service_date,status,assigned_cleaner_id,client_price,payout) values(1,1,current_date,'COMPLETED',1,40,20)");
- await db.query("select st_record_settlement(1,1,'CLIENT_PAYMENT',4000,'Historical',$1)",[key()]);
+ // Written by the pre-review code: st_record_settlement now reads review_status, which only exists after the review migration.
+ await db.query("insert into st_settlements(job_id,kind,amount_cents,note,request_id,created_by_user_id) values(1,'CLIENT_PAYMENT',4000,'Historical',$1,1)",[key()]);
+ await db.exec("update st_jobs set financial_status='PAID' where id=1");
  for(const name of files.filter(n=>n.endsWith('_quality_review.sql'))) await db.exec(await readFile(`supabase/migrations/${name}`,'utf8'));
  const row=(await db.query('select * from st_jobs where id=1')).rows[0];assert.equal(row.review_status,'APPROVED');assert.equal(row.financial_status,'PAID');assert.equal(row.client_price,'40.00');
  assert.equal((await db.query('select sum(amount_cents)::int n from st_settlements')).rows[0].n,4000);

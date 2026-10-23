@@ -101,7 +101,8 @@ try{
  const waiting=await api(0,'admin/settlements/monthly','GET',{},{month,side:'CLIENT',partyId:1});
  assert.deepEqual(waiting.groups,[],'Unapproved work is not offered for monthly settlement');assert.equal(waiting.waitingReviewJobs,1);
  await assert.rejects(api(0,'admin/settlements/batch','POST',{month,side:'CLIENT',partyId:1,items:[{jobId:booking.id,amountCents:4000}],note:'Synthetic',requestId:crypto.randomUUID()}),/review|approv/i);
- await assert.rejects(api(5,'admin/settlements/monthly','GET',{},{month,side:'CLIENT'}),/403|Forbidden/i,'Operations manager cannot see monthly finance');
+ assert.ok(Array.isArray((await api(5,'admin/settlements/monthly','GET',{},{month,side:'CLIENT'})).groups),'Operations manager confirms monthly payments');
+await assert.rejects(api(3,'admin/settlements/monthly','GET',{},{month,side:'CLIENT'}),/403|Forbidden/i,'Client owner cannot confirm its own payments');
  await assert.rejects(api(0,'admin/settlements','POST',{jobId:booking.id,kind:'CLEANER_PAYOUT',amountCents:2000,note:'Synthetic test',requestId:crypto.randomUUID()}),/review|approv/i);
  const pending=await api(5,`admin/jobs/${booking.id}`);
  assert.equal(pending.review_status,'PENDING');
