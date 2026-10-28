@@ -1,7 +1,7 @@
 -- Manual entry of a cleaning that was done but is missing from the system.
 -- The job is recorded as completed and already approved, so it joins the monthly
--- reconciliation at once. It carries a required note and an audit event; it cannot
--- duplicate a cleaning already booked for the same property and date.
+-- reconciliation at once and carries an audit event; it cannot duplicate a cleaning
+-- already booked for the same property and date.
 -- Manual payments need no new function: they go through the existing batch ledger.
 
 create or replace function public.st_create_manual_completed_job(p_actor_id bigint, p_body jsonb)
@@ -16,7 +16,6 @@ declare
   j st_jobs%rowtype;
   d date;
   today_local date := (now() at time zone 'Europe/Bratislava')::date;
-  note text;
   client_price numeric;
   payout numeric;
   cleaner_id bigint;
@@ -31,11 +30,6 @@ begin
   d := (p_body->>'serviceDate')::date;
   if d is null or d > today_local or d < today_local - 366 then
     raise exception 'Enter a past service date (up to one year back)';
-  end if;
-
-  note := left(btrim(coalesce(p_body->>'note', '')), 500);
-  if length(note) = 0 then
-    raise exception 'A note is required: say what was cleaned and why it is entered by hand';
   end if;
 
   client_price := (p_body->>'clientPrice')::numeric;
@@ -73,11 +67,11 @@ begin
     payout, client_price, 0, null, null, 'ADMIN', u.id,
     'COMPLETED', false, null, cleaner_id,
     (d + coalesce(o.deadline_time, time '18:00')) at time zone 'Europe/Bratislava',
-    true, 'APPROVED', 0, now(), u.id, 'Entered manually: ' || note
+    true, 'APPROVED', 0, now(), u.id, 'Entered manually'
   ) returning * into j;
 
   insert into st_job_events(job_id, user_id, event_type, payload_json)
-  values (j.id, u.id, 'MANUAL_ENTRY', jsonb_build_object('note', note, 'clientPrice', client_price, 'payout', payout));
+  values (j.id, u.id, 'MANUAL_ENTRY', jsonb_build_object('clientPrice', client_price, 'payout', payout));
 
   return j;
 end
