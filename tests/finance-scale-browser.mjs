@@ -53,6 +53,10 @@ await page.evaluate(data=>{
   if(path.startsWith('/api/admin/settlements/reconciliation'))return data;
   if(path==='/api/admin/settlements/batch'){window.batchBodies.push(opts.body);return {count:opts.body.items.length,amountCents:opts.body.items.reduce((n,i)=>n+i.amountCents,0)}}
   if(path.startsWith('/api/admin/settlements/monthly'))return {groups:[],jobs:[],hasMore:false,waitingReviewJobs:0};
+  if(path==='/api/admin/objects')return {objects:[{id:100,code:'OBJ-1',name:'Object 1',active:true,approval_status:'APPROVED',client_price:40,payout:20,checkout_time:'08:00',deadline_time:'20:00',duration_minutes:60}]};
+  if(path==='/api/admin/cleaners')return {cleaners:[{id:1,full_name:'Cleaner 1',active:true}]};
+  if(path==='/api/admin/finance/manual-cleanings'){window.manualCleaningBody=opts.body;return {job:{id:1}}}
+  if(path==='/api/admin/settlements/manual'){window.manualPaymentBody=opts.body;return {count:1,amountCents:opts.body.amountCents}}
   throw new Error('unexpected '+path);
  }};
  state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};
@@ -107,6 +111,24 @@ await page.waitForFunction(()=>window.batchBodies.length>=2,null,{timeout:10000}
 const first=await page.evaluate(()=>window.batchBodies[0].items.length);
 await page.locator('#toast-root').getByText(new RegExp('Recorded '+first+' / ')).waitFor({timeout:5000});
 console.log('partial failure reported with recorded count');
+
+// Manual entry: a cleaning done outside the system, then a partial payment received by hand.
+await page.getByRole('button',{name:'Add cleaning',exact:true}).click();
+await page.locator('#manual-cleaning-form').waitFor();
+await page.locator('#mc-note').fill('Cleaned 25.10, missing from the app');
+await page.getByRole('button',{name:'Save cleaning',exact:true}).click();
+await page.waitForFunction(()=>window.manualCleaningBody);
+const mc=await page.evaluate(()=>window.manualCleaningBody);
+assert.equal(mc.objectId,100);assert.equal(mc.clientPrice,40);assert.equal(mc.payout,20);assert.equal(mc.cleanerId,1);assert.ok(mc.note);
+await page.getByRole('button',{name:'Add payment',exact:true}).click();
+await page.locator('#mp-amount').fill('15');
+await page.locator('#mp-note').fill('Bank transfer 28.10');
+await page.locator('#mp-preview').getByText(/cleanings/).waitFor();
+await page.getByRole('button',{name:'Save payment',exact:true}).click();
+await page.waitForFunction(()=>window.manualPaymentBody);
+const mp=await page.evaluate(()=>window.manualPaymentBody);
+assert.equal(mp.amountCents,1500);assert.equal(mp.side,'CLIENT');assert.equal(mp.items,undefined,'the server allocates the amount');
+console.log('PASS manual cleaning and manual payment entry');
 
 assert.deepEqual(errors,[]);
 console.log('PASS finance at scale: 1,200 cleanings render, search responds, client month paid in one request');
