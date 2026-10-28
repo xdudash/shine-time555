@@ -14,6 +14,7 @@ for(const script of scripts) {
 }
 for(const css of ['styles.css','ui-system.css','mobile-ui.css','job-lifecycle.css','operations-workspace.css','finance-reconciliation.css']) await cp(join(root,'assets',css),join(dest,'assets',css));
 await cp(join(root,'preview/fixtures.js'),join(dest,'assets/preview-fixtures.js'));
+for(const icon of ['favicon.svg','icon-192.png','icon-512.png']) await cp(join(root,'assets',icon),join(dest,'assets',icon));
 const commit=process.env.PREVIEW_COMMIT||'local';
 const assetVersion=encodeURIComponent(commit.slice(0,12));
 const head=php.match(/<head>([\s\S]*?)<\/head>/)?.[1]||'';

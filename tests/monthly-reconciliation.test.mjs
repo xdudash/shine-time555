@@ -28,33 +28,37 @@ test('monthly reconciliation groups the property total and tracks client and cle
  }finally{await db.close()}
 });
 
-test('finance correction can fix the date and total amounts before payment and leaves an audit event',async()=>{
+test('finance correction can fix the date and total amounts and leaves an audit event',async()=>{
  const db=await setup();try{
   await db.exec("insert into st_jobs(object_id,client_id,service_date,status,review_status,assigned_cleaner_id,client_price,payout) values(2,1,current_date,'COMPLETED','APPROVED',1,45,25),(2,1,current_date+1,'COMPLETED','APPROVED',1,10,5)");
   const {rows:[{j}]}=await db.query(
-   "select to_jsonb(st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+2)::text,'clientAmountCents',5000,'cleanerAmountCents',2700,'reason','Corrected monthly sheet'))) as j"
+   "select to_jsonb(st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+2)::text,'clientAmountCents',5000,'cleanerAmountCents',2700))) as j"
   );
   assert.equal(String(j.service_date).slice(0,10), (await db.query("select to_char(current_date+2,'YYYY-MM-DD') as day_value")).rows[0].day_value);
   assert.equal(Number(j.client_price),50);
   assert.equal(Number(j.payout),27);
   const events=(await db.query("select event_type,payload_json from st_job_events where job_id=1 order by id desc limit 1")).rows[0];
   assert.equal(events.event_type,'FINANCE_CORRECTION');
-  assert.equal(events.payload_json.reason,'Corrected monthly sheet');
+  assert.equal(Number(events.payload_json.after.clientAmountCents),5000);
   await assert.rejects(db.query(
-   "select st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+1)::text,'clientAmountCents',5000,'cleanerAmountCents',2700,'reason','Wrong date'))"
+   "select st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+1)::text,'clientAmountCents',5000,'cleanerAmountCents',2700))"
   ),/already has a cleaning/i);
  }finally{await db.close()}
 });
 
-test('finance correction cannot rewrite an existing client or cleaner payment',async()=>{
+test('finance correction keeps recorded payments and refuses totals below what was already paid',async()=>{
  const db=await setup();try{
   await db.exec("insert into st_jobs(object_id,client_id,service_date,status,review_status,assigned_cleaner_id,client_price,payout) values(1,1,current_date,'COMPLETED','APPROVED',1,40,20)");
-  await db.query("select st_record_settlement(1,1,'CLIENT_PAYMENT',100,'Receipt','recon-protected')");
+  await db.query("select st_record_settlement(1,1,'CLIENT_PAYMENT',1000,'Receipt','recon-protected')");
   await assert.rejects(db.query(
-   "select st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',current_date::text,'clientAmountCents',4000,'cleanerAmountCents',2000,'reason','Try to rewrite payment'))"
-  ),/payment history/i);
+   "select st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',current_date::text,'clientAmountCents',500,'cleanerAmountCents',2000))"
+  ),/already paid more/i);
+  const {rows:[{j}]}=await db.query(
+   "select to_jsonb(st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',current_date::text,'clientAmountCents',4000,'cleanerAmountCents',2000))) as j");
+  assert.equal(Number(j.client_price),40);
+  assert.equal((await db.query("select count(*)::int c from st_settlements")).rows[0].c,1,'the payment itself is untouched');
   await assert.rejects(db.query(
-   "select st_correct_completed_job_finance(2,1,jsonb_build_object('serviceDate',current_date::text,'clientAmountCents',4000,'cleanerAmountCents',2000,'reason','No'))"
+   "select st_correct_completed_job_finance(2,1,jsonb_build_object('serviceDate',current_date::text,'clientAmountCents',4000,'cleanerAmountCents',2000))"
   ),/forbidden/i);
  }finally{await db.close()}
 });

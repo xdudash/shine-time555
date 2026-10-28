@@ -57,6 +57,8 @@ await page.evaluate(data=>{
   if(path==='/api/admin/cleaners')return {cleaners:[{id:1,full_name:'Cleaner 1',active:true}]};
   if(path==='/api/admin/finance/manual-cleanings'){window.manualCleaningBody=opts.body;return {job:{id:1}}}
   if(path==='/api/admin/settlements/manual'){window.manualPaymentBody=opts.body;return {count:1,amountCents:opts.body.amountCents}}
+  if(path.startsWith('/api/admin/finance/jobs/')&&path.endsWith('/payments'))return {job:{id:1,status:'COMPLETED',manual:true,clientNetCents:4000,cleanerNetCents:0},payments:[{id:9,kind:'CLIENT_PAYMENT',amountCents:4000,note:'Bank transfer',createdAt:'2099-01-05',reversesId:null,reversedBy:null}]};
+  if(path.startsWith('/api/admin/settlements/')&&path.endsWith('/reverse')){window.reverseBody=opts.body;return {entry:{id:10}}}
   throw new Error('unexpected '+path);
  }};
  state.me={id:1,role:'ADMIN',full_name:'Admin',language:'en'};state.settings={companyName:'Shine Time'};
@@ -115,11 +117,10 @@ console.log('partial failure reported with recorded count');
 // Manual entry: a cleaning done outside the system, then a partial payment received by hand.
 await page.getByRole('button',{name:'Add cleaning',exact:true}).click();
 await page.locator('#manual-cleaning-form').waitFor();
-await page.locator('#mc-note').fill('Cleaned 25.10, missing from the app');
 await page.getByRole('button',{name:'Save cleaning',exact:true}).click();
 await page.waitForFunction(()=>window.manualCleaningBody);
 const mc=await page.evaluate(()=>window.manualCleaningBody);
-assert.equal(mc.objectId,100);assert.equal(mc.clientPrice,40);assert.equal(mc.payout,20);assert.equal(mc.cleanerId,1);assert.ok(mc.note);
+assert.equal(mc.objectId,100);assert.equal(mc.clientPrice,40);assert.equal(mc.payout,20);assert.equal(mc.cleanerId,1);assert.equal(mc.note,undefined,'no reason is asked for');
 await page.getByRole('button',{name:'Add payment',exact:true}).click();
 await page.locator('#mp-amount').fill('15');
 await page.locator('#mp-note').fill('Bank transfer 28.10');
@@ -129,6 +130,13 @@ await page.waitForFunction(()=>window.manualPaymentBody);
 const mp=await page.evaluate(()=>window.manualPaymentBody);
 assert.equal(mp.amountCents,1500);assert.equal(mp.side,'CLIENT');assert.equal(mp.items,undefined,'the server allocates the amount');
 console.log('PASS manual cleaning and manual payment entry');
+
+// Corrections: a recorded payment can be reversed; the history stays visible.
+await page.evaluate(()=>openJobPayments(1));
+await page.locator('.modal').getByRole('button',{name:'Reverse',exact:true}).click();
+await page.locator('#ask-ok').click();
+await page.waitForFunction(()=>window.reverseBody);
+console.log('PASS payment reversal confirms and sends without a reason');
 
 assert.deepEqual(errors,[]);
 console.log('PASS finance at scale: 1,200 cleanings render, search responds, client month paid in one request');

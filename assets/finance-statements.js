@@ -57,7 +57,7 @@
     '<td>'+Number(o.jobsCount||0)+'</td><td class="recon-amount">'+clientSummary+'</td><td>'+clientAction+'</td>'+
     '<td class="recon-amount">'+cleanerSummary+'</td><td>'+cleanerAction+'</td>'+
     '<td><button class="btn sm" onclick="toggleReconciliationObject('+id+')">'+(expanded.has(id)?tr('Hide details'):tr('Details'))+'</button></td></tr>';
-   if(expanded.has(id))row+='<tr class="recon-detail-row"><td colspan="7">'+reconciliationDetails(o,jobs,month,data.hasMore)+'</td></tr>';
+   if(expanded.has(id))row+='<tr class="recon-detail-row"><td colspan="6">'+reconciliationDetails(o,jobs,month,data.hasMore)+'</td></tr>';
    return row;
   }).join('');
   const expandedClientDue=Number(summary.clientDueCents||0),expandedCleanerDue=Number(summary.cleanerDueCents||0);
@@ -72,7 +72,7 @@
    '</div>'+overLimit+reconSwitcher(reconSide)+
    (reconSide!=='OBJECT'?reconPartyCard(reconSide,data,month):
    '<div class="card recon-table-card"><div class="table-wrap"><table><thead><tr><th>'+tr('Object')+'</th><th>'+tr('Cleanings')+'</th><th>'+tr('Client · total / paid / due')+'</th><th></th><th>'+tr('Cleaner · total / paid / due')+'</th><th></th><th></th></tr></thead><tbody>'+
-   (objectRows||'')+(objectRows?'':'<tr><td colspan="7"><div class="empty">'+tr('No completed cleanings in this month.')+'</div></td></tr>')+
+   (objectRows||'')+(objectRows?'':'<tr><td colspan="6"><div class="empty">'+tr('No completed cleanings in this month.')+'</div></td></tr>')+
    '</tbody></table></div></div>');
  }
  function reconciliationPaymentAction(job,side,objectId,hasMore){
@@ -85,7 +85,7 @@
  }
  function reconciliationDetails(object,jobs,month,hasMore){
   const rows=jobs.filter(j=>Number(j.objectId)===Number(object.objectId)).map(j=>{
-   const id=Number(j.id),editable=j.editable===true;
+   const id=Number(j.id),editable=true;
    const dateCell=editable
     ?'<input class="input recon-date-input" type="date" data-recon-date="'+id+'" value="'+esc(j.serviceDate)+'"><small class="subtle">'+esc(reconWeekday(j.serviceDate))+'</small>'
     :'<strong>'+esc(fmtDate(j.serviceDate))+'</strong><br><small class="subtle">'+esc(reconWeekday(j.serviceDate))+' · #'+id+'</small>';
@@ -95,15 +95,14 @@
    const cleanerCell=editable
     ?'<input class="input recon-money-input" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" data-recon-cleaner="'+id+'" value="'+reconMajor(j.cleanerAmountCents)+'">'
     :'<strong>'+reconCents(j.cleanerAmountCents)+'</strong>';
-   const reason=editable?'<input class="input recon-reason-input" type="text" maxlength="500" data-recon-reason="'+id+'" placeholder="'+esc(tr('Reason for correction'))+'">':'<small class="subtle">'+tr('Locked after first payment')+'</small>';
    const save=editable?'<button class="btn sm primary" onclick="saveMonthlyCorrection('+id+','+Number(object.objectId)+')">'+tr('Save correction')+'</button>':'<span class="subtle">—</span>';
    return '<tr><td>'+dateCell+'</td><td><strong>'+esc(j.clientName||'—')+'</strong><br><small class="subtle">'+tr('Client')+' · '+reconDue(j.clientDueCents,j.clientPaidCents)+'</small><div class="recon-job-payment">'+reconciliationPaymentAction(j,'CLIENT',object.objectId,hasMore)+'</div></td><td>'+clientCell+'</td>'+
-    '<td><strong>'+esc(j.cleanerName||tr('No cleaner assigned'))+'</strong><br><small class="subtle">'+tr('Cleaner')+' · '+reconDue(j.cleanerDueCents,j.cleanerPaidCents)+'</small><div class="recon-job-payment">'+reconciliationPaymentAction(j,'CLEANER',object.objectId,hasMore)+'</div></td><td>'+cleanerCell+'</td><td>'+reason+'</td><td>'+save+'</td></tr>';
+    '<td><strong>'+esc(j.cleanerName||tr('No cleaner assigned'))+'</strong><br><small class="subtle">'+tr('Cleaner')+' · '+reconDue(j.cleanerDueCents,j.cleanerPaidCents)+'</small><div class="recon-job-payment">'+reconciliationPaymentAction(j,'CLEANER',object.objectId,hasMore)+'</div></td><td>'+cleanerCell+'</td><td>'+save+' <button class="btn sm" onclick="openJobPayments('+id+')">'+tr('Payments')+'</button></td></tr>';
   }).join('');
   return '<div class="recon-detail"><div class="section-head compact"><div><h3>'+esc(object.objectCode||'')+' · '+esc(object.objectName||'')+'</h3><p>'+tr('Change dates or total amounts here. Payment records are never overwritten.')+'</p></div>'+
    '<div class="row-actions"><button class="btn sm" '+(hasMore?'disabled':'')+' onclick="settleReconciliationObject('+Number(object.objectId)+',&quot;CLIENT&quot;)">'+tr('Mark client paid')+'</button><button class="btn sm" '+(hasMore?'disabled':'')+' onclick="settleReconciliationObject('+Number(object.objectId)+',&quot;CLEANER&quot;)">'+tr('Mark cleaners paid')+'</button></div></div>'+
-   '<div class="table-wrap"><table class="recon-detail-table"><thead><tr><th>'+tr('Cleaning date')+'</th><th>'+tr('Client / status')+'</th><th>'+tr('Client total (€)')+'</th><th>'+tr('Cleaner / status')+'</th><th>'+tr('Cleaner total (€)')+'</th><th>'+tr('Correction reason')+'</th><th></th></tr></thead><tbody>'+
-   (rows||'')+(rows?'':'<tr><td colspan="7"><div class="empty">'+tr('No cleanings to show here.')+'</div></td></tr>')+
+   '<div class="table-wrap"><table class="recon-detail-table"><thead><tr><th>'+tr('Cleaning date')+'</th><th>'+tr('Client / status')+'</th><th>'+tr('Client total (€)')+'</th><th>'+tr('Cleaner / status')+'</th><th>'+tr('Cleaner total (€)')+'</th><th></th></tr></thead><tbody>'+
+   (rows||'')+(rows?'':'<tr><td colspan="6"><div class="empty">'+tr('No cleanings to show here.')+'</div></td></tr>')+
    '</tbody></table></div><p class="subtle">'+tr('After a payment is recorded, use a refund or return entry to correct the financial history.')+'</p></div>';
  }
  ST_I18N.addTranslations({
@@ -187,12 +186,12 @@
     '<td class="num">'+p.jobs+'</td><td class="num">'+reconCents(p.amount)+'</td><td class="num">'+reconCents(p.paid)+'</td>'+
     '<td class="num">'+(p.due>0?'<strong class="recon-due">'+reconCents(p.due)+'</strong>':'<span class="pill green">'+tr('Paid')+'</span>')+'</td>'+
     '<td class="recon-pay"><button class="btn sm primary" '+(canPay?'':'disabled ')+'onclick="settleReconParty('+p.id+',&quot;'+side+'&quot;)">'+tr('Pay all')+'</button></td></tr>';
-   return isOpen?main+'<tr class="recon-detail-row"><td colspan="7">'+reconPartyJobs(side,p,data,locked)+'</td></tr>':main;
+   return isOpen?main+'<tr class="recon-detail-row"><td colspan="6">'+reconPartyJobs(side,p,data,locked)+'</td></tr>':main;
   }).join('');
   return head+'<div class="card recon-table-card recon-party-card"><div class="table-wrap"><table class="recon-party-table"><thead><tr>'+
    '<th class="recon-check"><input type="checkbox" '+(allChecked?'checked ':'')+(locked||!payable.length?'disabled ':'')+'onchange="toggleReconSelectAll(this.checked)" aria-label="'+esc(tr('Select all'))+'"></th>'+
    '<th>'+tr(side==='CLIENT'?'Client':'Cleaner')+'</th><th class="num">'+tr('Cleanings')+'</th><th class="num">'+tr('Total')+'</th><th class="num">'+tr('Paid')+'</th><th class="num">'+tr('Due')+'</th><th></th></tr></thead><tbody>'+
-   (rows||'<tr><td colspan="7"><div class="empty">'+tr(q?'Nothing matches the search.':'No cleanings to show here.')+'</div></td></tr>')+'</tbody></table></div></div>';
+   (rows||'<tr><td colspan="6"><div class="empty">'+tr(q?'Nothing matches the search.':'No cleanings to show here.')+'</div></td></tr>')+'</tbody></table></div></div>';
  }
  window.setReconSearch=value=>{
   state.reconSearch=value;
@@ -289,17 +288,15 @@
   const date=pick('date')?.value;
   const clientValue=String(pick('client')?.value??'').trim();
   const cleanerValue=String(pick('cleaner')?.value??'').trim();
-  const reason=pick('reason')?.value?.trim();
   const validMoney=value=>/^\d+(?:[.,]\d{1,2})?$/.test(value);
-  if(!date||!validMoney(clientValue)||!validMoney(cleanerValue)||!reason){
-   return toast(tr('Enter the date, non-negative amounts and a correction reason.'),'error');
+  if(!date||!validMoney(clientValue)||!validMoney(cleanerValue)){
+   return toast(tr('Enter the date and non-negative amounts.'),'error');
   }
   try{
    await api('/api/admin/settlements/jobs/'+Number(id)+'/correct',{method:'PATCH',body:{
     serviceDate:date,
     clientAmountCents:window.ShineTimeMoney.toMinorUnits(String(clientValue)),
-    cleanerAmountCents:window.ShineTimeMoney.toMinorUnits(String(cleanerValue)),
-    reason
+    cleanerAmountCents:window.ShineTimeMoney.toMinorUnits(String(cleanerValue))
    }});
    state.reconciliationExpanded?.add(Number(objectId));
    toast(tr('Correction saved.'),'success');
@@ -411,7 +408,6 @@
      '<div class="field"><label for="mc-cleaner">'+esc(tr('Cleaner'))+'</label><select class="select" id="mc-cleaner" name="cleanerId">'+cleaners.map(c=>'<option value="'+c.id+'">'+esc(c.full_name||('#'+c.id))+'</option>').join('')+'</select></div>'+
      '<div class="field"><label for="mc-price">'+esc(tr('Client price (€)'))+'</label><input class="input" id="mc-price" name="clientPrice" type="number" min="0" step="0.5" required></div>'+
      '<div class="field"><label for="mc-payout">'+esc(tr('Cleaner payout (€)'))+'</label><input class="input" id="mc-payout" name="payout" type="number" min="0" step="0.5" required></div>'+
-     '<div class="field wide"><label for="mc-note">'+esc(tr('Why it is entered by hand (required)'))+'</label><textarea class="textarea" id="mc-note" name="note" maxlength="500" rows="2" required placeholder="'+esc(tr('For example: cleaned on 12.10, missing from the app'))+'"></textarea></div>'+
     '</form>',
     '<button class="btn" onclick="closeModal()">'+esc(tr('Cancel'))+'</button><button class="btn primary" onclick="submitManualCleaning()">'+esc(tr('Save cleaning'))+'</button>');
    window.prefillManualCleaning();
@@ -429,7 +425,7 @@
   if(!form.reportValidity())return;
   const f=new FormData(form);
   const body={objectId:Number(f.get('objectId')),serviceDate:String(f.get('serviceDate')),cleanerId:Number(f.get('cleanerId')),
-   clientPrice:Number(f.get('clientPrice')),payout:Number(f.get('payout')),note:String(f.get('note')||'').trim()};
+   clientPrice:Number(f.get('clientPrice')),payout:Number(f.get('payout'))};
   try{
    await api('/api/admin/finance/manual-cleanings',{method:'POST',body});
    closeModal();toast(tr('Cleaning saved'),'success');
@@ -485,8 +481,68 @@
   }catch(e){toast(e.message,'error')}
  };
  ST_I18N.addTranslations({
-  ru:{'Add cleaning':'Добавить уборку','Add payment':'Добавить оплату','Save payment':'Сохранить оплату','Add a cleaning done outside the system':'Добавить уборку, сделанную вне системы','Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.':'Только для уборки, которая была, но не записана в систему. Она сохранится как выполненная и одобренная и сразу попадёт в сверку этого месяца.','Save cleaning':'Сохранить уборку','Cleaner':'Клинер','Why it is entered by hand (required)':'Почему вносится вручную (обязательно)','For example: cleaned on 12.10, missing from the app':'Например: убрано 12.10, в приложении не было','Cleaning saved':'Уборка сохранена','Record a payment by hand':'Записать оплату вручную','Payment':'Оплата','Received from client':'Получено от клиента','Paid to cleaner':'Выплачено клинеру','Client':'Клиент','Amount (€)':'Сумма (€)','Reference (required)':'Основание (обязательно)','For example: bank transfer 28.10':'Например: перевод 28.10','Enter the amount received or paid.':'Введите сумму получения или выплаты.','The amount is more than the outstanding balance':'Сумма больше непогашенного остатка','cleanings':'уборок','Left after this payment':'Останется после оплаты','Payment recorded':'Оплата записана','Open the reconciliation first':'Сначала откройте сверку','enter an amount':'введите сумму','No active cleaner':'Нет активных клинеров','Client price (€)':'Цена клиенту (€)','Cleaner payout (€)':'Выплата клинеру (€)','Service date':'Дата уборки','Property':'Объект','Cancel':'Отмена','No approved property to book':'Нет одобренного объекта для записи'},
-  uk:{'Add cleaning':'Додати прибирання','Add payment':'Додати оплату','Save payment':'Зберегти оплату','Add a cleaning done outside the system':'Додати прибирання, зроблене поза системою','Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.':'Лише для прибирання, яке було, але не внесене в систему. Воно збережеться як виконане і схвалене та одразу потрапить у звірку цього місяця.','Save cleaning':'Зберегти прибирання','Cleaner':'Клінер','Why it is entered by hand (required)':'Чому вноситься вручну (обов’язково)','For example: cleaned on 12.10, missing from the app':'Наприклад: прибрано 12.10, у застосунку не було','Cleaning saved':'Прибирання збережено','Record a payment by hand':'Записати оплату вручну','Payment':'Оплата','Received from client':'Отримано від клієнта','Paid to cleaner':'Виплачено клінеру','Client':'Клієнт','Amount (€)':'Сума (€)','Reference (required)':'Підстава (обов’язково)','For example: bank transfer 28.10':'Наприклад: переказ 28.10','Enter the amount received or paid.':'Введіть суму отримання або виплати.','The amount is more than the outstanding balance':'Сума більша за непогашений залишок','cleanings':'прибирань','Left after this payment':'Залишиться після оплати','Payment recorded':'Оплату записано','Open the reconciliation first':'Спочатку відкрийте звірку','enter an amount':'введіть суму','No active cleaner':'Немає активних клінерів','Client price (€)':'Ціна клієнту (€)','Cleaner payout (€)':'Виплата клінеру (€)','Service date':'Дата прибирання','Property':'Об’єкт','Cancel':'Скасувати','No approved property to book':'Немає схваленого об’єкта для запису'},
-  sk:{'Add cleaning':'Pridať upratovanie','Add payment':'Pridať platbu','Save payment':'Uložiť platbu','Add a cleaning done outside the system':'Pridať upratovanie urobené mimo systému','Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.':'Len pre upratovanie, ktoré sa uskutočnilo, ale nie je tu zaznamenané. Uloží sa ako dokončené a schválené a hneď sa dostane do mesačného vyúčtovania.','Save cleaning':'Uložiť upratovanie','Cleaner':'Upratovač','Why it is entered by hand (required)':'Prečo sa zadáva ručne (povinné)','For example: cleaned on 12.10, missing from the app':'Napríklad: upratované 12.10, v aplikácii chýbalo','Cleaning saved':'Upratovanie uložené','Record a payment by hand':'Zaznamenať platbu ručne','Payment':'Platba','Received from client':'Prijaté od klienta','Paid to cleaner':'Vyplatené upratovačovi','Client':'Klient','Amount (€)':'Suma (€)','Reference (required)':'Referencia (povinné)','For example: bank transfer 28.10':'Napríklad: prevod 28.10','Enter the amount received or paid.':'Zadajte prijatú alebo vyplatenú sumu.','The amount is more than the outstanding balance':'Suma je vyššia ako nezaplatený zostatok','cleanings':'upratovaní','Left after this payment':'Zostane po platbe','Payment recorded':'Platba zaznamenaná','Open the reconciliation first':'Najprv otvorte vyúčtovanie','enter an amount':'zadajte sumu','No active cleaner':'Žiadny aktívny upratovač','Client price (€)':'Cena klientovi (€)','Cleaner payout (€)':'Výplata upratovačovi (€)','Service date':'Dátum upratovania','Property':'Objekt','Cancel':'Zrušiť','No approved property to book':'Žiadny schválený objekt na rezerváciu'}
+  ru:{'Add cleaning':'Добавить уборку','Add payment':'Добавить оплату','Save payment':'Сохранить оплату','Add a cleaning done outside the system':'Добавить уборку, сделанную вне системы','Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.':'Только для уборки, которая была, но не записана в систему. Она сохранится как выполненная и одобренная и сразу попадёт в сверку этого месяца.','Save cleaning':'Сохранить уборку','Cleaner':'Клинер','Cleaning saved':'Уборка сохранена','Record a payment by hand':'Записать оплату вручную','Payment':'Оплата','Received from client':'Получено от клиента','Paid to cleaner':'Выплачено клинеру','Client':'Клиент','Amount (€)':'Сумма (€)','Reference (required)':'Основание (обязательно)','For example: bank transfer 28.10':'Например: перевод 28.10','Enter the amount received or paid.':'Введите сумму получения или выплаты.','The amount is more than the outstanding balance':'Сумма больше непогашенного остатка','cleanings':'уборок','Left after this payment':'Останется после оплаты','Payment recorded':'Оплата записана','Open the reconciliation first':'Сначала откройте сверку','enter an amount':'введите сумму','No active cleaner':'Нет активных клинеров','Client price (€)':'Цена клиенту (€)','Cleaner payout (€)':'Выплата клинеру (€)','Service date':'Дата уборки','Property':'Объект','Cancel':'Отмена','No approved property to book':'Нет одобренного объекта для записи'},
+  uk:{'Add cleaning':'Додати прибирання','Add payment':'Додати оплату','Save payment':'Зберегти оплату','Add a cleaning done outside the system':'Додати прибирання, зроблене поза системою','Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.':'Лише для прибирання, яке було, але не внесене в систему. Воно збережеться як виконане і схвалене та одразу потрапить у звірку цього місяця.','Save cleaning':'Зберегти прибирання','Cleaner':'Клінер','Cleaning saved':'Прибирання збережено','Record a payment by hand':'Записати оплату вручну','Payment':'Оплата','Received from client':'Отримано від клієнта','Paid to cleaner':'Виплачено клінеру','Client':'Клієнт','Amount (€)':'Сума (€)','Reference (required)':'Підстава (обов’язково)','For example: bank transfer 28.10':'Наприклад: переказ 28.10','Enter the amount received or paid.':'Введіть суму отримання або виплати.','The amount is more than the outstanding balance':'Сума більша за непогашений залишок','cleanings':'прибирань','Left after this payment':'Залишиться після оплати','Payment recorded':'Оплату записано','Open the reconciliation first':'Спочатку відкрийте звірку','enter an amount':'введіть суму','No active cleaner':'Немає активних клінерів','Client price (€)':'Ціна клієнту (€)','Cleaner payout (€)':'Виплата клінеру (€)','Service date':'Дата прибирання','Property':'Об’єкт','Cancel':'Скасувати','No approved property to book':'Немає схваленого об’єкта для запису'},
+  sk:{'Add cleaning':'Pridať upratovanie','Add payment':'Pridať platbu','Save payment':'Uložiť platbu','Add a cleaning done outside the system':'Pridať upratovanie urobené mimo systému','Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.':'Len pre upratovanie, ktoré sa uskutočnilo, ale nie je tu zaznamenané. Uloží sa ako dokončené a schválené a hneď sa dostane do mesačného vyúčtovania.','Save cleaning':'Uložiť upratovanie','Cleaner':'Upratovač','Cleaning saved':'Upratovanie uložené','Record a payment by hand':'Zaznamenať platbu ručne','Payment':'Platba','Received from client':'Prijaté od klienta','Paid to cleaner':'Vyplatené upratovačovi','Client':'Klient','Amount (€)':'Suma (€)','Reference (required)':'Referencia (povinné)','For example: bank transfer 28.10':'Napríklad: prevod 28.10','Enter the amount received or paid.':'Zadajte prijatú alebo vyplatenú sumu.','The amount is more than the outstanding balance':'Suma je vyššia ako nezaplatený zostatok','cleanings':'upratovaní','Left after this payment':'Zostane po platbe','Payment recorded':'Platba zaznamenaná','Open the reconciliation first':'Najprv otvorte vyúčtovanie','enter an amount':'zadajte sumu','No active cleaner':'Žiadny aktívny upratovač','Client price (€)':'Cena klientovi (€)','Cleaner payout (€)':'Výplata upratovačovi (€)','Service date':'Dátum upratovania','Property':'Objekt','Cancel':'Zrušiť','No approved property to book':'Žiadny schválený objekt na rezerváciu'}
+ });
+})();
+
+/* Corrections to money already recorded. Nothing is edited or erased: a reversal row is added
+   that points back to the original, and a correction is a reversal plus a new payment. */
+(()=>{
+ const tr=(k)=>t(k,k);
+ const eur=v=>money(Number(v||0)/100);
+ const kindLabel={CLIENT_PAYMENT:'Received from client',CLEANER_PAYOUT:'Paid to cleaner',CLIENT_REFUND:'Refund to client',CLEANER_RETURN:'Returned by cleaner'};
+
+ window.openJobPayments=async(jobId)=>{
+  try{
+   const data=await api('/api/admin/finance/jobs/'+Number(jobId)+'/payments');
+   const rows=data.payments.map(p=>{
+    const isPayment=p.kind==='CLIENT_PAYMENT'||p.kind==='CLEANER_PAYOUT';
+    const status=p.reversedBy?' <span class="pill gray">'+esc(tr('Reversed'))+'</span>':(p.reversesId?' <span class="pill gray">'+esc(tr('Reversal'))+'</span>':'');
+    const actions=isPayment&&!p.reversedBy?'<button class="btn sm" onclick="correctPaymentAmount('+p.id+','+Number(jobId)+')">'+esc(tr('Change amount'))+'</button> <button class="btn sm red" onclick="reversePayment('+p.id+','+Number(jobId)+')">'+esc(tr('Reverse'))+'</button>':'';
+    return '<tr><td>'+esc(String(p.createdAt||'').slice(0,10))+'</td><td>'+esc(tr(kindLabel[p.kind]||p.kind))+status+'</td><td class="recon-amount">'+eur(p.amountCents)+'</td><td><small>'+esc(p.note)+'</small></td><td>'+actions+'</td></tr>';
+   }).join('');
+   const canDelete=data.job.manual&&data.job.status!=='CANCELLED'&&data.job.clientNetCents===0&&data.job.cleanerNetCents===0;
+   modal(tr('Payments for this cleaning'),
+    '<div class="table-wrap"><table><thead><tr><th>'+esc(tr('Date'))+'</th><th>'+esc(tr('Type'))+'</th><th>'+esc(tr('Amount (€)'))+'</th><th>'+esc(tr('Reference'))+'</th><th></th></tr></thead><tbody>'+
+    (rows||'<tr><td colspan="5"><div class="empty">'+esc(tr('No payments yet.'))+'</div></td></tr>')+'</tbody></table></div>'+
+    '<p class="subtle">'+esc(tr('Reversed payments stay in the history. Use Change amount to correct a figure.'))+'</p>'+
+    (canDelete?'<div class="row-actions"><button class="btn red" onclick="cancelManualCleaning('+Number(jobId)+')">'+esc(tr('Delete this cleaning'))+'</button></div>':''),
+    '<button class="btn" onclick="closeModal()">'+esc(tr('Close'))+'</button>');
+  }catch(e){toast(e.message,'error')}
+ };
+ window.reversePayment=async(settlementId,jobId)=>{
+  if(await askConfirm('Reverse this payment?','The payment stays in the history. A reversal entry is added and the cleaning becomes unpaid again.','Reverse',true)===null)return;
+  try{
+   await api('/api/admin/settlements/'+Number(settlementId)+'/reverse',{method:'POST',body:{}});
+   toast(tr('Payment reversed'),'success');
+   await window.statementsScreen();await window.openJobPayments(jobId);
+  }catch(e){toast(e.message,'error')}
+ };
+ window.correctPaymentAmount=async(settlementId,jobId)=>{
+  const value=await askDialog({title:'Change amount',label:'New amount (€)',required:true,confirmLabel:'Next'});
+  if(!value)return;
+  let amountCents;
+  try{amountCents=window.ShineTimeMoney.toMinorUnits(value)}catch(e){return toast(e.message,'error')}
+  if(await askConfirm('Change amount','The old payment is reversed and the new amount recorded. Both stay in the history.','Save amount',false)===null)return;
+  try{
+   await api('/api/admin/settlements/'+Number(settlementId)+'/correct',{method:'POST',body:{amountCents,requestId:crypto.randomUUID()}});
+   toast(tr('Amount corrected'),'success');
+   await window.statementsScreen();await window.openJobPayments(jobId);
+  }catch(e){toast(e.message,'error')}
+ };
+ window.cancelManualCleaning=async(jobId)=>{
+  if(await askConfirm('Delete this cleaning?','Only for a cleaning entered by hand with no money left on it. It leaves the reconciliation, and the record stays in the history.','Delete',true)===null)return;
+  try{
+   await api('/api/admin/finance/jobs/'+Number(jobId)+'/cancel',{method:'POST',body:{}});
+   closeModal();toast(tr('Cleaning deleted'),'success');
+   await window.statementsScreen();
+  }catch(e){toast(e.message,'error')}
+ };
+ ST_I18N.addTranslations({
+  ru:{'Payments':'Платежи','Payments for this cleaning':'Платежи по уборке','Reversed':'Отменено','Reversal':'Отмена','Change amount':'Изменить сумму','Reverse':'Отменить запись','Delete this cleaning':'Удалить уборку','No payments yet.':'Платежей пока нет.','Reversed payments stay in the history. Use Change amount to correct a figure.':'Отменённые платежи остаются в истории. Чтобы исправить сумму, нажмите «Изменить сумму».','Reverse this payment?':'Отменить этот платёж?','The payment stays in the history. A reversal entry is added and the cleaning becomes unpaid again.':'Платёж останется в истории. Добавится запись об отмене, и уборка снова станет неоплаченной.','Reason':'Причина','New amount (€)':'Новая сумма (€)','The old payment is reversed and the new amount recorded. Both stay in the history.':'Старый платёж будет отменён, новая сумма записана. Оба остаются в истории.','Save amount':'Сохранить сумму','Amount corrected':'Сумма исправлена','Payment reversed':'Платёж отменён','Delete this cleaning?':'Удалить уборку?','Only for a cleaning entered by hand with no money left on it. It leaves the reconciliation, and the record stays in the history.':'Только для уборки, внесённой вручную, без оставшихся денег. Она уйдёт из сверки, запись останется в истории.','Cleaning deleted':'Уборка удалена','Refund to client':'Возврат клиенту','Returned by cleaner':'Возврат от клинера','Date':'Дата','Type':'Тип','Reference':'Основание','Next':'Далее','Close':'Закрыть'},
+  uk:{'Payments':'Платежі','Payments for this cleaning':'Платежі за прибирання','Reversed':'Скасовано','Reversal':'Скасування','Change amount':'Змінити суму','Reverse':'Скасувати запис','Delete this cleaning':'Видалити прибирання','No payments yet.':'Платежів поки немає.','Reversed payments stay in the history. Use Change amount to correct a figure.':'Скасовані платежі лишаються в історії. Щоб виправити суму, натисніть «Змінити суму».','Reverse this payment?':'Скасувати цей платіж?','The payment stays in the history. A reversal entry is added and the cleaning becomes unpaid again.':'Платіж лишиться в історії. Додасться запис про скасування, і прибирання знову стане неоплаченим.','Reason':'Причина','New amount (€)':'Нова сума (€)','The old payment is reversed and the new amount recorded. Both stay in the history.':'Старий платіж буде скасовано, нову суму записано. Обидва лишаються в історії.','Save amount':'Зберегти суму','Amount corrected':'Суму виправлено','Payment reversed':'Платіж скасовано','Delete this cleaning?':'Видалити прибирання?','Only for a cleaning entered by hand with no money left on it. It leaves the reconciliation, and the record stays in the history.':'Лише для прибирання, внесеного вручну, без залишених грошей. Воно піде зі звірки, запис лишиться в історії.','Cleaning deleted':'Прибирання видалено','Refund to client':'Повернення клієнту','Returned by cleaner':'Повернення від клінера','Date':'Дата','Type':'Тип','Reference':'Підстава','Next':'Далі','Close':'Закрити'},
+  sk:{'Payments':'Platby','Payments for this cleaning':'Platby za upratovanie','Reversed':'Storno','Reversal':'Storno záznam','Change amount':'Zmeniť sumu','Reverse':'Stornovať','Delete this cleaning':'Zmazať upratovanie','No payments yet.':'Zatiaľ žiadne platby.','Reversed payments stay in the history. Use Change amount to correct a figure.':'Stornované platby zostávajú v histórii. Na opravu sumy použite Zmeniť sumu.','Reverse this payment?':'Stornovať túto platbu?','The payment stays in the history. A reversal entry is added and the cleaning becomes unpaid again.':'Platba zostane v histórii. Pridá sa storno záznam a upratovanie sa znova stane nezaplateným.','Reason':'Dôvod','New amount (€)':'Nová suma (€)','The old payment is reversed and the new amount recorded. Both stay in the history.':'Stará platba sa stornuje a nová suma sa zaznamená. Obe zostanú v histórii.','Save amount':'Uložiť sumu','Amount corrected':'Suma opravená','Payment reversed':'Platba stornovaná','Delete this cleaning?':'Zmazať upratovanie?','Only for a cleaning entered by hand with no money left on it. It leaves the reconciliation, and the record stays in the history.':'Len pre upratovanie zadané ručne, bez zostávajúcich peňazí. Zmizne z vyúčtovania a záznam zostane v histórii.','Cleaning deleted':'Upratovanie zmazané','Refund to client':'Vrátenie klientovi','Returned by cleaner':'Vrátenie od upratovača','Date':'Dátum','Type':'Typ','Reference':'Referencia','Next':'Ďalej','Close':'Zavrieť'}
  });
 })();
