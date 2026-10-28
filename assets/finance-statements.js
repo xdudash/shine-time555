@@ -64,7 +64,8 @@
   const overLimit=data.hasMore?'<p class="notice-inline">'+tr('Totals cover the whole month, but only the first 5000 cleanings are loaded. Payment actions are disabled until the list is narrowed.')+'</p>':'';
   $('#page').innerHTML=
    '<div class="section-head"><div><h2>'+tr('Monthly reconciliation')+'</h2><p>'+tr('Correct cleanings first, then record client receipts and cleaner payouts separately.')+'</p></div>'+
-   '<input class="input" style="width:170px" type="month" value="'+esc(month)+'" onchange="setStatementMonth(this.value)"></div>'+
+   '<div class="recon-head-actions"><button class="btn" onclick="manualCleaningModal()">'+esc(tr('Add cleaning'))+'</button><button class="btn" onclick="manualPaymentModal()">'+esc(tr('Add payment'))+'</button>'+
+   '<input class="input" style="width:170px" type="month" aria-label="'+esc(tr('Month'))+'" value="'+esc(month)+'" onchange="setStatementMonth(this.value)"></div></div>'+
    '<div class="grid finance-kpis recon-kpis">'+
     '<div class="card kpi"><div class="label">'+tr('Client total')+'</div><div class="value small-money">'+reconCents(summary.clientAmountCents)+'</div><div class="hint">'+tr('Paid')+' '+reconCents(summary.clientPaidCents)+' · '+tr('Due')+' <strong>'+reconCents(expandedClientDue)+'</strong></div></div>'+
     '<div class="card kpi"><div class="label">'+tr('Cleaner total')+'</div><div class="value small-money">'+reconCents(summary.cleanerAmountCents)+'</div><div class="hint">'+tr('Paid out')+' '+reconCents(summary.cleanerPaidCents)+' · '+tr('Due')+' <strong>'+reconCents(expandedCleanerDue)+'</strong></div></div>'+
@@ -115,6 +116,11 @@
   uk:{'Confirm payments':'Підтвердити оплати'},
   sk:{'Confirm payments':'Potvrdiť platby'}
  });
+ ST_I18N.addTranslations({
+  ru:{'Month':'Месяц','Split by':'Разрез','cleanings':'уборок','Recorded':'Записано','Record payments for all outstanding cleanings of this property?':'Записать оплату за все непогашенные уборки этого объекта?'},
+  uk:{'Month':'Місяць','Split by':'Розріз','cleanings':'прибирань','Recorded':'Записано','Record payments for all outstanding cleanings of this property?':'Записати оплату за всі непогашені прибирання цього об’єкта?'},
+  sk:{'Month':'Mesiac','Split by':'Rozdelenie','cleanings':'upratovaní','Recorded':'Zaznamenané','Record payments for all outstanding cleanings of this property?':'Zaznamenať platby za všetky nezaplatené upratovania tohto objektu?'}
+ });
  const reconSides=[['OBJECT','By object'],['CLIENT','By client'],['CLEANER','By cleaner']];
  ST_I18N.addTranslations({
   ru:{'Search by name':'Поиск по имени','Still due':'Осталось получить','Nothing matches the search.':'Ничего не найдено.','Pay':'Оплатить'},
@@ -122,7 +128,7 @@
   sk:{'Search by name':'Hľadať podľa mena','Still due':'Zostáva','Nothing matches the search.':'Nič sa nenašlo.','Pay':'Zaplatiť'}
  });
  function reconSwitcher(active){
-  return '<div class="recon-seg" role="tablist">'+reconSides.map(([k,label])=>'<button role="tab" aria-selected="'+(k===active)+'" class="recon-seg-btn'+(k===active?' is-active':'')+'" onclick="setReconSide(&quot;'+k+'&quot;)">'+tr(label)+'</button>').join('')+'</div>';
+  return '<div class="recon-seg" role="tablist" aria-label="'+esc(tr('Split by'))+'">'+reconSides.map(([k,label])=>'<button role="tab" aria-selected="'+(k===active)+'" class="recon-seg-btn'+(k===active?' is-active':'')+'" onclick="setReconSide(&quot;'+k+'&quot;)">'+tr(label)+'</button>').join('')+'</div>';
  }
  function reconParties(side,data){
   const partyKey=side==='CLIENT'?'clientId':'cleanerId';
@@ -168,7 +174,7 @@
   const chosenDue=chosen.reduce((a,p)=>a+p.due,0);
   const totalDue=parties.reduce((a,p)=>a+p.due,0);
   const allChecked=payable.length>0&&payable.every(p=>sel.has(side+':'+p.id));
-  const head='<div class="recon-panel-head"><input class="input recon-search" type="search" placeholder="'+esc(tr('Search by name'))+'" value="'+esc(state.reconSearch||'')+'" oninput="setReconSearch(this.value)">'+
+  const head='<div class="recon-panel-head"><input class="input recon-search" type="search" aria-label="'+esc(tr('Search by name'))+'" placeholder="'+esc(tr('Search by name'))+'" value="'+esc(state.reconSearch||'')+'" oninput="setReconSearch(this.value)">'+
    '<div class="recon-summary"><span>'+tr('Still due')+': <strong>'+reconCents(totalDue)+'</strong></span><span>'+tr('Selected')+': <strong>'+chosen.length+'</strong> · '+reconCents(chosenDue)+'</span></div>'+
    '<div class="recon-actions"><button class="btn sm" '+(sel.size?'':'disabled ')+'onclick="clearReconSelection()">'+tr('Clear selection')+'</button>'+
    '<button class="btn sm primary" '+(locked||!chosen.length?'disabled ':'')+'onclick="settleReconSelected(&quot;'+side+'&quot;)">'+tr('Pay selected')+'</button></div></div>';
@@ -205,6 +211,16 @@
   rerenderRecon();
  };
  window.clearReconSelection=()=>{state.reconSelected=new Set();rerenderRecon()};
+ /* Runs one batch per party, in order. A failure stops the run and reports how many were already recorded. */
+ async function postReconBatches(groups,side,month,note){
+  let done=0,cents=0;
+  for(const g of groups){
+   try{await api('/api/admin/settlements/batch',{method:'POST',body:{month,side,partyId:g.partyId,items:g.items,note:note(g),requestId:crypto.randomUUID()}})}
+   catch(error){return {done,cents,error}}
+   done+=g.items.length;cents+=g.items.reduce((a,i)=>a+i.amountCents,0);
+  }
+  return {done,cents,error:null};
+ }
  async function payReconParties(side,partyIds){
   const data=state.reconciliationData,month=state.statementMonth||today().slice(0,7);
   if(!data)return;
@@ -213,15 +229,13 @@
   const partyKey=side==='CLIENT'?'clientId':'cleanerId';
   const groups=partyIds.map(id=>({partyId:Number(id),items:(data.jobs||[]).filter(j=>Number(j[partyKey])===Number(id)&&Number(j[dueKey]||0)>0).map(j=>({jobId:Number(j.id),amountCents:Number(j[dueKey])}))})).filter(g=>g.items.length);
   if(!groups.length)return toast(tr('No outstanding payments for this side.'),'error');
-  if(!confirm(tr(partyIds.length>1?'Record payments for all outstanding cleanings of the selected people?':'Record payments for all outstanding cleanings of this person?')))return;
-  try{
-   for(const g of groups){
-    await api('/api/admin/settlements/batch',{method:'POST',body:{month,side,partyId:g.partyId,items:g.items,note:(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month,requestId:crypto.randomUUID()}});
-   }
-   state.reconSelected=new Set();
-   toast(tr('Payments recorded.'),'success');
-   await statementsScreen();
-  }catch(e){toast(e.message,'error');await statementsScreen()}
+  const count=groups.reduce((a,g)=>a+g.items.length,0),total=groups.reduce((a,g)=>a+g.items.reduce((s,i)=>s+i.amountCents,0),0);
+  if(!confirm((tr(partyIds.length>1?'Record payments for all outstanding cleanings of the selected people?':'Record payments for all outstanding cleanings of this person?'))+'\n'+count+' '+tr('cleanings')+' · '+reconCents(total)))return;
+  const res=await postReconBatches(groups,side,month,()=>(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month);
+  state.reconSelected=new Set();
+  if(res.error)toast(tr('Recorded')+' '+res.done+' / '+count+' · '+res.error.message,'error');
+  else toast(tr('Payments recorded.')+' '+res.done+' · '+reconCents(res.cents),'success');
+  await statementsScreen();
  }
  window.settleReconParty=(id,side)=>payReconParties(side,[id]);
  window.settleReconSelected=side=>{const sel=state.reconSelected||new Set();return payReconParties(side,[...sel].filter(k=>k.startsWith(side+':')).map(k=>k.split(':')[1]))};
@@ -239,20 +253,14 @@
   const groups=new Map();
   rows.forEach(j=>{const partyId=Number(j[partyKey]);if(!groups.has(partyId))groups.set(partyId,[]);groups.get(partyId).push({jobId:Number(j.id),amountCents:Number(j[dueKey])})});
   if(!groups.size)return toast(tr('No outstanding payments for this side.'),'error');
-  try{
-   for(const [partyId,items] of groups){
-    await api('/api/admin/settlements/batch',{method:'POST',body:{
-     month,side,partyId,items,
-     note:(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month+' · '+String((data.objects||[]).find(o=>Number(o.objectId)===Number(objectId))?.objectCode||objectId),
-     requestId:crypto.randomUUID()
-    }});
-   }
-   toast(tr(side==='CLIENT'?'Client payment recorded.':'Cleaner payout recorded.'),'success');
-   await statementsScreen();
-  }catch(e){
-   toast(e.message,'error');
-   await statementsScreen();
-  }
+  const list=[...groups].map(([partyId,items])=>({partyId,items}));
+  const code=String((data.objects||[]).find(o=>Number(o.objectId)===Number(objectId))?.objectCode||objectId);
+  const count=list.reduce((a,g)=>a+g.items.length,0),total=list.reduce((a,g)=>a+g.items.reduce((s,i)=>s+i.amountCents,0),0);
+  if(!confirm(tr('Record payments for all outstanding cleanings of this property?')+'\n'+code+' · '+count+' '+tr('cleanings')+' · '+reconCents(total)))return;
+  const res=await postReconBatches(list,side,month,()=>(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month+' · '+code);
+  if(res.error)toast(tr('Recorded')+' '+res.done+' / '+count+' · '+res.error.message,'error');
+  else toast(tr(side==='CLIENT'?'Client payment recorded.':'Cleaner payout recorded.'),'success');
+  await statementsScreen();
  };
  window.settleReconciliationJob=async(jobId,objectId,side)=>{
   const data=state.reconciliationData,month=state.statementMonth||today().slice(0,7);
@@ -273,7 +281,7 @@
    }});
    toast(tr(side==='CLIENT'?'Client payment recorded.':'Cleaner payout recorded.'),'success');
    state.reconciliationExpanded?.add(Number(objectId));
-   await statementsScreen();
+   await window.statementsScreen();
   }catch(e){toast(e.message,'error');await statementsScreen()}
  };
  window.saveMonthlyCorrection=async(id,objectId)=>{
@@ -295,7 +303,7 @@
    }});
    state.reconciliationExpanded?.add(Number(objectId));
    toast(tr('Correction saved.'),'success');
-   await statementsScreen();
+   await window.statementsScreen();
   }catch(e){toast(e.message,'error')}
  }
  window.statementsScreen=()=>statementsScreen();
@@ -341,8 +349,144 @@
   w.document.open();w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),300);
  };
  ST_I18N.addTranslations({
-  ru:{'Statements':'Выписки','Who owes what, for which cleanings, and monthly reports':'Кто сколько должен, за какие уборки, и отчёты за месяц','What each client owes you, job by job.':'Сколько должен каждый клиент — по каждой уборке.','What you owe each cleaner, job by job.':'Сколько вы должны каждому клинеру — по каждой уборке.','Clients':'Клиенты','Cleaners':'Клинеры','Charged':'Начислено','Earned':'Заработано','Received':'Получено','Paid out':'Выплачено','Record client payment':'Записать оплату клиента','Record cleaner payout':'Записать выплату клинеру','No party assigned':'Не назначен клиент или клинер','Narrow the month before recording payments.':'Сузьте период до месяца, прежде чем записывать оплаты.','No outstanding payments for this cleaning.':'По этой уборке нет задолженности.','Cleaning not found. Refresh the page.':'Уборка не найдена. Обновите страницу.','Client payment recorded.':'Оплата клиента записана.','Cleaner payout recorded.':'Выплата клинеру записана.','Outstanding this month':'Долг за месяц','To pay this month':'К выплате за месяц','Outstanding, last 12 months':'Долг за 12 месяцев','To pay, last 12 months':'К выплате за 12 месяцев','Outstanding':'Долг','12 months':'12 месяцев','Statement':'Выписка','No approved jobs this month':'В этом месяце нет принятых уборок','No approved jobs in this month.':'В этом месяце нет принятых уборок.','Only completed cleanings approved by quality review are billed. Payments are recorded in Payments & payouts.':'В счёт входят только завершённые уборки, принятые после проверки. Оплаты записываются в разделе «Оплаты и выплаты».','Client statement':'Выписка клиента','Cleaner statement':'Выписка клинера','Date':'Дата','Property':'Объект','Total':'Итого','Other entries':'Прочие записи','Informational; not included in the outstanding amount.':'Для справки; в сумму долга не входит.','Record payment':'Записать оплату','Print / PDF':'Печать / PDF','Amount due':'К оплате','Amount to be paid':'К выплате','Only completed cleanings approved by quality review are included.':'Включены только завершённые уборки, принятые после проверки качества.','Generated':'Сформировано','Allow pop-ups to print the report':'Разрешите всплывающие окна, чтобы распечатать отчёт','Client':'Клиент','Cleaner':'Клинер','Jobs':'Уборки','Archive':'В архив','Activate':'Активировать','Deactivate':'Деактивировать','Delete property':'Удалить объект','Archive property':'Архивировать объект','Archived properties cannot be booked and do not appear in new jobs. History and finance stay intact.':'Архивный объект нельзя забронировать, он не попадёт в новые уборки. История и финансы сохранятся.','Property activated':'Объект активирован','Property archived':'Объект в архиве','The property, its photos and checklist will be deleted permanently. Properties with cleaning history cannot be deleted — archive them instead.':'Объект, его фото и чек-лист будут удалены навсегда. Объект с историей уборок удалить нельзя — отправьте его в архив.','Property deleted':'Объект удалён','This property has cleaning history. Archive it instead.':'У объекта есть история уборок. Отправьте его в архив.','Deactivate client':'Деактивировать клиента','The client can no longer sign in or book. Properties, bookings and finance history stay intact.':'Клиент не сможет войти и бронировать. Объекты, брони и финансы сохранятся.','Deactivate cleaner':'Деактивировать клинера','The cleaner can no longer sign in or take jobs. Completed work and payouts stay intact. Reassign their upcoming jobs.':'Клинер не сможет войти и брать уборки. Выполненные работы и выплаты сохранятся. Переназначьте его будущие уборки.','Account activated':'Аккаунт активирован','Account deactivated':'Аккаунт деактивирован','Delete photo':'Удалить фото','Tap again to delete':'Нажмите ещё раз для удаления','Photo deleted':'Фото удалено'},
-  uk:{'Statements':'Виписки','Who owes what, for which cleanings, and monthly reports':'Хто скільки винен, за які прибирання, і звіти за місяць','What each client owes you, job by job.':'Скільки винен кожен клієнт — за кожним прибиранням.','What you owe each cleaner, job by job.':'Скільки ви винні кожному клінеру — за кожним прибиранням.','Clients':'Клієнти','Cleaners':'Клінери','Charged':'Нараховано','Earned':'Зароблено','Received':'Отримано','Paid out':'Виплачено','Record client payment':'Записати оплату клієнта','Record cleaner payout':'Записати виплату клінеру','No party assigned':'Клієнта або клінер не призначено','Narrow the month before recording payments.':'Звузьте період до місяця, перш ніж записувати оплати.','No outstanding payments for this cleaning.':'За цим прибиранням немає заборгованості.','Cleaning not found. Refresh the page.':'Прибирання не знайдено. Оновіть сторінку.','Client payment recorded.':'Оплату клієнта записано.','Cleaner payout recorded.':'Виплату клінеру записано.','Outstanding this month':'Борг за місяць','To pay this month':'До виплати за місяць','Outstanding, last 12 months':'Борг за 12 місяців','To pay, last 12 months':'До виплати за 12 місяців','Outstanding':'Борг','12 months':'12 місяців','Statement':'Виписка','No approved jobs this month':'Цього місяця немає прийнятих прибирань','No approved jobs in this month.':'Цього місяця немає прийнятих прибирань.','Only completed cleanings approved by quality review are billed. Payments are recorded in Payments & payouts.':'До рахунку входять лише завершені прибирання, прийняті після перевірки. Оплати записуються в розділі «Оплати та виплати».','Client statement':'Виписка клієнта','Cleaner statement':'Виписка клінера','Date':'Дата','Property':'Об’єкт','Total':'Разом','Other entries':'Інші записи','Informational; not included in the outstanding amount.':'Для довідки; до суми боргу не входить.','Record payment':'Записати оплату','Print / PDF':'Друк / PDF','Amount due':'До сплати','Amount to be paid':'До виплати','Only completed cleanings approved by quality review are included.':'Включено лише завершені прибирання, прийняті після перевірки якості.','Generated':'Сформовано','Allow pop-ups to print the report':'Дозвольте спливаючі вікна, щоб надрукувати звіт','Client':'Клієнт','Cleaner':'Клінер','Jobs':'Прибирання','Archive':'В архів','Activate':'Активувати','Deactivate':'Деактивувати','Delete property':'Видалити об’єкт','Archive property':'Архівувати об’єкт','Archived properties cannot be booked and do not appear in new jobs. History and finance stay intact.':'Архівний об’єкт не можна забронювати, він не потрапить у нові прибирання. Історія та фінанси збережуться.','Property activated':'Об’єкт активовано','Property archived':'Об’єкт в архіві','The property, its photos and checklist will be deleted permanently. Properties with cleaning history cannot be deleted — archive them instead.':'Об’єкт, його фото та чек-лист буде видалено назавжди. Об’єкт з історією прибирань видалити не можна — надішліть його в архів.','Property deleted':'Об’єкт видалено','This property has cleaning history. Archive it instead.':'Об’єкт має історію прибирань. Надішліть його в архів.','Deactivate client':'Деактивувати клієнта','The client can no longer sign in or book. Properties, bookings and finance history stay intact.':'Клієнт не зможе увійти та бронювати. Об’єкти, бронювання та фінанси збережуться.','Deactivate cleaner':'Деактивувати клінера','The cleaner can no longer sign in or take jobs. Completed work and payouts stay intact. Reassign their upcoming jobs.':'Клінер не зможе увійти та брати прибирання. Виконані роботи й виплати збережуться. Перепризначте його майбутні прибирання.','Account activated':'Акаунт активовано','Account deactivated':'Акаунт деактивовано','Delete photo':'Видалити фото','Tap again to delete':'Натисніть ще раз для видалення','Photo deleted':'Фото видалено'},
-  sk:{'Statements':'Výpisy','Who owes what, for which cleanings, and monthly reports':'Kto koľko dlhuje, za ktoré upratovania, a mesačné reporty','What each client owes you, job by job.':'Koľko vám dlhuje každý klient — po upratovaniach.','What you owe each cleaner, job by job.':'Koľko dlhujete každému upratovačovi — po upratovaniach.','Clients':'Klienti','Cleaners':'Upratovači','Charged':'Vyúčtované','Earned':'Zarobené','Received':'Prijaté','Paid out':'Vyplatené','Record client payment':'Zaznamenať platbu klienta','Record cleaner payout':'Zaznamenať výplatu upratovačovi','No party assigned':'Klient alebo upratovač nie je priradený','Narrow the month before recording payments.':'Pred zaznamenaním platieb zúžte obdobie na jeden mesiac.','No outstanding payments for this cleaning.':'Za toto upratovanie nie je žiadny nedoplatok.','Cleaning not found. Refresh the page.':'Upratovanie sa nenašlo. Obnovte stránku.','Client payment recorded.':'Platba klienta bola zaznamenaná.','Cleaner payout recorded.':'Výplata upratovačovi bola zaznamenaná.','Outstanding this month':'Dlh za mesiac','To pay this month':'Na výplatu za mesiac','Outstanding, last 12 months':'Dlh za 12 mesiacov','To pay, last 12 months':'Na výplatu za 12 mesiacov','Outstanding':'Dlh','12 months':'12 mesiacov','Statement':'Výpis','No approved jobs this month':'Tento mesiac žiadne schválené upratovania','No approved jobs in this month.':'V tomto mesiaci nie sú schválené upratovania.','Only completed cleanings approved by quality review are billed. Payments are recorded in Payments & payouts.':'Fakturujú sa len dokončené upratovania schválené kontrolou kvality. Platby sa zaznamenávajú v časti Platby a výplaty.','Client statement':'Výpis klienta','Cleaner statement':'Výpis upratovača','Date':'Dátum','Property':'Objekt','Total':'Spolu','Other entries':'Ostatné záznamy','Informational; not included in the outstanding amount.':'Informatívne; nie je súčasťou dlhu.','Record payment':'Zaznamenať platbu','Print / PDF':'Tlač / PDF','Amount due':'Na úhradu','Amount to be paid':'Na výplatu','Only completed cleanings approved by quality review are included.':'Zahrnuté sú len dokončené upratovania schválené kontrolou kvality.','Generated':'Vygenerované','Allow pop-ups to print the report':'Povoľte vyskakovacie okná na tlač reportu','Client':'Klient','Cleaner':'Upratovač','Jobs':'Upratovania','Archive':'Archivovať','Activate':'Aktivovať','Deactivate':'Deaktivovať','Delete property':'Odstrániť objekt','Archive property':'Archivovať objekt','Archived properties cannot be booked and do not appear in new jobs. History and finance stay intact.':'Archivovaný objekt sa nedá rezervovať a nebude v nových upratovaniach. História a financie zostanú.','Property activated':'Objekt aktivovaný','Property archived':'Objekt archivovaný','The property, its photos and checklist will be deleted permanently. Properties with cleaning history cannot be deleted — archive them instead.':'Objekt, jeho fotky a kontrolný zoznam budú natrvalo odstránené. Objekt s históriou upratovaní sa nedá odstrániť — archivujte ho.','Property deleted':'Objekt odstránený','This property has cleaning history. Archive it instead.':'Objekt má históriu upratovaní. Archivujte ho.','Deactivate client':'Deaktivovať klienta','The client can no longer sign in or book. Properties, bookings and finance history stay intact.':'Klient sa nebude môcť prihlásiť ani rezervovať. Objekty, rezervácie a financie zostanú.','Deactivate cleaner':'Deaktivovať upratovača','The cleaner can no longer sign in or take jobs. Completed work and payouts stay intact. Reassign their upcoming jobs.':'Upratovač sa nebude môcť prihlásiť ani brať upratovania. Vykonaná práca a výplaty zostanú. Preraďte jeho budúce upratovania.','Account activated':'Účet aktivovaný','Account deactivated':'Účet deaktivovaný','Delete photo':'Odstrániť fotku','Tap again to delete':'Ťuknite znova na odstránenie','Photo deleted':'Fotka odstránená'}
+  ru:{'Statements':'Выписки','Who owes what, for which cleanings, and monthly reports':'Кто сколько должен, за какие уборки, и отчёты за месяц','What each client owes you, job by job.':'Сколько должен каждый клиент — по каждой уборке.','What you owe each cleaner, job by job.':'Сколько вы должны каждому клинеру — по каждой уборке.','Clients':'Клиенты','Cleaners':'Клинеры','Charged':'Начислено','Earned':'Заработано','Received':'Получено','Paid out':'Выплачено','Record client payment':'Записать оплату клиента','Record cleaner payout':'Записать выплату клинеру','No party assigned':'Не назначен клиент или клинер','Narrow the month before recording payments.':'Сузьте период до месяца, прежде чем записывать оплаты.','No outstanding payments for this cleaning.':'По этой уборке нет задолженности.','Cleaning not found. Refresh the page.':'Уборка не найдена. Обновите страницу.','Client payment recorded.':'Оплата клиента записана.','Cleaner payout recorded.':'Выплата клинеру записана.','Outstanding this month':'Долг за месяц','To pay this month':'К выплате за месяц','Outstanding, last 12 months':'Долг за 12 месяцев','To pay, last 12 months':'К выплате за 12 месяцев','Outstanding':'Долг','12 months':'12 месяцев','Statement':'Выписка','No approved jobs this month':'В этом месяце нет принятых уборок','No approved jobs in this month.':'В этом месяце нет принятых уборок.','Only completed cleanings approved by quality review are billed. Payments are recorded in Payments & payouts.':'В счёт входят только завершённые уборки, принятые после проверки. Оплаты записываются в разделе «Оплаты и выплаты».','Client statement':'Выписка клиента','Cleaner statement':'Выписка клинера','Date':'Дата','Property':'Объект','Total':'Итого','Other entries':'Прочие записи','Informational; not included in the outstanding amount.':'Для справки; в сумму долга не входит.','Add payment':'Добавить оплату','Save payment':'Сохранить оплату','Print / PDF':'Печать / PDF','Amount due':'К оплате','Amount to be paid':'К выплате','Only completed cleanings approved by quality review are included.':'Включены только завершённые уборки, принятые после проверки качества.','Generated':'Сформировано','Allow pop-ups to print the report':'Разрешите всплывающие окна, чтобы распечатать отчёт','Client':'Клиент','Cleaner':'Клинер','Jobs':'Уборки','Archive':'В архив','Activate':'Активировать','Deactivate':'Деактивировать','Delete property':'Удалить объект','Archive property':'Архивировать объект','Archived properties cannot be booked and do not appear in new jobs. History and finance stay intact.':'Архивный объект нельзя забронировать, он не попадёт в новые уборки. История и финансы сохранятся.','Property activated':'Объект активирован','Property archived':'Объект в архиве','The property, its photos and checklist will be deleted permanently. Properties with cleaning history cannot be deleted — archive them instead.':'Объект, его фото и чек-лист будут удалены навсегда. Объект с историей уборок удалить нельзя — отправьте его в архив.','Property deleted':'Объект удалён','This property has cleaning history. Archive it instead.':'У объекта есть история уборок. Отправьте его в архив.','Deactivate client':'Деактивировать клиента','The client can no longer sign in or book. Properties, bookings and finance history stay intact.':'Клиент не сможет войти и бронировать. Объекты, брони и финансы сохранятся.','Deactivate cleaner':'Деактивировать клинера','The cleaner can no longer sign in or take jobs. Completed work and payouts stay intact. Reassign their upcoming jobs.':'Клинер не сможет войти и брать уборки. Выполненные работы и выплаты сохранятся. Переназначьте его будущие уборки.','Account activated':'Аккаунт активирован','Account deactivated':'Аккаунт деактивирован','Delete photo':'Удалить фото','Tap again to delete':'Нажмите ещё раз для удаления','Photo deleted':'Фото удалено'},
+  uk:{'Statements':'Виписки','Who owes what, for which cleanings, and monthly reports':'Хто скільки винен, за які прибирання, і звіти за місяць','What each client owes you, job by job.':'Скільки винен кожен клієнт — за кожним прибиранням.','What you owe each cleaner, job by job.':'Скільки ви винні кожному клінеру — за кожним прибиранням.','Clients':'Клієнти','Cleaners':'Клінери','Charged':'Нараховано','Earned':'Зароблено','Received':'Отримано','Paid out':'Виплачено','Record client payment':'Записати оплату клієнта','Record cleaner payout':'Записати виплату клінеру','No party assigned':'Клієнта або клінер не призначено','Narrow the month before recording payments.':'Звузьте період до місяця, перш ніж записувати оплати.','No outstanding payments for this cleaning.':'За цим прибиранням немає заборгованості.','Cleaning not found. Refresh the page.':'Прибирання не знайдено. Оновіть сторінку.','Client payment recorded.':'Оплату клієнта записано.','Cleaner payout recorded.':'Виплату клінеру записано.','Outstanding this month':'Борг за місяць','To pay this month':'До виплати за місяць','Outstanding, last 12 months':'Борг за 12 місяців','To pay, last 12 months':'До виплати за 12 місяців','Outstanding':'Борг','12 months':'12 місяців','Statement':'Виписка','No approved jobs this month':'Цього місяця немає прийнятих прибирань','No approved jobs in this month.':'Цього місяця немає прийнятих прибирань.','Only completed cleanings approved by quality review are billed. Payments are recorded in Payments & payouts.':'До рахунку входять лише завершені прибирання, прийняті після перевірки. Оплати записуються в розділі «Оплати та виплати».','Client statement':'Виписка клієнта','Cleaner statement':'Виписка клінера','Date':'Дата','Property':'Об’єкт','Total':'Разом','Other entries':'Інші записи','Informational; not included in the outstanding amount.':'Для довідки; до суми боргу не входить.','Add payment':'Додати оплату','Save payment':'Зберегти оплату','Print / PDF':'Друк / PDF','Amount due':'До сплати','Amount to be paid':'До виплати','Only completed cleanings approved by quality review are included.':'Включено лише завершені прибирання, прийняті після перевірки якості.','Generated':'Сформовано','Allow pop-ups to print the report':'Дозвольте спливаючі вікна, щоб надрукувати звіт','Client':'Клієнт','Cleaner':'Клінер','Jobs':'Прибирання','Archive':'В архів','Activate':'Активувати','Deactivate':'Деактивувати','Delete property':'Видалити об’єкт','Archive property':'Архівувати об’єкт','Archived properties cannot be booked and do not appear in new jobs. History and finance stay intact.':'Архівний об’єкт не можна забронювати, він не потрапить у нові прибирання. Історія та фінанси збережуться.','Property activated':'Об’єкт активовано','Property archived':'Об’єкт в архіві','The property, its photos and checklist will be deleted permanently. Properties with cleaning history cannot be deleted — archive them instead.':'Об’єкт, його фото та чек-лист буде видалено назавжди. Об’єкт з історією прибирань видалити не можна — надішліть його в архів.','Property deleted':'Об’єкт видалено','This property has cleaning history. Archive it instead.':'Об’єкт має історію прибирань. Надішліть його в архів.','Deactivate client':'Деактивувати клієнта','The client can no longer sign in or book. Properties, bookings and finance history stay intact.':'Клієнт не зможе увійти та бронювати. Об’єкти, бронювання та фінанси збережуться.','Deactivate cleaner':'Деактивувати клінера','The cleaner can no longer sign in or take jobs. Completed work and payouts stay intact. Reassign their upcoming jobs.':'Клінер не зможе увійти та брати прибирання. Виконані роботи й виплати збережуться. Перепризначте його майбутні прибирання.','Account activated':'Акаунт активовано','Account deactivated':'Акаунт деактивовано','Delete photo':'Видалити фото','Tap again to delete':'Натисніть ще раз для видалення','Photo deleted':'Фото видалено'},
+  sk:{'Statements':'Výpisy','Who owes what, for which cleanings, and monthly reports':'Kto koľko dlhuje, za ktoré upratovania, a mesačné reporty','What each client owes you, job by job.':'Koľko vám dlhuje každý klient — po upratovaniach.','What you owe each cleaner, job by job.':'Koľko dlhujete každému upratovačovi — po upratovaniach.','Clients':'Klienti','Cleaners':'Upratovači','Charged':'Vyúčtované','Earned':'Zarobené','Received':'Prijaté','Paid out':'Vyplatené','Record client payment':'Zaznamenať platbu klienta','Record cleaner payout':'Zaznamenať výplatu upratovačovi','No party assigned':'Klient alebo upratovač nie je priradený','Narrow the month before recording payments.':'Pred zaznamenaním platieb zúžte obdobie na jeden mesiac.','No outstanding payments for this cleaning.':'Za toto upratovanie nie je žiadny nedoplatok.','Cleaning not found. Refresh the page.':'Upratovanie sa nenašlo. Obnovte stránku.','Client payment recorded.':'Platba klienta bola zaznamenaná.','Cleaner payout recorded.':'Výplata upratovačovi bola zaznamenaná.','Outstanding this month':'Dlh za mesiac','To pay this month':'Na výplatu za mesiac','Outstanding, last 12 months':'Dlh za 12 mesiacov','To pay, last 12 months':'Na výplatu za 12 mesiacov','Outstanding':'Dlh','12 months':'12 mesiacov','Statement':'Výpis','No approved jobs this month':'Tento mesiac žiadne schválené upratovania','No approved jobs in this month.':'V tomto mesiaci nie sú schválené upratovania.','Only completed cleanings approved by quality review are billed. Payments are recorded in Payments & payouts.':'Fakturujú sa len dokončené upratovania schválené kontrolou kvality. Platby sa zaznamenávajú v časti Platby a výplaty.','Client statement':'Výpis klienta','Cleaner statement':'Výpis upratovača','Date':'Dátum','Property':'Objekt','Total':'Spolu','Other entries':'Ostatné záznamy','Informational; not included in the outstanding amount.':'Informatívne; nie je súčasťou dlhu.','Add payment':'Pridať platbu','Save payment':'Uložiť platbu','Print / PDF':'Tlač / PDF','Amount due':'Na úhradu','Amount to be paid':'Na výplatu','Only completed cleanings approved by quality review are included.':'Zahrnuté sú len dokončené upratovania schválené kontrolou kvality.','Generated':'Vygenerované','Allow pop-ups to print the report':'Povoľte vyskakovacie okná na tlač reportu','Client':'Klient','Cleaner':'Upratovač','Jobs':'Upratovania','Archive':'Archivovať','Activate':'Aktivovať','Deactivate':'Deaktivovať','Delete property':'Odstrániť objekt','Archive property':'Archivovať objekt','Archived properties cannot be booked and do not appear in new jobs. History and finance stay intact.':'Archivovaný objekt sa nedá rezervovať a nebude v nových upratovaniach. História a financie zostanú.','Property activated':'Objekt aktivovaný','Property archived':'Objekt archivovaný','The property, its photos and checklist will be deleted permanently. Properties with cleaning history cannot be deleted — archive them instead.':'Objekt, jeho fotky a kontrolný zoznam budú natrvalo odstránené. Objekt s históriou upratovaní sa nedá odstrániť — archivujte ho.','Property deleted':'Objekt odstránený','This property has cleaning history. Archive it instead.':'Objekt má históriu upratovaní. Archivujte ho.','Deactivate client':'Deaktivovať klienta','The client can no longer sign in or book. Properties, bookings and finance history stay intact.':'Klient sa nebude môcť prihlásiť ani rezervovať. Objekty, rezervácie a financie zostanú.','Deactivate cleaner':'Deaktivovať upratovača','The cleaner can no longer sign in or take jobs. Completed work and payouts stay intact. Reassign their upcoming jobs.':'Upratovač sa nebude môcť prihlásiť ani brať upratovania. Vykonaná práca a výplaty zostanú. Preraďte jeho budúce upratovania.','Account activated':'Účet aktivovaný','Account deactivated':'Účet deaktivovaný','Delete photo':'Odstrániť fotku','Tap again to delete':'Ťuknite znova na odstránenie','Photo deleted':'Fotka odstránená'}
+ });
+})();
+
+/* Manual entry: a cleaning that happened but is missing from the system, and a payment
+   received or sent outside the app. Manual payments reuse the monthly batch ledger, so
+   they are atomic, idempotent and audited the same way as every other payment. */
+(()=>{
+ const tr=(k)=>t(k,k);
+ const eur=v=>money(Number(v||0)/100);
+ const pad=n=>String(n).padStart(2,'0');
+ const shortDate=d=>{const [y,m,day]=String(d).split('-');return day+'.'+m+'.'+y};
+ const today10=()=>{const d=new Date();return d.toISOString().slice(0,10)};
+ const yearAgo=()=>{const d=new Date(Date.now()-366*86400000);return d.toISOString().slice(0,10)};
+ const parseEur=(value,label)=>{
+  const text=String(value||'').trim();
+  if(!text)throw new Error(label+': '+tr('enter an amount'));
+  return window.ShineTimeMoney.toMinorUnits(text);
+ };
+ const partiesOf=(side,data)=>{
+  const partyKey=side==='CLIENT'?'clientId':'cleanerId',nameKey=side==='CLIENT'?'clientName':'cleanerName',dueKey=side==='CLIENT'?'clientDueCents':'cleanerDueCents';
+  const map=new Map();
+  (data.jobs||[]).forEach(j=>{
+   if(j[partyKey]===null||j[partyKey]===undefined)return;
+   const id=Number(j[partyKey]);const p=map.get(id)||{id,name:j[nameKey]||('#'+id),due:0};
+   p.due+=Number(j[dueKey]||0);map.set(id,p);
+  });
+  return [...map.values()].filter(p=>p.due>0).sort((a,b)=>b.due-a.due||String(a.name).localeCompare(String(b.name)));
+ };
+ /* Oldest cleanings first; the last one may be partly paid, which the ledger allows. */
+ const allocate=(side,partyId,amount,data)=>{
+  const partyKey=side==='CLIENT'?'clientId':'cleanerId',dueKey=side==='CLIENT'?'clientDueCents':'cleanerDueCents';
+  const rows=(data.jobs||[]).filter(j=>Number(j[partyKey])===Number(partyId)&&Number(j[dueKey]||0)>0)
+   .sort((a,b)=>String(a.serviceDate||a.service_date||'').localeCompare(String(b.serviceDate||b.service_date||''))||Number(a.id)-Number(b.id));
+  let left=amount;const items=[];
+  for(const j of rows){
+   if(left<=0)break;
+   const due=Number(j[dueKey]);const take=Math.min(due,left);
+   items.push({jobId:Number(j.id),amountCents:take,serviceDate:j.serviceDate||j.service_date||'',dueCents:due});
+   left-=take;
+  }
+  return {items,left,outstanding:rows.reduce((a,j)=>a+Number(j[dueKey]||0),0)};
+ };
+
+ window.manualCleaningModal=async()=>{
+  try{
+   const [objectsData,cleanersData]=await Promise.all([api('/api/admin/objects'),api('/api/admin/cleaners')]);
+   const objects=(objectsData.objects||[]).filter(o=>o.active&&o.approval_status==='APPROVED');
+   const cleaners=(cleanersData.cleaners||[]).filter(c=>c.active);
+   if(!objects.length)return toast(tr('No approved property to book'),'error');
+   if(!cleaners.length)return toast(tr('No active cleaner'),'error');
+   state.manualObjects=objects;
+   modal(tr('Add a cleaning done outside the system'),
+    '<form id="manual-cleaning-form" class="form-grid">'+
+     '<p class="wide subtle">'+esc(tr('Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.'))+'</p>'+
+     '<div class="field wide"><label for="mc-object">'+esc(tr('Property'))+'</label><select class="select" id="mc-object" name="objectId" onchange="prefillManualCleaning()">'+objects.map(o=>'<option value="'+o.id+'">'+esc(o.code)+' — '+esc(o.name)+'</option>').join('')+'</select></div>'+
+     '<div class="field"><label for="mc-date">'+esc(tr('Service date'))+'</label><input class="input" id="mc-date" name="serviceDate" type="date" min="'+yearAgo()+'" max="'+today10()+'" value="'+today10()+'" required></div>'+
+     '<div class="field"><label for="mc-cleaner">'+esc(tr('Cleaner'))+'</label><select class="select" id="mc-cleaner" name="cleanerId">'+cleaners.map(c=>'<option value="'+c.id+'">'+esc(c.full_name||('#'+c.id))+'</option>').join('')+'</select></div>'+
+     '<div class="field"><label for="mc-price">'+esc(tr('Client price (€)'))+'</label><input class="input" id="mc-price" name="clientPrice" type="number" min="0" step="0.5" required></div>'+
+     '<div class="field"><label for="mc-payout">'+esc(tr('Cleaner payout (€)'))+'</label><input class="input" id="mc-payout" name="payout" type="number" min="0" step="0.5" required></div>'+
+     '<div class="field wide"><label for="mc-note">'+esc(tr('Why it is entered by hand (required)'))+'</label><textarea class="textarea" id="mc-note" name="note" maxlength="500" rows="2" required placeholder="'+esc(tr('For example: cleaned on 12.10, missing from the app'))+'"></textarea></div>'+
+    '</form>',
+    '<button class="btn" onclick="closeModal()">'+esc(tr('Cancel'))+'</button><button class="btn primary" onclick="submitManualCleaning()">'+esc(tr('Save cleaning'))+'</button>');
+   window.prefillManualCleaning();
+  }catch(e){toast(e.message,'error')}
+ };
+ window.prefillManualCleaning=()=>{
+  const object=(state.manualObjects||[]).find(o=>String(o.id)===String(document.getElementById('mc-object')?.value));
+  if(!object)return;
+  const price=document.getElementById('mc-price'),payout=document.getElementById('mc-payout');
+  if(price&&!price.value)price.value=object.client_price??'';
+  if(payout&&!payout.value)payout.value=object.payout??'';
+ };
+ window.submitManualCleaning=async()=>{
+  const form=document.getElementById('manual-cleaning-form');
+  if(!form.reportValidity())return;
+  const f=new FormData(form);
+  const body={objectId:Number(f.get('objectId')),serviceDate:String(f.get('serviceDate')),cleanerId:Number(f.get('cleanerId')),
+   clientPrice:Number(f.get('clientPrice')),payout:Number(f.get('payout')),note:String(f.get('note')||'').trim()};
+  try{
+   await api('/api/admin/finance/manual-cleanings',{method:'POST',body});
+   closeModal();toast(tr('Cleaning saved'),'success');
+   await window.statementsScreen();
+  }catch(e){toast(e.message,'error')}
+ };
+
+ window.manualPaymentModal=(side='CLIENT')=>{
+  const data=state.reconciliationData;
+  if(!data)return toast(tr('Open the reconciliation first'),'error');
+  if(data.hasMore)return toast(tr('Narrow the month before recording payments.'),'error');
+  const parties=partiesOf(side,data);
+  if(!parties.length)return toast(tr('No outstanding payments for this side.'),'error');
+  modal(tr('Record a payment by hand'),
+   '<form id="manual-payment-form" class="form-grid">'+
+    '<div class="field"><label for="mp-side">'+esc(tr('Payment'))+'</label><select class="select" id="mp-side" onchange="manualPaymentModal(this.value)"><option value="CLIENT" '+(side==='CLIENT'?'selected':'')+'>'+esc(tr('Received from client'))+'</option><option value="CLEANER" '+(side==='CLEANER'?'selected':'')+'>'+esc(tr('Paid to cleaner'))+'</option></select></div>'+
+    '<div class="field"><label for="mp-party">'+esc(side==='CLIENT'?tr('Client'):tr('Cleaner'))+'</label><select class="select" id="mp-party" onchange="updateManualPaymentPreview()">'+parties.map(p=>'<option value="'+p.id+'" data-due="'+p.due+'">'+esc(p.name)+' · '+esc(eur(p.due))+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label for="mp-amount">'+esc(tr('Amount (€)'))+'</label><input class="input" id="mp-amount" type="number" min="0.01" step="0.01" required oninput="updateManualPaymentPreview()"></div>'+
+    '<div class="field"><label for="mp-note">'+esc(tr('Reference (required)'))+'</label><input class="input" id="mp-note" maxlength="300" required placeholder="'+esc(tr('For example: bank transfer 28.10'))+'"></div>'+
+    '<p class="wide subtle" id="mp-preview" role="status"></p>'+
+   '</form>',
+   '<button class="btn" onclick="closeModal()">'+esc(tr('Cancel'))+'</button><button class="btn primary" onclick="submitManualPayment()">'+esc(tr('Save payment'))+'</button>');
+  window.updateManualPaymentPreview();
+ };
+ window.updateManualPaymentPreview=()=>{
+  const preview=document.getElementById('mp-preview'),side=document.getElementById('mp-side')?.value||'CLIENT';
+  const data=state.reconciliationData;
+  if(!preview||!data)return;
+  const partyId=Number(document.getElementById('mp-party')?.value);
+  let amount;
+  try{amount=window.ShineTimeMoney.toMinorUnits(document.getElementById('mp-amount')?.value||'0')}catch{amount=0}
+  if(!amount){preview.textContent=tr('Enter the amount received or paid.');preview.className='wide subtle';return}
+  const plan=allocate(side,partyId,amount,data);
+  if(plan.left>0){preview.textContent=tr('The amount is more than the outstanding balance')+' ('+eur(plan.outstanding)+').';preview.className='wide error-text';return}
+  const cleanings=plan.items.length,first=plan.items[0]?.serviceDate,last=plan.items.at(-1)?.serviceDate;
+  preview.textContent=cleanings+' '+tr('cleanings')+(first?' · '+shortDate(first)+(last&&last!==first?' – '+shortDate(last):''):'')+' · '+tr('Left after this payment')+': '+eur(plan.outstanding-amount);
+  preview.className='wide subtle';
+ };
+ window.submitManualPayment=async()=>{
+  const form=document.getElementById('manual-payment-form');
+  if(!form.reportValidity())return;
+  const side=document.getElementById('mp-side').value,partyId=Number(document.getElementById('mp-party').value);
+  const data=state.reconciliationData,month=state.statementMonth||today().slice(0,7);
+  let amount;
+  try{amount=window.ShineTimeMoney.toMinorUnits(document.getElementById('mp-amount').value)}catch(e){return toast(e.message,'error')}
+  const plan=allocate(side,partyId,amount,data);
+  if(plan.left>0)return toast(tr('The amount is more than the outstanding balance')+' ('+eur(plan.outstanding)+').','error');
+  const note=String(document.getElementById('mp-note').value||'').trim();
+  try{
+   await api('/api/admin/settlements/manual',{method:'POST',body:{month,side,partyId,amountCents:amount,note,requestId:crypto.randomUUID()}});
+   closeModal();toast(tr('Payment recorded')+' · '+eur(amount),'success');
+   await window.statementsScreen();
+  }catch(e){toast(e.message,'error')}
+ };
+ ST_I18N.addTranslations({
+  ru:{'Add cleaning':'Добавить уборку','Add payment':'Добавить оплату','Save payment':'Сохранить оплату','Add a cleaning done outside the system':'Добавить уборку, сделанную вне системы','Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.':'Только для уборки, которая была, но не записана в систему. Она сохранится как выполненная и одобренная и сразу попадёт в сверку этого месяца.','Save cleaning':'Сохранить уборку','Cleaner':'Клинер','Why it is entered by hand (required)':'Почему вносится вручную (обязательно)','For example: cleaned on 12.10, missing from the app':'Например: убрано 12.10, в приложении не было','Cleaning saved':'Уборка сохранена','Record a payment by hand':'Записать оплату вручную','Payment':'Оплата','Received from client':'Получено от клиента','Paid to cleaner':'Выплачено клинеру','Client':'Клиент','Amount (€)':'Сумма (€)','Reference (required)':'Основание (обязательно)','For example: bank transfer 28.10':'Например: перевод 28.10','Enter the amount received or paid.':'Введите сумму получения или выплаты.','The amount is more than the outstanding balance':'Сумма больше непогашенного остатка','cleanings':'уборок','Left after this payment':'Останется после оплаты','Payment recorded':'Оплата записана','Open the reconciliation first':'Сначала откройте сверку','enter an amount':'введите сумму','No active cleaner':'Нет активных клинеров','Client price (€)':'Цена клиенту (€)','Cleaner payout (€)':'Выплата клинеру (€)','Service date':'Дата уборки','Property':'Объект','Cancel':'Отмена','No approved property to book':'Нет одобренного объекта для записи'},
+  uk:{'Add cleaning':'Додати прибирання','Add payment':'Додати оплату','Save payment':'Зберегти оплату','Add a cleaning done outside the system':'Додати прибирання, зроблене поза системою','Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.':'Лише для прибирання, яке було, але не внесене в систему. Воно збережеться як виконане і схвалене та одразу потрапить у звірку цього місяця.','Save cleaning':'Зберегти прибирання','Cleaner':'Клінер','Why it is entered by hand (required)':'Чому вноситься вручну (обов’язково)','For example: cleaned on 12.10, missing from the app':'Наприклад: прибрано 12.10, у застосунку не було','Cleaning saved':'Прибирання збережено','Record a payment by hand':'Записати оплату вручну','Payment':'Оплата','Received from client':'Отримано від клієнта','Paid to cleaner':'Виплачено клінеру','Client':'Клієнт','Amount (€)':'Сума (€)','Reference (required)':'Підстава (обов’язково)','For example: bank transfer 28.10':'Наприклад: переказ 28.10','Enter the amount received or paid.':'Введіть суму отримання або виплати.','The amount is more than the outstanding balance':'Сума більша за непогашений залишок','cleanings':'прибирань','Left after this payment':'Залишиться після оплати','Payment recorded':'Оплату записано','Open the reconciliation first':'Спочатку відкрийте звірку','enter an amount':'введіть суму','No active cleaner':'Немає активних клінерів','Client price (€)':'Ціна клієнту (€)','Cleaner payout (€)':'Виплата клінеру (€)','Service date':'Дата прибирання','Property':'Об’єкт','Cancel':'Скасувати','No approved property to book':'Немає схваленого об’єкта для запису'},
+  sk:{'Add cleaning':'Pridať upratovanie','Add payment':'Pridať platbu','Save payment':'Uložiť platbu','Add a cleaning done outside the system':'Pridať upratovanie urobené mimo systému','Use only for a cleaning that happened but is missing here. It is recorded as completed and approved, and it joins this month\'s reconciliation at once.':'Len pre upratovanie, ktoré sa uskutočnilo, ale nie je tu zaznamenané. Uloží sa ako dokončené a schválené a hneď sa dostane do mesačného vyúčtovania.','Save cleaning':'Uložiť upratovanie','Cleaner':'Upratovač','Why it is entered by hand (required)':'Prečo sa zadáva ručne (povinné)','For example: cleaned on 12.10, missing from the app':'Napríklad: upratované 12.10, v aplikácii chýbalo','Cleaning saved':'Upratovanie uložené','Record a payment by hand':'Zaznamenať platbu ručne','Payment':'Platba','Received from client':'Prijaté od klienta','Paid to cleaner':'Vyplatené upratovačovi','Client':'Klient','Amount (€)':'Suma (€)','Reference (required)':'Referencia (povinné)','For example: bank transfer 28.10':'Napríklad: prevod 28.10','Enter the amount received or paid.':'Zadajte prijatú alebo vyplatenú sumu.','The amount is more than the outstanding balance':'Suma je vyššia ako nezaplatený zostatok','cleanings':'upratovaní','Left after this payment':'Zostane po platbe','Payment recorded':'Platba zaznamenaná','Open the reconciliation first':'Najprv otvorte vyúčtovanie','enter an amount':'zadajte sumu','No active cleaner':'Žiadny aktívny upratovač','Client price (€)':'Cena klientovi (€)','Cleaner payout (€)':'Výplata upratovačovi (€)','Service date':'Dátum upratovania','Property':'Objekt','Cancel':'Zrušiť','No approved property to book':'Žiadny schválený objekt na rezerváciu'}
  });
 })();

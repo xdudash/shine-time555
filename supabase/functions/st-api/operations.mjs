@@ -46,6 +46,14 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
     if(!Number.isSafeInteger(body.amountCents)||body.amountCents<=0)throw new ApiError('Amount must be positive whole cents');
     return {entry:await result(service.rpc('st_record_settlement',{p_actor_id:ctx.appUser.id,p_job_id:Number(body.jobId),p_kind:body.kind,p_amount_cents:body.amountCents,p_note:String(body.note||''),p_request_id:String(body.requestId||crypto.randomUUID())}).single())};
   }
+  if(route==='admin/settlements/manual'&&method==='POST') {
+    if(!['ADMIN','OPERATIONS_MANAGER','PROPERTY_MANAGER'].includes(role))throw new ApiError('Forbidden',403);
+    return result(service.rpc('st_record_manual_monthly_payment',{p_actor_id:ctx.appUser.id,p_month:String(body.month||''),p_side:String(body.side||''),p_party_id:Number(body.partyId),p_amount_cents:Number(body.amountCents),p_note:String(body.note||''),p_request_id:String(body.requestId||'')}));
+  }
+  if(route==='admin/finance/manual-cleanings'&&method==='POST') {
+    if(role!=='ADMIN')throw new ApiError('Forbidden',403);
+    return {job:await result(service.rpc('st_create_manual_completed_job',{p_actor_id:ctx.appUser.id,p_body:body}).single())};
+  }
   if(route==='admin/media/cleanup'&&method==='POST') {
     if(role!=='ADMIN')throw new ApiError('Forbidden',403);
     const cutoff=new Date(Date.now()-48*3600*1000).toISOString();
