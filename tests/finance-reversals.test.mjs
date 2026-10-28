@@ -90,7 +90,7 @@ test('an administrator can change a cleaning after payment, but not below what w
   const moved=(await db.query("select (current_date-5)::text d")).rows[0].d;
   const body=(client,cleaner,date)=>JSON.stringify({serviceDate:date,clientAmountCents:client,cleanerAmountCents:cleaner});
   await assert.rejects(db.query('select st_correct_completed_job_finance(1,$1,$2::jsonb)',[job,body(3000,2000,day)]),/already paid more/i);
-  const {rows:[row]}=await db.query('select st_correct_completed_job_finance(1,$1,$2::jsonb) as j',[job,body(5000,2000,day)]);
+  const {rows:[row]}=await db.query('select to_jsonb(st_correct_completed_job_finance(1,$1,$2::jsonb)) as j',[job,body(5000,2000,day)]);
   assert.equal(Number(row.j.client_price),50);
   assert.equal(row.j.financial_status,'INVOICED','4000 received of 5000 is no longer paid in full');
   await db.query('select st_correct_completed_job_finance(1,$1,$2::jsonb)',[job,body(5000,2000,moved)]);
