@@ -64,7 +64,7 @@
   const overLimit=data.hasMore?'<p class="notice-inline">'+tr('Totals cover the whole month, but only the first 5000 cleanings are loaded. Payment actions are disabled until the list is narrowed.')+'</p>':'';
   $('#page').innerHTML=
    '<div class="section-head"><div><h2>'+tr('Monthly reconciliation')+'</h2><p>'+tr('Correct cleanings first, then record client receipts and cleaner payouts separately.')+'</p></div>'+
-   '<input class="input" style="width:170px" type="month" value="'+esc(month)+'" onchange="setStatementMonth(this.value)"></div>'+
+   '<input class="input" style="width:170px" type="month" aria-label="'+esc(tr('Month'))+'" value="'+esc(month)+'" onchange="setStatementMonth(this.value)"></div>'+
    '<div class="grid finance-kpis recon-kpis">'+
     '<div class="card kpi"><div class="label">'+tr('Client total')+'</div><div class="value small-money">'+reconCents(summary.clientAmountCents)+'</div><div class="hint">'+tr('Paid')+' '+reconCents(summary.clientPaidCents)+' · '+tr('Due')+' <strong>'+reconCents(expandedClientDue)+'</strong></div></div>'+
     '<div class="card kpi"><div class="label">'+tr('Cleaner total')+'</div><div class="value small-money">'+reconCents(summary.cleanerAmountCents)+'</div><div class="hint">'+tr('Paid out')+' '+reconCents(summary.cleanerPaidCents)+' · '+tr('Due')+' <strong>'+reconCents(expandedCleanerDue)+'</strong></div></div>'+
@@ -115,6 +115,11 @@
   uk:{'Confirm payments':'Підтвердити оплати'},
   sk:{'Confirm payments':'Potvrdiť platby'}
  });
+ ST_I18N.addTranslations({
+  ru:{'Month':'Месяц','Split by':'Разрез','cleanings':'уборок','Recorded':'Записано','Record payments for all outstanding cleanings of this property?':'Записать оплату за все непогашенные уборки этого объекта?'},
+  uk:{'Month':'Місяць','Split by':'Розріз','cleanings':'прибирань','Recorded':'Записано','Record payments for all outstanding cleanings of this property?':'Записати оплату за всі непогашені прибирання цього об’єкта?'},
+  sk:{'Month':'Mesiac','Split by':'Rozdelenie','cleanings':'upratovaní','Recorded':'Zaznamenané','Record payments for all outstanding cleanings of this property?':'Zaznamenať platby za všetky nezaplatené upratovania tohto objektu?'}
+ });
  const reconSides=[['OBJECT','By object'],['CLIENT','By client'],['CLEANER','By cleaner']];
  ST_I18N.addTranslations({
   ru:{'Search by name':'Поиск по имени','Still due':'Осталось получить','Nothing matches the search.':'Ничего не найдено.','Pay':'Оплатить'},
@@ -122,7 +127,7 @@
   sk:{'Search by name':'Hľadať podľa mena','Still due':'Zostáva','Nothing matches the search.':'Nič sa nenašlo.','Pay':'Zaplatiť'}
  });
  function reconSwitcher(active){
-  return '<div class="recon-seg" role="tablist">'+reconSides.map(([k,label])=>'<button role="tab" aria-selected="'+(k===active)+'" class="recon-seg-btn'+(k===active?' is-active':'')+'" onclick="setReconSide(&quot;'+k+'&quot;)">'+tr(label)+'</button>').join('')+'</div>';
+  return '<div class="recon-seg" role="tablist" aria-label="'+esc(tr('Split by'))+'">'+reconSides.map(([k,label])=>'<button role="tab" aria-selected="'+(k===active)+'" class="recon-seg-btn'+(k===active?' is-active':'')+'" onclick="setReconSide(&quot;'+k+'&quot;)">'+tr(label)+'</button>').join('')+'</div>';
  }
  function reconParties(side,data){
   const partyKey=side==='CLIENT'?'clientId':'cleanerId';
@@ -168,7 +173,7 @@
   const chosenDue=chosen.reduce((a,p)=>a+p.due,0);
   const totalDue=parties.reduce((a,p)=>a+p.due,0);
   const allChecked=payable.length>0&&payable.every(p=>sel.has(side+':'+p.id));
-  const head='<div class="recon-panel-head"><input class="input recon-search" type="search" placeholder="'+esc(tr('Search by name'))+'" value="'+esc(state.reconSearch||'')+'" oninput="setReconSearch(this.value)">'+
+  const head='<div class="recon-panel-head"><input class="input recon-search" type="search" aria-label="'+esc(tr('Search by name'))+'" placeholder="'+esc(tr('Search by name'))+'" value="'+esc(state.reconSearch||'')+'" oninput="setReconSearch(this.value)">'+
    '<div class="recon-summary"><span>'+tr('Still due')+': <strong>'+reconCents(totalDue)+'</strong></span><span>'+tr('Selected')+': <strong>'+chosen.length+'</strong> · '+reconCents(chosenDue)+'</span></div>'+
    '<div class="recon-actions"><button class="btn sm" '+(sel.size?'':'disabled ')+'onclick="clearReconSelection()">'+tr('Clear selection')+'</button>'+
    '<button class="btn sm primary" '+(locked||!chosen.length?'disabled ':'')+'onclick="settleReconSelected(&quot;'+side+'&quot;)">'+tr('Pay selected')+'</button></div></div>';
@@ -205,6 +210,16 @@
   rerenderRecon();
  };
  window.clearReconSelection=()=>{state.reconSelected=new Set();rerenderRecon()};
+ /* Runs one batch per party, in order. A failure stops the run and reports how many were already recorded. */
+ async function postReconBatches(groups,side,month,note){
+  let done=0,cents=0;
+  for(const g of groups){
+   try{await api('/api/admin/settlements/batch',{method:'POST',body:{month,side,partyId:g.partyId,items:g.items,note:note(g),requestId:crypto.randomUUID()}})}
+   catch(error){return {done,cents,error}}
+   done+=g.items.length;cents+=g.items.reduce((a,i)=>a+i.amountCents,0);
+  }
+  return {done,cents,error:null};
+ }
  async function payReconParties(side,partyIds){
   const data=state.reconciliationData,month=state.statementMonth||today().slice(0,7);
   if(!data)return;
@@ -213,15 +228,13 @@
   const partyKey=side==='CLIENT'?'clientId':'cleanerId';
   const groups=partyIds.map(id=>({partyId:Number(id),items:(data.jobs||[]).filter(j=>Number(j[partyKey])===Number(id)&&Number(j[dueKey]||0)>0).map(j=>({jobId:Number(j.id),amountCents:Number(j[dueKey])}))})).filter(g=>g.items.length);
   if(!groups.length)return toast(tr('No outstanding payments for this side.'),'error');
-  if(!confirm(tr(partyIds.length>1?'Record payments for all outstanding cleanings of the selected people?':'Record payments for all outstanding cleanings of this person?')))return;
-  try{
-   for(const g of groups){
-    await api('/api/admin/settlements/batch',{method:'POST',body:{month,side,partyId:g.partyId,items:g.items,note:(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month,requestId:crypto.randomUUID()}});
-   }
-   state.reconSelected=new Set();
-   toast(tr('Payments recorded.'),'success');
-   await statementsScreen();
-  }catch(e){toast(e.message,'error');await statementsScreen()}
+  const count=groups.reduce((a,g)=>a+g.items.length,0),total=groups.reduce((a,g)=>a+g.items.reduce((s,i)=>s+i.amountCents,0),0);
+  if(!confirm((tr(partyIds.length>1?'Record payments for all outstanding cleanings of the selected people?':'Record payments for all outstanding cleanings of this person?'))+'\n'+count+' '+tr('cleanings')+' · '+reconCents(total)))return;
+  const res=await postReconBatches(groups,side,month,()=>(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month);
+  state.reconSelected=new Set();
+  if(res.error)toast(tr('Recorded')+' '+res.done+' / '+count+' · '+res.error.message,'error');
+  else toast(tr('Payments recorded.')+' '+res.done+' · '+reconCents(res.cents),'success');
+  await statementsScreen();
  }
  window.settleReconParty=(id,side)=>payReconParties(side,[id]);
  window.settleReconSelected=side=>{const sel=state.reconSelected||new Set();return payReconParties(side,[...sel].filter(k=>k.startsWith(side+':')).map(k=>k.split(':')[1]))};
@@ -239,20 +252,14 @@
   const groups=new Map();
   rows.forEach(j=>{const partyId=Number(j[partyKey]);if(!groups.has(partyId))groups.set(partyId,[]);groups.get(partyId).push({jobId:Number(j.id),amountCents:Number(j[dueKey])})});
   if(!groups.size)return toast(tr('No outstanding payments for this side.'),'error');
-  try{
-   for(const [partyId,items] of groups){
-    await api('/api/admin/settlements/batch',{method:'POST',body:{
-     month,side,partyId,items,
-     note:(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month+' · '+String((data.objects||[]).find(o=>Number(o.objectId)===Number(objectId))?.objectCode||objectId),
-     requestId:crypto.randomUUID()
-    }});
-   }
-   toast(tr(side==='CLIENT'?'Client payment recorded.':'Cleaner payout recorded.'),'success');
-   await statementsScreen();
-  }catch(e){
-   toast(e.message,'error');
-   await statementsScreen();
-  }
+  const list=[...groups].map(([partyId,items])=>({partyId,items}));
+  const code=String((data.objects||[]).find(o=>Number(o.objectId)===Number(objectId))?.objectCode||objectId);
+  const count=list.reduce((a,g)=>a+g.items.length,0),total=list.reduce((a,g)=>a+g.items.reduce((s,i)=>s+i.amountCents,0),0);
+  if(!confirm(tr('Record payments for all outstanding cleanings of this property?')+'\n'+code+' · '+count+' '+tr('cleanings')+' · '+reconCents(total)))return;
+  const res=await postReconBatches(list,side,month,()=>(side==='CLIENT'?'Monthly client payment ':'Monthly cleaner payout ')+month+' · '+code);
+  if(res.error)toast(tr('Recorded')+' '+res.done+' / '+count+' · '+res.error.message,'error');
+  else toast(tr(side==='CLIENT'?'Client payment recorded.':'Cleaner payout recorded.'),'success');
+  await statementsScreen();
  };
  window.settleReconciliationJob=async(jobId,objectId,side)=>{
   const data=state.reconciliationData,month=state.statementMonth||today().slice(0,7);

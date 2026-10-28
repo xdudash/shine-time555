@@ -326,6 +326,7 @@ try {
   const correction=await page.evaluate(()=>reconciliationCorrections[0]);
   assert.equal(correction.id,202);
   assert.deepEqual(correction.body,{serviceDate:'2099-01-07',clientAmountCents:3850,cleanerAmountCents:2100,reason:'Correction for invoice'});
+  page.once('dialog',d=>d.accept());
   await page.getByRole('button',{name:'Mark client paid',exact:true}).first().click();
   await page.waitForFunction(()=>window.batchBodies?.length===1);
   const batch=await page.evaluate(()=>batchBodies[0]);
