@@ -131,14 +131,12 @@ const mp=await page.evaluate(()=>window.manualPaymentBody);
 assert.equal(mp.amountCents,1500);assert.equal(mp.side,'CLIENT');assert.equal(mp.items,undefined,'the server allocates the amount');
 console.log('PASS manual cleaning and manual payment entry');
 
-// Corrections: a recorded payment can be reversed with a reason; the history stays visible.
+// Corrections: a recorded payment can be reversed; the history stays visible.
 await page.evaluate(()=>openJobPayments(1));
 await page.locator('.modal').getByRole('button',{name:'Reverse',exact:true}).click();
-await page.locator('#ask-input').fill('Typed wrong amount');
 await page.locator('#ask-ok').click();
 await page.waitForFunction(()=>window.reverseBody);
-assert.equal((await page.evaluate(()=>window.reverseBody)).reason,'Typed wrong amount');
-console.log('PASS payment reversal asks for a reason and sends it');
+console.log('PASS payment reversal confirms and sends without a reason');
 
 assert.deepEqual(errors,[]);
 console.log('PASS finance at scale: 1,200 cleanings render, search responds, client month paid in one request');

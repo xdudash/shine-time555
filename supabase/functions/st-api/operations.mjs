@@ -22,10 +22,9 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
     for(const key of ['clientAmountCents','cleanerAmountCents']) {
       if(!Number.isSafeInteger(body[key])||body[key]<0||body[key]>100000000)throw new ApiError('Amounts must be whole cents between 0 and 100000000');
     }
-    if(!String(body.reason||'').trim()||String(body.reason).trim().length>500)throw new ApiError('A correction reason (up to 500 characters) is required');
     return {job:await result(service.rpc('st_correct_completed_job_finance',{
       p_actor_id:ctx.appUser.id,p_job_id:Number(correction[1]),
-      p_body:{serviceDate,clientAmountCents:body.clientAmountCents,cleanerAmountCents:body.cleanerAmountCents,reason:String(body.reason).trim()}
+      p_body:{serviceDate,clientAmountCents:body.clientAmountCents,cleanerAmountCents:body.cleanerAmountCents}
     }).single())};
   }
   if(route==='admin/settlements/monthly' && method==='GET') {
@@ -68,20 +67,16 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
   if(settlementAction&&method==='POST') {
     if(role!=='ADMIN')throw new ApiError('Forbidden',403);
     const id=Number(settlementAction[1]);
-    const reason=String(body.reason||'').trim();
-    if(!reason||reason.length>300)throw new ApiError('A reason (up to 300 characters) is required');
     if(settlementAction[2]==='reverse') {
-      return {entry:await result(service.rpc('st_reverse_settlement',{p_actor_id:ctx.appUser.id,p_settlement_id:id,p_reason:reason}).single())};
+      return {entry:await result(service.rpc('st_reverse_settlement',{p_actor_id:ctx.appUser.id,p_settlement_id:id}).single())};
     }
     if(!Number.isSafeInteger(body.amountCents)||body.amountCents<=0||body.amountCents>100000000)throw new ApiError('Amount must be positive whole cents');
-    return {entry:await result(service.rpc('st_correct_settlement',{p_actor_id:ctx.appUser.id,p_settlement_id:id,p_amount_cents:body.amountCents,p_reason:reason,p_request_id:String(body.requestId||'')}).single())};
+    return {entry:await result(service.rpc('st_correct_settlement',{p_actor_id:ctx.appUser.id,p_settlement_id:id,p_amount_cents:body.amountCents,p_request_id:String(body.requestId||'')}).single())};
   }
   const jobCancel=route.match(/^admin\/finance\/jobs\/(\d+)\/cancel$/);
   if(jobCancel&&method==='POST') {
     if(role!=='ADMIN')throw new ApiError('Forbidden',403);
-    const reason=String(body.reason||'').trim();
-    if(!reason||reason.length>300)throw new ApiError('A reason (up to 300 characters) is required');
-    return {job:await result(service.rpc('st_cancel_manual_job',{p_actor_id:ctx.appUser.id,p_job_id:Number(jobCancel[1]),p_reason:reason}).single())};
+    return {job:await result(service.rpc('st_cancel_manual_job',{p_actor_id:ctx.appUser.id,p_job_id:Number(jobCancel[1])}).single())};
   }
   if(route==='admin/finance/manual-cleanings'&&method==='POST') {
     if(role!=='ADMIN')throw new ApiError('Forbidden',403);

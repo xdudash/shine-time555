@@ -57,7 +57,7 @@
     '<td>'+Number(o.jobsCount||0)+'</td><td class="recon-amount">'+clientSummary+'</td><td>'+clientAction+'</td>'+
     '<td class="recon-amount">'+cleanerSummary+'</td><td>'+cleanerAction+'</td>'+
     '<td><button class="btn sm" onclick="toggleReconciliationObject('+id+')">'+(expanded.has(id)?tr('Hide details'):tr('Details'))+'</button></td></tr>';
-   if(expanded.has(id))row+='<tr class="recon-detail-row"><td colspan="7">'+reconciliationDetails(o,jobs,month,data.hasMore)+'</td></tr>';
+   if(expanded.has(id))row+='<tr class="recon-detail-row"><td colspan="6">'+reconciliationDetails(o,jobs,month,data.hasMore)+'</td></tr>';
    return row;
   }).join('');
   const expandedClientDue=Number(summary.clientDueCents||0),expandedCleanerDue=Number(summary.cleanerDueCents||0);
@@ -72,7 +72,7 @@
    '</div>'+overLimit+reconSwitcher(reconSide)+
    (reconSide!=='OBJECT'?reconPartyCard(reconSide,data,month):
    '<div class="card recon-table-card"><div class="table-wrap"><table><thead><tr><th>'+tr('Object')+'</th><th>'+tr('Cleanings')+'</th><th>'+tr('Client · total / paid / due')+'</th><th></th><th>'+tr('Cleaner · total / paid / due')+'</th><th></th><th></th></tr></thead><tbody>'+
-   (objectRows||'')+(objectRows?'':'<tr><td colspan="7"><div class="empty">'+tr('No completed cleanings in this month.')+'</div></td></tr>')+
+   (objectRows||'')+(objectRows?'':'<tr><td colspan="6"><div class="empty">'+tr('No completed cleanings in this month.')+'</div></td></tr>')+
    '</tbody></table></div></div>');
  }
  function reconciliationPaymentAction(job,side,objectId,hasMore){
@@ -85,7 +85,7 @@
  }
  function reconciliationDetails(object,jobs,month,hasMore){
   const rows=jobs.filter(j=>Number(j.objectId)===Number(object.objectId)).map(j=>{
-   const id=Number(j.id),editable=j.editable===true;
+   const id=Number(j.id),editable=true;
    const dateCell=editable
     ?'<input class="input recon-date-input" type="date" data-recon-date="'+id+'" value="'+esc(j.serviceDate)+'"><small class="subtle">'+esc(reconWeekday(j.serviceDate))+'</small>'
     :'<strong>'+esc(fmtDate(j.serviceDate))+'</strong><br><small class="subtle">'+esc(reconWeekday(j.serviceDate))+' · #'+id+'</small>';
@@ -95,15 +95,14 @@
    const cleanerCell=editable
     ?'<input class="input recon-money-input" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" data-recon-cleaner="'+id+'" value="'+reconMajor(j.cleanerAmountCents)+'">'
     :'<strong>'+reconCents(j.cleanerAmountCents)+'</strong>';
-   const reason=editable?'<input class="input recon-reason-input" type="text" maxlength="500" data-recon-reason="'+id+'" placeholder="'+esc(tr('Reason for correction'))+'">':'<small class="subtle">'+tr('Locked after first payment')+'</small>';
    const save=editable?'<button class="btn sm primary" onclick="saveMonthlyCorrection('+id+','+Number(object.objectId)+')">'+tr('Save correction')+'</button>':'<span class="subtle">—</span>';
    return '<tr><td>'+dateCell+'</td><td><strong>'+esc(j.clientName||'—')+'</strong><br><small class="subtle">'+tr('Client')+' · '+reconDue(j.clientDueCents,j.clientPaidCents)+'</small><div class="recon-job-payment">'+reconciliationPaymentAction(j,'CLIENT',object.objectId,hasMore)+'</div></td><td>'+clientCell+'</td>'+
-    '<td><strong>'+esc(j.cleanerName||tr('No cleaner assigned'))+'</strong><br><small class="subtle">'+tr('Cleaner')+' · '+reconDue(j.cleanerDueCents,j.cleanerPaidCents)+'</small><div class="recon-job-payment">'+reconciliationPaymentAction(j,'CLEANER',object.objectId,hasMore)+'</div></td><td>'+cleanerCell+'</td><td>'+reason+'</td><td>'+save+' <button class="btn sm" onclick="openJobPayments('+id+')">'+tr('Payments')+'</button></td></tr>';
+    '<td><strong>'+esc(j.cleanerName||tr('No cleaner assigned'))+'</strong><br><small class="subtle">'+tr('Cleaner')+' · '+reconDue(j.cleanerDueCents,j.cleanerPaidCents)+'</small><div class="recon-job-payment">'+reconciliationPaymentAction(j,'CLEANER',object.objectId,hasMore)+'</div></td><td>'+cleanerCell+'</td><td>'+save+' <button class="btn sm" onclick="openJobPayments('+id+')">'+tr('Payments')+'</button></td></tr>';
   }).join('');
   return '<div class="recon-detail"><div class="section-head compact"><div><h3>'+esc(object.objectCode||'')+' · '+esc(object.objectName||'')+'</h3><p>'+tr('Change dates or total amounts here. Payment records are never overwritten.')+'</p></div>'+
    '<div class="row-actions"><button class="btn sm" '+(hasMore?'disabled':'')+' onclick="settleReconciliationObject('+Number(object.objectId)+',&quot;CLIENT&quot;)">'+tr('Mark client paid')+'</button><button class="btn sm" '+(hasMore?'disabled':'')+' onclick="settleReconciliationObject('+Number(object.objectId)+',&quot;CLEANER&quot;)">'+tr('Mark cleaners paid')+'</button></div></div>'+
-   '<div class="table-wrap"><table class="recon-detail-table"><thead><tr><th>'+tr('Cleaning date')+'</th><th>'+tr('Client / status')+'</th><th>'+tr('Client total (€)')+'</th><th>'+tr('Cleaner / status')+'</th><th>'+tr('Cleaner total (€)')+'</th><th>'+tr('Correction reason')+'</th><th></th></tr></thead><tbody>'+
-   (rows||'')+(rows?'':'<tr><td colspan="7"><div class="empty">'+tr('No cleanings to show here.')+'</div></td></tr>')+
+   '<div class="table-wrap"><table class="recon-detail-table"><thead><tr><th>'+tr('Cleaning date')+'</th><th>'+tr('Client / status')+'</th><th>'+tr('Client total (€)')+'</th><th>'+tr('Cleaner / status')+'</th><th>'+tr('Cleaner total (€)')+'</th><th></th></tr></thead><tbody>'+
+   (rows||'')+(rows?'':'<tr><td colspan="6"><div class="empty">'+tr('No cleanings to show here.')+'</div></td></tr>')+
    '</tbody></table></div><p class="subtle">'+tr('After a payment is recorded, use a refund or return entry to correct the financial history.')+'</p></div>';
  }
  ST_I18N.addTranslations({
@@ -187,12 +186,12 @@
     '<td class="num">'+p.jobs+'</td><td class="num">'+reconCents(p.amount)+'</td><td class="num">'+reconCents(p.paid)+'</td>'+
     '<td class="num">'+(p.due>0?'<strong class="recon-due">'+reconCents(p.due)+'</strong>':'<span class="pill green">'+tr('Paid')+'</span>')+'</td>'+
     '<td class="recon-pay"><button class="btn sm primary" '+(canPay?'':'disabled ')+'onclick="settleReconParty('+p.id+',&quot;'+side+'&quot;)">'+tr('Pay all')+'</button></td></tr>';
-   return isOpen?main+'<tr class="recon-detail-row"><td colspan="7">'+reconPartyJobs(side,p,data,locked)+'</td></tr>':main;
+   return isOpen?main+'<tr class="recon-detail-row"><td colspan="6">'+reconPartyJobs(side,p,data,locked)+'</td></tr>':main;
   }).join('');
   return head+'<div class="card recon-table-card recon-party-card"><div class="table-wrap"><table class="recon-party-table"><thead><tr>'+
    '<th class="recon-check"><input type="checkbox" '+(allChecked?'checked ':'')+(locked||!payable.length?'disabled ':'')+'onchange="toggleReconSelectAll(this.checked)" aria-label="'+esc(tr('Select all'))+'"></th>'+
    '<th>'+tr(side==='CLIENT'?'Client':'Cleaner')+'</th><th class="num">'+tr('Cleanings')+'</th><th class="num">'+tr('Total')+'</th><th class="num">'+tr('Paid')+'</th><th class="num">'+tr('Due')+'</th><th></th></tr></thead><tbody>'+
-   (rows||'<tr><td colspan="7"><div class="empty">'+tr(q?'Nothing matches the search.':'No cleanings to show here.')+'</div></td></tr>')+'</tbody></table></div></div>';
+   (rows||'<tr><td colspan="6"><div class="empty">'+tr(q?'Nothing matches the search.':'No cleanings to show here.')+'</div></td></tr>')+'</tbody></table></div></div>';
  }
  window.setReconSearch=value=>{
   state.reconSearch=value;
@@ -289,17 +288,15 @@
   const date=pick('date')?.value;
   const clientValue=String(pick('client')?.value??'').trim();
   const cleanerValue=String(pick('cleaner')?.value??'').trim();
-  const reason=pick('reason')?.value?.trim();
   const validMoney=value=>/^\d+(?:[.,]\d{1,2})?$/.test(value);
-  if(!date||!validMoney(clientValue)||!validMoney(cleanerValue)||!reason){
-   return toast(tr('Enter the date, non-negative amounts and a correction reason.'),'error');
+  if(!date||!validMoney(clientValue)||!validMoney(cleanerValue)){
+   return toast(tr('Enter the date and non-negative amounts.'),'error');
   }
   try{
    await api('/api/admin/settlements/jobs/'+Number(id)+'/correct',{method:'PATCH',body:{
     serviceDate:date,
     clientAmountCents:window.ShineTimeMoney.toMinorUnits(String(clientValue)),
-    cleanerAmountCents:window.ShineTimeMoney.toMinorUnits(String(cleanerValue)),
-    reason
+    cleanerAmountCents:window.ShineTimeMoney.toMinorUnits(String(cleanerValue))
    }});
    state.reconciliationExpanded?.add(Number(objectId));
    toast(tr('Correction saved.'),'success');
@@ -516,10 +513,9 @@
   }catch(e){toast(e.message,'error')}
  };
  window.reversePayment=async(settlementId,jobId)=>{
-  const reason=await askDialog({title:'Reverse this payment?',message:'The payment stays in the history. A reversal entry is added and the cleaning becomes unpaid again.',label:'Reason',required:true,confirmLabel:'Reverse',danger:true});
-  if(!reason)return;
+  if(await askConfirm('Reverse this payment?','The payment stays in the history. A reversal entry is added and the cleaning becomes unpaid again.','Reverse',true)===null)return;
   try{
-   await api('/api/admin/settlements/'+Number(settlementId)+'/reverse',{method:'POST',body:{reason}});
+   await api('/api/admin/settlements/'+Number(settlementId)+'/reverse',{method:'POST',body:{}});
    toast(tr('Payment reversed'),'success');
    await window.statementsScreen();await window.openJobPayments(jobId);
   }catch(e){toast(e.message,'error')}
@@ -529,19 +525,17 @@
   if(!value)return;
   let amountCents;
   try{amountCents=window.ShineTimeMoney.toMinorUnits(value)}catch(e){return toast(e.message,'error')}
-  const reason=await askDialog({title:'Change amount',message:'The old payment is reversed and the new amount recorded. Both stay in the history.',label:'Reason',required:true,confirmLabel:'Save amount'});
-  if(!reason)return;
+  if(await askConfirm('Change amount','The old payment is reversed and the new amount recorded. Both stay in the history.','Save amount',false)===null)return;
   try{
-   await api('/api/admin/settlements/'+Number(settlementId)+'/correct',{method:'POST',body:{amountCents,reason,requestId:crypto.randomUUID()}});
+   await api('/api/admin/settlements/'+Number(settlementId)+'/correct',{method:'POST',body:{amountCents,requestId:crypto.randomUUID()}});
    toast(tr('Amount corrected'),'success');
    await window.statementsScreen();await window.openJobPayments(jobId);
   }catch(e){toast(e.message,'error')}
  };
  window.cancelManualCleaning=async(jobId)=>{
-  const reason=await askDialog({title:'Delete this cleaning?',message:'Only for a cleaning entered by hand with no money left on it. It leaves the reconciliation, and the record stays in the history.',label:'Reason',required:true,confirmLabel:'Delete',danger:true});
-  if(!reason)return;
+  if(await askConfirm('Delete this cleaning?','Only for a cleaning entered by hand with no money left on it. It leaves the reconciliation, and the record stays in the history.','Delete',true)===null)return;
   try{
-   await api('/api/admin/finance/jobs/'+Number(jobId)+'/cancel',{method:'POST',body:{reason}});
+   await api('/api/admin/finance/jobs/'+Number(jobId)+'/cancel',{method:'POST',body:{}});
    closeModal();toast(tr('Cleaning deleted'),'success');
    await window.statementsScreen();
   }catch(e){toast(e.message,'error')}

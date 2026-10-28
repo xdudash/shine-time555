@@ -26,13 +26,13 @@ test('reversing a payment keeps it in the history and makes the cleaning unpaid 
   const job=await manualJob(db);
   const pay=await clientPayment(db,job,4000);
   assert.equal(await netClient(db,job),4000);
-  const {rows:[rev]}=await db.query("select (st_reverse_settlement(1,$1,'Typed wrong amount')).id as id",[pay]);
+  const {rows:[rev]}=await db.query("select (st_reverse_settlement(1,$1)).id as id",[pay]);
   assert.equal(await netClient(db,job),0);
   const {rows:[row]}=await db.query('select count(*)::int c from st_settlements where job_id=$1',[job]);
   assert.equal(row.c,2,'original and reversal both kept');
   const {rows:[link]}=await db.query('select reverses_settlement_id from st_settlements where id=$1',[rev.id]);
   assert.equal(Number(link.reverses_settlement_id),pay);
-  await assert.rejects(db.query('select st_reverse_settlement(1,$1,$2)',[pay,'again']),/already reversed/i);
+  await assert.rejects(db.query('select st_reverse_settlement(1,$1)',[pay]),/already reversed/i);
   const {rows:[jobRow]}=await db.query('select financial_status from st_jobs where id=$1',[job]);
   assert.notEqual(jobRow.financial_status,'PAID');
  }finally{await db.close()}
@@ -42,13 +42,13 @@ test('changing a payment amount reverses the old one and records the new amount 
  const db=await setup();try{
   const job=await manualJob(db);
   const pay=await clientPayment(db,job,4000);
-  const {rows:[n]}=await db.query("select (st_correct_settlement(1,$1,2500,'Bank showed 25','corr-1')).id as id",[pay]);
+  const {rows:[n]}=await db.query("select (st_correct_settlement(1,$1,2500,'corr-1')).id as id",[pay]);
   assert.equal(await netClient(db,job),2500);
   const {rows:[kind]}=await db.query('select kind,amount_cents from st_settlements where id=$1',[n.id]);
   assert.equal(kind.kind,'CLIENT_PAYMENT');assert.equal(Number(kind.amount_cents),2500);
-  const again=(await db.query("select (st_correct_settlement(1,$1,2500,'Bank showed 25','corr-1')).id as id",[pay])).rows[0].id;
+  const again=(await db.query("select (st_correct_settlement(1,$1,2500,'corr-1')).id as id",[pay])).rows[0].id;
   assert.equal(Number(again),Number(n.id),'same request replays without a second row');
-  await assert.rejects(db.query("select st_correct_settlement(1,$1,4000,'x','corr-2')",[pay]),/already reversed/i);
+  await assert.rejects(db.query("select st_correct_settlement(1,$1,4000,'corr-2')",[pay]),/already reversed/i);
  }finally{await db.close()}
 });
 
@@ -56,9 +56,9 @@ test('a manual cleaning can be deleted only when no money is left on it, and its
  const db=await setup();try{
   const job=await manualJob(db,{daysAgo:4});
   const pay=await clientPayment(db,job,4000);
-  await assert.rejects(db.query("select st_cancel_manual_job(1,$1,'Duplicate')",[job]),/reverse the payments/i);
-  await db.query("select st_reverse_settlement(1,$1,'Wrong cleaning')",[pay]);
-  await db.query("select st_cancel_manual_job(1,$1,'Entered twice')",[job]);
+  await assert.rejects(db.query("select st_cancel_manual_job(1,$1)",[job]),/reverse the payments/i);
+  await db.query("select st_reverse_settlement(1,$1)",[pay]);
+  await db.query("select st_cancel_manual_job(1,$1)",[job]);
   const {rows:[st]}=await db.query('select status from st_jobs where id=$1',[job]);
   assert.equal(st.status,'CANCELLED');
   const month=(await db.query("select to_char(current_date,'YYYY-MM') m")).rows[0].m;
@@ -73,11 +73,27 @@ test('only administrators can reverse, correct or delete money records, and auto
  const db=await setup();try{
   const job=await manualJob(db);
   const pay=await clientPayment(db,job,4000);
-  await assert.rejects(db.query("select st_reverse_settlement(5,$1,'manager')",[pay]),/forbidden/i);
-  await assert.rejects(db.query("select st_correct_settlement(4,$1,100,'owner','c-owner')",[pay]),/forbidden/i);
-  await assert.rejects(db.query("select st_cancel_manual_job(5,$1,'manager')",[job]),/forbidden/i);
+  await assert.rejects(db.query("select st_reverse_settlement(5,$1)",[pay]),/forbidden/i);
+  await assert.rejects(db.query("select st_correct_settlement(4,$1,100,'c-owner')",[pay]),/forbidden/i);
+  await assert.rejects(db.query("select st_cancel_manual_job(5,$1)",[job]),/forbidden/i);
   await db.exec("insert into st_jobs(object_id,client_id,service_date,status,review_status,assigned_cleaner_id,client_price,payout,earliest_start,deadline,duration_minutes) values(2,1,current_date-10,'COMPLETED','APPROVED',1,40,20,'08:00','20:00',60)");
   const auto=(await db.query("select id from st_jobs where service_date=current_date-10")).rows[0].id;
-  await assert.rejects(db.query('select st_cancel_manual_job(1,$1,$2)',[auto,'x']),/entered by hand/i);
+  await assert.rejects(db.query('select st_cancel_manual_job(1,$1)',[auto]),/entered by hand/i);
+ }finally{await db.close()}
+});
+
+test('an administrator can change a cleaning after payment, but not below what was already paid',async()=>{
+ const db=await setup();try{
+  const job=await manualJob(db,{daysAgo:6});
+  await clientPayment(db,job,4000);
+  const day=(await db.query("select (current_date-6)::text d")).rows[0].d;
+  const moved=(await db.query("select (current_date-5)::text d")).rows[0].d;
+  const body=(client,cleaner,date)=>JSON.stringify({serviceDate:date,clientAmountCents:client,cleanerAmountCents:cleaner});
+  await assert.rejects(db.query('select st_correct_completed_job_finance(1,$1,$2::jsonb)',[job,body(3000,2000,day)]),/already paid more/i);
+  const {rows:[row]}=await db.query('select st_correct_completed_job_finance(1,$1,$2::jsonb) as j',[job,body(5000,2000,day)]);
+  assert.equal(Number(row.j.client_price),50);
+  assert.equal(row.j.financial_status,'INVOICED','4000 received of 5000 is no longer paid in full');
+  await db.query('select st_correct_completed_job_finance(1,$1,$2::jsonb)',[job,body(5000,2000,moved)]);
+  assert.equal(await netClient(db,job),4000,'payments are untouched by a correction');
  }finally{await db.close()}
 });
