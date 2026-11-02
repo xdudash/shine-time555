@@ -80,7 +80,7 @@ async function settings() {
     companyName: 'Shine Time Operations', timezone: 'Europe/Bratislava',
     windowStart: '10:00', travelBuffer: 15, safetyBuffer: 10, reserveTargetPct: 20,
     checkinRadiusMeters: 250,
-    cleanerCancellationCutoffMinutes: 180, rescueBonus: 6, managerEscalationHours: 24, rescueHours: 3,
+    cleanerCancellationCutoffMinutes: 180, managerEscalationHours: 24, rescueHours: 3,
     emailNotificationTypes: ['CLIENT_BOOKING', 'ASSIGNED', 'RESCUE', 'EXPIRED', 'ESCALATION', 'REVIEW_REJECTED', 'SETTLEMENT'],
     notificationRetryLimit: 5, notificationBatchSize: 25,
     ...settingsFromRows(rows),
@@ -330,7 +330,9 @@ async function ensureJobChecklist(jobId: number, objectId: number) {
 }
 
 async function createJob(ctx: any, body: AnyRow) {
-  return one(service.rpc('st_create_job',{p_actor_id:ctx.appUser.id,p_body:body}).single()) as Promise<AnyRow>;
+  // Bonuses are retired: a new cleaning never carries one, whatever the request says.
+  const { bonus: _bonus, ...clean } = body || {};
+  return one(service.rpc('st_create_job',{p_actor_id:ctx.appUser.id,p_body:clean}).single()) as Promise<AnyRow>;
 }
 
 async function routeCleaner(ctx: any, route: string, method: string, query: AnyRow, body: AnyRow) {
@@ -868,7 +870,7 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             }
             return { created: created.length, skipped, jobIds: created };
         }
-        const jobRoute = route.match(/^admin\/jobs\/(\d+)(?:\/(assign|rescue|bonus|cancel|review|note))?$/);
+        const jobRoute = route.match(/^admin\/jobs\/(\d+)(?:\/(assign|rescue|cancel|review|note))?$/);
         if (jobRoute) {
             const id = number(jobRoute[1]);
             const action = jobRoute[2] || '';
@@ -904,15 +906,13 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
                 return { job: (await hydrateJobs([updated]))[0] };
             }
             if (action === 'rescue' && method === 'POST') {
-                const cleanerId = number(body.cleanerId);
-                const bonus = number(body.bonus, Math.max(number(job.bonus), 6));
+                // An urgent cleaning is republished or handed to a cleaner; it no longer carries a bonus.
+                const { bonus: _bonus, ...rest } = body || {};
+                const cleanerId = number(rest.cleanerId);
                 if (cleanerId) {
-                    return routeAdmin(ctx, `admin/jobs/${id}/assign`, 'POST', {}, { ...body, cleanerId, bonus });
+                    return routeAdmin(ctx, `admin/jobs/${id}/assign`, 'POST', {}, { ...rest, cleanerId });
                 }
-                return { job: (await hydrateJobs([await jobCommand(ctx, id, 'rescue', { ...body, bonus })]))[0] };
-            }
-            if (action === 'bonus' && method === 'POST') {
-                return { job: (await hydrateJobs([await jobCommand(ctx, id, 'patch', { ...body, bonus: number(body.bonus) })]))[0] };
+                return { job: (await hydrateJobs([await jobCommand(ctx, id, 'rescue', rest)]))[0] };
             }
         }
         if (route === 'admin/cleaners' && method === 'GET') {

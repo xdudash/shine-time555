@@ -544,7 +544,6 @@ try {
 
   await page.fill('#jc-duration','120');
   await page.fill('#jc-to','16:00');
-  await page.fill('#jc-bonus','6');
   await page.fill('#jc-payout','24');
   await page.fill('#jc-price','48');
   await page.fill('#jc-note','Guests arrive at 17:00');
@@ -554,7 +553,8 @@ try {
   await page.waitForFunction(()=>window.createdJob);
   const created=await page.evaluate(()=>createdJob);
   assert.match(created.serviceDate,/^\d{4}-\d{2}-\d{2}$/);
-  assert.deepEqual({...created,serviceDate:undefined},{objectId:11,serviceDate:undefined,earliestStart:'10:00',deadline:'16:00',durationMinutes:120,bonus:6,marketplaceVisible:false,note:'Guests arrive at 17:00',payout:24,clientPrice:48});
+  assert.deepEqual({...created,serviceDate:undefined},{objectId:11,serviceDate:undefined,earliestStart:'10:00',deadline:'16:00',durationMinutes:120,marketplaceVisible:false,note:'Guests arrive at 17:00',payout:24,clientPrice:48});
+  assert.equal(await page.locator('#jc-bonus').count(),0,'bonuses are retired');
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS admin creates a cleaning with window, duration, money, visibility and a note');

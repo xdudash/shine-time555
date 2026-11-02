@@ -70,7 +70,7 @@ test('the settings removed as dead are gone from the server, the form and the st
 
 test('the stage 1 dispatch and notification settings reached the interface', () => {
   const form = formSettingKeys();
-  for (const key of ['managerEscalationHours', 'rescueHours', 'rescueBonus', 'cleanerCancellationCutoffMinutes',
+  for (const key of ['managerEscalationHours', 'rescueHours', 'cleanerCancellationCutoffMinutes',
     'emailNotificationTypes', 'notificationRetryLimit', 'notificationBatchSize']) {
     assert.ok(form.includes(key), `${key} is read by the server but cannot be changed anywhere`);
   }
@@ -81,4 +81,17 @@ test('the fixed-slot booking helper is gone with the setting that drove it', () 
   assert.ok(!/availableBookingSlots/.test(api));
   assert.ok(!/slots:/.test(api.slice(api.indexOf("route === 'client/slots'"), api.indexOf("route === 'client/bookings'"))),
     'the slots route returns the window and the price, not a pre-computed slot list');
+});
+
+test('the rescue bonus is retired everywhere: no setting, no field, no route, frozen in the database', () => {
+  assert.ok(!serverSettingKeys().includes('rescueBonus'), 'rescueBonus is still a server setting');
+  assert.ok(!formSettingKeys().includes('rescueBonus'), 'rescueBonus is still in the settings form');
+  assert.ok(!/assign-bonus|adminBonus|jc-bonus/.test(app), 'the interface still edits a bonus');
+  assert.ok(!/\|bonus\|/.test(api), 'st-api still routes admin/jobs/:id/bonus');
+  const retire = read('supabase/migrations/20261102100000_remove_rescue_bonus.sql');
+  assert.match(retire, /delete from public\.st_settings where setting_key = 'rescueBonus'/);
+  assert.match(retire, /before update of bonus on public\.st_jobs/);
+  assert.match(retire, /new\.bonus := old\.bonus/);
+  const tick = retire.slice(retire.indexOf('function public.st_dispatch_tick'));
+  assert.ok(!/bonus/i.test(tick.slice(0, tick.indexOf('end $$'))), 'the automatic rescue still adds a bonus');
 });
