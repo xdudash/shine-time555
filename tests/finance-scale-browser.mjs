@@ -115,11 +115,10 @@ console.log('partial failure reported with recorded count');
 // Manual entry: a cleaning done outside the system, then a partial payment received by hand.
 await page.getByRole('button',{name:'Add cleaning',exact:true}).click();
 await page.locator('#manual-cleaning-form').waitFor();
-await page.locator('#mc-note').fill('Cleaned 25.10, missing from the app');
 await page.getByRole('button',{name:'Save cleaning',exact:true}).click();
 await page.waitForFunction(()=>window.manualCleaningBody);
 const mc=await page.evaluate(()=>window.manualCleaningBody);
-assert.equal(mc.objectId,100);assert.equal(mc.clientPrice,40);assert.equal(mc.payout,20);assert.equal(mc.cleanerId,1);assert.ok(mc.note);
+assert.equal(mc.objectId,100);assert.equal(mc.clientPrice,40);assert.equal(mc.payout,20);assert.equal(mc.cleanerId,1);assert.equal(mc.note,undefined,'no reason is asked for');
 await page.getByRole('button',{name:'Add payment',exact:true}).click();
 await page.locator('#mp-amount').fill('15');
 await page.locator('#mp-note').fill('Bank transfer 28.10');

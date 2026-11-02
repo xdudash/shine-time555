@@ -161,12 +161,12 @@ The owner approved the full audit list ("Все делаем из списка")
 - [ ] Fix 20 — Supabase dashboard hardening: Redirect URLs and leaked-password protection. This is a dashboard action and the only stage 1 item that cannot be done from the repository: Authentication → URL Configuration (allow only the application's own origins) and Authentication → Policies (turn on leaked-password protection).
 - [x] Fix 26 — `deployment/record-applied-migrations.sql` records the hand-applied migrations in `supabase_migrations.schema_migrations`. **Run it once in the SQL editor after the stage 1 migrations are applied.**
 
-**Deployment order for stage 1** (nothing below has been applied to production):
+**Deployment order for stage 1** (all four steps were completed on 2026-10-12; the production check is in `docs/verification/2026-10-12-stage1.md`). Step 3 can now also be run from the manual `Deploy st-api to Supabase` workflow, which only runs from `main`, requires an explicit confirmation input and re-runs the tests, build and the `sw.js` check before deploying:
 
 1. Apply `supabase/migrations/20261012090000_stage1_dispatch.sql`.
 2. Run `deployment/stage1-schedule.sql` once in the SQL editor (registers the 15-minute `shine-time-dispatch` cron job; deliberately kept out of the migration).
 3. Deploy `st-api` (becomes v14, `apiBuild 2026-10-12-stage1`).
-4. Merge the PR so the Pages release serves the matching frontend. Until steps 1–3 are done the deployed frontend must stay on `2026-09-28-quality1`.
+4. Merge the PR so the Pages release serves the matching frontend. Until steps 1–3 are done the deployed frontend must stay on `2026-09-28-quality1`. (Merged as #14 on 2026-10-12.)
 
 ### Stage 2 — make it complete (after stage 1 is live)
 
