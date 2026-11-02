@@ -4,11 +4,11 @@ import {createDatabase,seedDatabase} from './helpers/database.mjs';
 
 async function setup(){const db=await createDatabase();await seedDatabase(db);return db}
 async function currentMonth(db){return (await db.query("select to_char(current_date,'YYYY-MM') as month_value")).rows[0].month_value}
-async function manualJob(db,{object='TEST-1',daysAgo=3,cleanerId=1,price=40,payout=20,note='Cleaned by hand'}={}){
+async function manualJob(db,{object='TEST-1',daysAgo=3,cleanerId=1,price=40,payout=20}={}){
  const day=(await db.query("select (current_date - $1::int)::text as day_value",[daysAgo])).rows[0].day_value;
  const {rows}=await db.query(
-  "select (st_create_manual_completed_job(1, jsonb_build_object('objectId',(select id from st_objects where code=$1),'serviceDate',$2::text,'cleanerId',$3::bigint,'clientPrice',$4::numeric,'payout',$5::numeric,'note',$6::text))).id as id",
-  [object,day,cleanerId,price,payout,note]);
+  "select (st_create_manual_completed_job(1, jsonb_build_object('objectId',(select id from st_objects where code=$1),'serviceDate',$2::text,'cleanerId',$3::bigint,'clientPrice',$4::numeric,'payout',$5::numeric,'note','Entered by hand'::text))).id as id",
+  [object,day,cleanerId,price,payout]);
  return Number(rows[0].id);
 }
 
@@ -22,13 +22,12 @@ test('a manual cleaning joins the monthly reconciliation as completed and approv
   const {rows:[{r}]}=await db.query('select st_monthly_reconciliation(1,$1) r',[month]);
   assert.equal(r.summary.jobsCount,1);assert.equal(r.summary.clientAmountCents,4000);assert.equal(r.summary.cleanerAmountCents,2000);
   const {rows:[event]}=await db.query("select event_type,payload_json from st_job_events where job_id=$1 and event_type='MANUAL_ENTRY'",[id]);
-  assert.equal(event.payload_json.note,'Cleaned by hand');
+  assert.equal(event.payload_json.payout,20);
  }finally{await db.close()}
 });
 
-test('manual cleanings need a note, a past date, an approved property and an admin, and cannot duplicate a booked date',async()=>{
+test('manual cleanings need a past date, an approved property and an admin, and cannot duplicate a booked date',async()=>{
  const db=await setup();try{
-  await assert.rejects(manualJob(db,{note:'   '}),/note is required/i);
   await assert.rejects(manualJob(db,{daysAgo:-1}),/past service date/i);
   await assert.rejects(manualJob(db,{daysAgo:400}),/past service date/i);
   await manualJob(db);
