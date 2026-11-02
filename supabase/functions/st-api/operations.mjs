@@ -22,10 +22,9 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
     for(const key of ['clientAmountCents','cleanerAmountCents']) {
       if(!Number.isSafeInteger(body[key])||body[key]<0||body[key]>100000000)throw new ApiError('Amounts must be whole cents between 0 and 100000000');
     }
-    if(!String(body.reason||'').trim()||String(body.reason).trim().length>500)throw new ApiError('A correction reason (up to 500 characters) is required');
     return {job:await result(service.rpc('st_correct_completed_job_finance',{
       p_actor_id:ctx.appUser.id,p_job_id:Number(correction[1]),
-      p_body:{serviceDate,clientAmountCents:body.clientAmountCents,cleanerAmountCents:body.cleanerAmountCents,reason:String(body.reason).trim()}
+      p_body:{serviceDate,clientAmountCents:body.clientAmountCents,cleanerAmountCents:body.cleanerAmountCents}
     }).single())};
   }
   if(route==='admin/settlements/monthly' && method==='GET') {
@@ -49,6 +48,35 @@ export async function operationsRoute({ctx,route,method,query,body,service,resul
   if(route==='admin/settlements/manual'&&method==='POST') {
     if(!['ADMIN','OPERATIONS_MANAGER','PROPERTY_MANAGER'].includes(role))throw new ApiError('Forbidden',403);
     return result(service.rpc('st_record_manual_monthly_payment',{p_actor_id:ctx.appUser.id,p_month:String(body.month||''),p_side:String(body.side||''),p_party_id:Number(body.partyId),p_amount_cents:Number(body.amountCents),p_note:String(body.note||''),p_request_id:String(body.requestId||'')}));
+  }
+  const jobPayments=route.match(/^admin\/finance\/jobs\/(\d+)\/payments$/);
+  if(jobPayments&&method==='GET') {
+    if(role!=='ADMIN')throw new ApiError('Forbidden',403);
+    const jobId=Number(jobPayments[1]);
+    const rows=await result(service.from('st_settlements').select('id,kind,amount_cents,note,created_at,reverses_settlement_id').eq('job_id',jobId).order('id'));
+    const events=await result(service.from('st_job_events').select('event_type').eq('job_id',jobId).eq('event_type','MANUAL_ENTRY').limit(1));
+    const job=await result(service.from('st_jobs').select('id,status').eq('id',jobId).single());
+    const reversedBy=new Map(rows.filter(r=>r.reverses_settlement_id).map(r=>[Number(r.reverses_settlement_id),Number(r.id)]));
+    const net=(plus,minus)=>rows.reduce((a,r)=>a+(r.kind===plus?Number(r.amount_cents):r.kind===minus?-Number(r.amount_cents):0),0);
+    return {
+      job:{id:jobId,status:job.status,manual:events.length>0,clientNetCents:net('CLIENT_PAYMENT','CLIENT_REFUND'),cleanerNetCents:net('CLEANER_PAYOUT','CLEANER_RETURN')},
+      payments:rows.map(r=>({id:Number(r.id),kind:r.kind,amountCents:Number(r.amount_cents),note:r.note,createdAt:r.created_at,reversesId:r.reverses_settlement_id?Number(r.reverses_settlement_id):null,reversedBy:reversedBy.get(Number(r.id))||null}))
+    };
+  }
+  const settlementAction=route.match(/^admin\/settlements\/(\d+)\/(reverse|correct)$/);
+  if(settlementAction&&method==='POST') {
+    if(role!=='ADMIN')throw new ApiError('Forbidden',403);
+    const id=Number(settlementAction[1]);
+    if(settlementAction[2]==='reverse') {
+      return {entry:await result(service.rpc('st_reverse_settlement',{p_actor_id:ctx.appUser.id,p_settlement_id:id}).single())};
+    }
+    if(!Number.isSafeInteger(body.amountCents)||body.amountCents<=0||body.amountCents>100000000)throw new ApiError('Amount must be positive whole cents');
+    return {entry:await result(service.rpc('st_correct_settlement',{p_actor_id:ctx.appUser.id,p_settlement_id:id,p_amount_cents:body.amountCents,p_request_id:String(body.requestId||'')}).single())};
+  }
+  const jobCancel=route.match(/^admin\/finance\/jobs\/(\d+)\/cancel$/);
+  if(jobCancel&&method==='POST') {
+    if(role!=='ADMIN')throw new ApiError('Forbidden',403);
+    return {job:await result(service.rpc('st_cancel_manual_job',{p_actor_id:ctx.appUser.id,p_job_id:Number(jobCancel[1])}).single())};
   }
   if(route==='admin/finance/manual-cleanings'&&method==='POST') {
     if(role!=='ADMIN')throw new ApiError('Forbidden',403);

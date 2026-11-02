@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import {createDatabase,seedDatabase} from './helpers/database.mjs';
 
 async function setup(){const db=await createDatabase();await seedDatabase(db);return db}
-async function currentMonth(db){return (await db.query("select to_char(current_date,'YYYY-MM') as month_value")).rows[0].month_value}
+// Test cleanings are dated back from the 20th of the previous month: always in the past and all
+// in one month, so the reconciled month never splits at a month boundary (days 1-3 of a month).
+const ANCHOR="(date_trunc('month',current_date) - interval '1 month' + interval '19 days')::date";
+async function currentMonth(db){return (await db.query(`select to_char(${ANCHOR},'YYYY-MM') as month_value`)).rows[0].month_value}
 async function manualJob(db,{object='TEST-1',daysAgo=3,cleanerId=1,price=40,payout=20}={}){
- const day=(await db.query("select (current_date - $1::int)::text as day_value",[daysAgo])).rows[0].day_value;
+ // Out-of-range checks (future, more than a year back) stay relative to today.
+ const base=daysAgo<0||daysAgo>366?'current_date':ANCHOR;
+ const day=(await db.query(`select (${base} - $1::int)::text as day_value`,[daysAgo])).rows[0].day_value;
  const {rows}=await db.query(
   "select (st_create_manual_completed_job(1, jsonb_build_object('objectId',(select id from st_objects where code=$1),'serviceDate',$2::text,'cleanerId',$3::bigint,'clientPrice',$4::numeric,'payout',$5::numeric,'note','Entered by hand'::text))).id as id",
   [object,day,cleanerId,price,payout]);

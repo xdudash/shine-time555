@@ -58,7 +58,7 @@
     else if(resource==='/api/admin/jobs')data={jobs:url.searchParams.has('date')?jobs.filter(j=>j.service_date===url.searchParams.get('date')):jobs};
     else if(/^\/api\/admin\/jobs\/\d+$/.test(resource)){const j=jobs.find(x=>x.id===Number(resource.split('/').at(-1)));if(!j)return Promise.reject(Error('Demo job not found'));data={...j,checklist:[{id:1,label:'Kitchen surfaces',required:true,completed:j.status==='COMPLETED',photo_required:false}],photos:[],issues:[],events:[]};}
     else if(resource==='/api/admin/objects')data={objects};
-    else if(/^\/api\/admin\/objects\/\d+$/.test(resource))data={object:objects.find(o=>o.id===Number(resource.split('/').at(-1)))};
+    else if(/^\/api\/admin\/objects\/\d+$/.test(resource))data={object:objects.find(o=>o.id===Number(resource.split('/').at(-1))),checklist:[{id:1,label:'Kitchen',required:true,photo_required:true,photo_category:'Kitchen',sort_order:1},{id:2,label:'Check windows',required:false,photo_required:false,photo_category:null,sort_order:2}]};
     else if(resource==='/api/client/objects')data={objects:objects.map(clientObject)};
     else if(resource==='/api/admin/clients')data={clients};
     else if(resource==='/api/admin/cleaners')data={cleaners};
