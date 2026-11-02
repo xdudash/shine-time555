@@ -29,7 +29,7 @@ try{
  await page.goto('https://live.test/');await page.locator('#login-form').waitFor();
  assert.equal(await page.locator('#preview-banner').count(),0);assert.equal(await page.locator('#admin-sidebar').count(),0);
  await page.locator('#login-form [name=email]').fill(user.email);await page.locator('#login-form [name=password]').fill('Synthetic-test-only-123');await page.locator('#login-form button').click();
- await page.locator('#admin-sidebar').waitFor();assert.equal(await page.locator('[data-board-bucket="review"]').count(),1,'quality review queue is enabled against the quality1 API');
+ await page.locator('#admin-sidebar').waitFor();await page.locator('[data-board-bucket="review"]').waitFor({state:'attached',timeout:10000}).catch(()=>{});assert.equal(await page.locator('[data-board-bucket="review"]').count(),1,'quality review queue is enabled against the quality1 API');
  await page.reload();await page.locator('#admin-sidebar').waitFor();
  await page.evaluate(()=>{document.querySelector('#page').innerHTML=propertyPhotoCard(1)});
  await page.locator('.property-photo-card img').waitFor();await page.locator('.property-photo-card button').click();
