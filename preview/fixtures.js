@@ -6,7 +6,7 @@
   const identities={
     ADMIN:{id:1,role:'ADMIN',full_name:'Demo administrator',language:'en'},
     OPERATIONS_MANAGER:{id:2,role:'OPERATIONS_MANAGER',full_name:'Demo dispatcher',language:'en'},
-    CLEANER:{id:3,role:'CLEANER',full_name:'Demo cleaner',email:'cleaner@example.invalid',language:'en',cleaner_mode:'FLEX',reliability_score:96,rating:4.9,transport:'CAR',preferred_zones:['Bratislava — Staré Mesto','Praha — Nové Město']},
+    CLEANER:{id:3,role:'CLEANER',full_name:'Demo cleaner',completed_jobs:40,email:'cleaner@example.invalid',language:'en',cleaner_mode:'FLEX',reliability_score:96,rating:4.9,transport:'CAR',preferred_zones:['Bratislava — Staré Mesto','Praha — Nové Město']},
     OWNER:{id:4,role:'OWNER',full_name:'Demo owner',company_name:'Demo stays',email:'owner@example.invalid',language:'en'},
     PROPERTY_MANAGER:{id:5,role:'PROPERTY_MANAGER',full_name:'Demo manager',company_name:'Demo stays',email:'manager@example.invalid',language:'en'}
   };
@@ -44,7 +44,7 @@
       reworkPct:0,reworkOf:1,outsideRadius:0,lateReleases:1},
     funnel:[{step:'booked',jobs:5},{step:'taken',jobs:3},{step:'arrived',jobs:2},{step:'completed',jobs:1},{step:'approved',jobs:1}],
     byDate:[{date:isoDays(-2),jobs:2,completed:1,expired:0,rescue:0,onTimePct:100},{date:isoDays(-1),jobs:1,completed:0,expired:1,rescue:1,onTimePct:null},{date:isoDays(0),jobs:2,completed:0,expired:0,rescue:0,onTimePct:null}],
-    cleanerRanking:cleaners,
+    cleanerRanking:cleaners.map((c,i)=>({id:c.id,full_name:c.full_name||c.name,active:true,jobs:i?0:3,completed:i?0:1,rating:null,ratedOf:0,onTimePct:null,onTimeOf:0,reworkPct:null,lateReleases:0})),
     objectPerformance:objects.map((o,i)=>({id:o.id,code:o.code,name:o.name,duration_minutes:o.duration_minutes,jobs:i?0:3,completed:i?0:1,expired:i?0:1,avg_worked_minutes:i?null:o.duration_minutes+12,over_standard_minutes:i?null:12}))});
   const finance=month=>({month,from:month+'-01',to:today,summary:{completedJobs:1,totalRevenue:42,cleaningRevenue:42,manualIncome:0,cleanerPayouts:24,cleanerBonuses:0,jobExtraCosts:0,manualExpenses:0,totalExpenses:24,profit:18,marginPct:43,avgProfitPerJob:18,avgRevenuePerJob:42},trend:[{month,revenue:42,expenses:24,profit:18}],byObject:[{code:'BA-001',name:'Old Town apartment',jobs:1,revenue:42,cost:24,profit:18}],byClient:[{id:4,name:'Demo stays',jobs:1,revenue:42,cost:24,profit:18}],entries:[]});
   const settlements=()=>({summary:{chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400},jobs:[{id:105,object_code:'BA-001',object_name:'Old Town apartment',service_date:yesterday,review_status:'APPROVED',waitingReviewCents:0,chargedCents:4200,receivedCents:0,dueCents:4200,earnedCents:2400,paidCents:0,payableCents:2400}],hasMore:false});

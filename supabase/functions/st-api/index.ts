@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.4';
 import { activeAssignmentStatuses, cleanerEarningsSummary, clientAccountRows, coordinatesForStorage, financeBoardReport, marketplaceForCleaner, riskForJob, roleCapabilities, settingsFromRows } from './logic.mjs';
 import { marketplaceJobs, projectResponse, isStrongPassword } from './security.mjs';
-import { operationsAnalytics, objectAnalytics, zoneOffsetMinutes } from './analytics.mjs';
+import { operationsAnalytics, objectAnalytics, cleanerAnalytics, zoneOffsetMinutes } from './analytics.mjs';
 import { operationsRoute } from './operations.mjs';
 import { propertyPhotosRoute } from './property-photos.mjs';
 import { validatePhoto, validateMedia } from './media.mjs';
@@ -67,6 +67,17 @@ async function result<T>(query: PromiseLike<{ data: T; error: any }>): Promise<T
   return data;
 }
 
+// The database returns at most 1000 rows per request and cuts the rest off silently. Any list that can
+// grow past that (a year of cleanings, every event of a period) is read page by page so totals stay true.
+async function allRows(build: () => any, pageSize = 1000): Promise<AnyRow[]> {
+  const rows: AnyRow[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const page = await result(build().range(from, from + pageSize - 1)) as AnyRow[];
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
 async function one<T>(query: PromiseLike<{ data: T; error: any }>): Promise<T> {
   return result(query);
 }
@@ -115,7 +126,25 @@ function requireRole(ctx: any, roles: string | string[]) {
   if (!allowed.includes(ctx.appUser.role)) throw new ApiError('Forbidden', 403);
 }
 
+// The completed counter and the 5.0 / 95 on a cleaner row are starting values that imported history never touched,
+// so every figure shown to people is counted from the cleanings and ratings themselves.
+async function cleanerFigures(cleanerId?: unknown) {
+  const [done, rated] = await Promise.all([
+    allRows(() => { const q = service.from('st_jobs').select('assigned_cleaner_id').eq('status', 'COMPLETED').not('assigned_cleaner_id', 'is', null).order('id'); return cleanerId === undefined ? q : q.eq('assigned_cleaner_id', cleanerId); }),
+    allRows(() => { const q = service.from('st_job_feedback').select('cleaner_id,rating').not('cleaner_id', 'is', null).order('id'); return cleanerId === undefined ? q : q.eq('cleaner_id', cleanerId); }),
+  ]);
+  const completed = new Map<string, number>();
+  for (const row of done) completed.set(String(row.assigned_cleaner_id), (completed.get(String(row.assigned_cleaner_id)) || 0) + 1);
+  const ratings = new Map<string, number[]>();
+  for (const row of rated) if (Number(row.rating) > 0) ratings.set(String(row.cleaner_id), [...(ratings.get(String(row.cleaner_id)) || []), Number(row.rating)]);
+  return (id: unknown) => {
+    const list = ratings.get(String(id)) || [];
+    return { completed: completed.get(String(id)) || 0, rating: list.length ? Math.round((list.reduce((sum, value) => sum + value, 0) / list.length) * 10) / 10 : null, ratedOf: list.length };
+  };
+}
+
 async function publicUser(ctx: any) {
+  const figures = ctx.cleaner ? (await cleanerFigures(ctx.cleaner.id))(ctx.cleaner.id) : null;
   return {
     id: ctx.appUser.id,
     email: ctx.appUser.email,
@@ -128,7 +157,8 @@ async function publicUser(ctx: any) {
     cleaner_id: ctx.cleaner?.id ?? null,
     cleaner_mode: ctx.cleaner?.mode ?? null,
     reliability_score: ctx.cleaner?.reliability_score ?? null,
-    rating: ctx.cleaner?.rating ?? null,
+    rating: figures ? figures.rating : null,
+    completed_jobs: figures ? figures.completed : null,
     transport: ctx.cleaner?.transport ?? null,
     preferred_zones: ctx.cleaner?.preferred_zones ?? [],
     max_jobs_day: ctx.cleaner?.max_jobs_day ?? null,
@@ -503,7 +533,7 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
             throw new ApiError('Client account is not configured', 403);
         if (route === 'client/dashboard' && method === 'GET') {
             const objects = await clientPortfolioObjects(ctx);
-            const raw = objects.length ? await result(service.from('st_jobs').select('*').in('object_id', objects.map((object) => object.id)).order('service_date')) as AnyRow[] : [];
+            const raw = objects.length ? await allRows(() => service.from('st_jobs').select('*').in('object_id', objects.map((object) => object.id)).order('service_date').order('id')) : [];
             const jobs = await hydrateJobs(raw);
             const upcoming = jobs.filter((job) => job.status !== 'CANCELLED' && job.service_date >= today());
             return { objects: { total: objects.length, approved: objects.filter((item) => item.approval_status === 'APPROVED' && item.active).length, pending: objects.filter((item) => item.approval_status === 'PENDING').length }, upcoming, nextBooking: upcoming[0] || null, completedToday: jobs.filter((job) => job.service_date === today() && job.status === 'COMPLETED').length };
@@ -570,14 +600,17 @@ async function routeClient(ctx: any, route: string, method: string, query: AnyRo
             const limit = Math.min(200, Math.max(10, number(query.limit, 50)));
             let rows: AnyRow[] = [];
             if (objectIds.length) {
-                let select = service.from('st_jobs').select('*').in('object_id', objectFilter ? [objectFilter] : objectIds);
-                if (from) select = select.gte('service_date', from);
-                if (to) select = select.lte('service_date', to);
-                if (status && status !== 'ALL') {
-                    if (status === 'OPEN') select = select.not('status', 'in', '(COMPLETED,CANCELLED,EXPIRED)');
-                    else select = select.eq('status', status);
-                }
-                rows = await result(select.order('service_date', { ascending: false }).order('id', { ascending: false })) as AnyRow[];
+                const build = () => {
+                    let select = service.from('st_jobs').select('*').in('object_id', objectFilter ? [objectFilter] : objectIds);
+                    if (from) select = select.gte('service_date', from);
+                    if (to) select = select.lte('service_date', to);
+                    if (status && status !== 'ALL') {
+                        if (status === 'OPEN') select = select.not('status', 'in', '(COMPLETED,CANCELLED,EXPIRED)');
+                        else select = select.eq('status', status);
+                    }
+                    return select.order('service_date', { ascending: false }).order('id', { ascending: false });
+                };
+                rows = await allRows(build);
             }
             const summary = {
                 bookings: rows.length,
@@ -792,10 +825,12 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
         const objectChecklist = route.match(/^admin\/objects\/(\d+)\/checklist$/);
         if (objectChecklist && method === 'PUT') {
             const objectId = number(objectChecklist[1]);
-            await result(service.from('st_checklist_items').delete().eq('object_id', objectId));
-            const items = Array.isArray(body.items) ? body.items : [];
-            if (items.length)
-                await result(service.from('st_checklist_items').insert(items.map((item: AnyRow, index: number) => ({ object_id: objectId, label: String(item.label || ''), required: item.required !== false, photo_required: truthy(item.photoRequired), photo_category: item.photoCategory || null, sort_order: index + 1 }))));
+            const items = Array.isArray(body.items) ? body.items.filter((item: AnyRow) => String(item.label || '').trim()) : [];
+            if (!items.length) throw new ApiError('Add at least one checklist item');
+            // New items first, old ones removed after: a failed save never leaves the property without a standard.
+            const previous = await result(service.from('st_checklist_items').select('id').eq('object_id', objectId)) as AnyRow[];
+            await result(service.from('st_checklist_items').insert(items.map((item: AnyRow, index: number) => ({ object_id: objectId, label: String(item.label).trim(), required: item.required !== false, photo_required: truthy(item.photoRequired), photo_category: item.photoCategory || null, sort_order: index + 1 }))));
+            if (previous.length) await result(service.from('st_checklist_items').delete().in('id', previous.map((row) => row.id)));
             return { ok: true };
         }
         const objectRoute = route.match(/^admin\/objects\/(\d+)$/);
@@ -920,9 +955,10 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             const all = await result(service.from('st_cleaners').select('*').order('active', { ascending: false }).order('reliability_score', { ascending: false })) as AnyRow[];
             const users = await fetchRows('st_users', all.map((item) => item.user_id));
             const rawJobs = await result(service.from('st_jobs').select('*').eq('service_date', date)) as AnyRow[];
+            const figureOf = await cleanerFigures();
             const byId = new Map(rows.map((item) => [String(item.id), item]));
             const userById = new Map(users.map((item) => [String(item.id), item]));
-            return { cleaners: all.map((cleaner) => ({ ...cleaner, ...userById.get(String(cleaner.user_id)), ...(byId.get(String(cleaner.id)) || { available: false, availability: { online: false, fromTime: '10:00', toTime: '15:00' } }), id: cleaner.id, today_jobs: rawJobs.filter((job) => same(job.assigned_cleaner_id, cleaner.id) && job.status !== 'CANCELLED').length, today_earnings: rawJobs.filter((job) => same(job.assigned_cleaner_id, cleaner.id) && job.status === 'COMPLETED').reduce((sum, job) => sum + number(job.payout) + number(job.bonus), 0) })) };
+            return { cleaners: all.map((cleaner) => ({ ...cleaner, ...userById.get(String(cleaner.user_id)), ...(byId.get(String(cleaner.id)) || { available: false, availability: { online: false, fromTime: '10:00', toTime: '15:00' } }), id: cleaner.id, completed_jobs: figureOf(cleaner.id).completed, rating: figureOf(cleaner.id).rating, today_jobs: rawJobs.filter((job) => same(job.assigned_cleaner_id, cleaner.id) && job.status !== 'CANCELLED').length, today_earnings: rawJobs.filter((job) => same(job.assigned_cleaner_id, cleaner.id) && job.status === 'COMPLETED').reduce((sum, job) => sum + number(job.payout) + number(job.bonus), 0) })) };
         }
         if (route === 'admin/cleaners' && method === 'POST')
             return createManagedUser('CLEANER', body);
@@ -954,7 +990,7 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             const [clients, objects, jobs] = await Promise.all([
                 result(service.from('st_client_accounts').select('*').order('created_at', { ascending: false })) as Promise<AnyRow[]>,
                 result(service.from('st_objects').select('id,client_id,active,approval_status')) as Promise<AnyRow[]>,
-                result(service.from('st_jobs').select('client_id,service_date,status,client_price,extra_revenue').gte('service_date', `${month}-01`).lte('service_date', monthEnd(month))) as Promise<AnyRow[]>,
+                allRows(() => service.from('st_jobs').select('client_id,service_date,status,client_price,extra_revenue').gte('service_date', `${month}-01`).lte('service_date', monthEnd(month)).order('id')),
             ]);
             const users = await fetchRows('st_users', clients.map((item) => item.user_id));
             return { clients: clientAccountRows({ clients, users, objects, jobs, month }) };
@@ -989,10 +1025,10 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             const trendStart = new Date(`${month}-01T12:00:00Z`);
             trendStart.setUTCMonth(trendStart.getUTCMonth() - 11);
             const [rawJobs, entries, trendJobs, trendEntries] = await Promise.all([
-                result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as Promise<AnyRow[]>,
-                result(service.from('st_financial_entries').select('*').gte('entry_date', from).lte('entry_date', to).order('entry_date', { ascending: false })) as Promise<AnyRow[]>,
-                result(service.from('st_jobs').select('*').gte('service_date', trendStart.toISOString().slice(0, 10)).lte('service_date', to)) as Promise<AnyRow[]>,
-                result(service.from('st_financial_entries').select('*').gte('entry_date', trendStart.toISOString().slice(0, 10)).lte('entry_date', to)) as Promise<AnyRow[]>,
+                allRows(() => service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date').order('id')),
+                allRows(() => service.from('st_financial_entries').select('*').gte('entry_date', from).lte('entry_date', to).order('entry_date', { ascending: false }).order('id')),
+                allRows(() => service.from('st_jobs').select('*').gte('service_date', trendStart.toISOString().slice(0, 10)).lte('service_date', to).order('id')),
+                allRows(() => service.from('st_financial_entries').select('*').gte('entry_date', trendStart.toISOString().slice(0, 10)).lte('entry_date', to).order('id')),
             ]);
             const jobs = await hydrateJobs(rawJobs);
             const clients = await fetchRows('st_client_accounts', entries.map((entry) => entry.client_id));
@@ -1057,19 +1093,29 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
             const to = /^\d{4}-\d{2}-\d{2}$/.test(String(query.to || '')) ? String(query.to) : today();
             const from = /^\d{4}-\d{2}-\d{2}$/.test(String(query.from || '')) ? String(query.from) : to;
             if (from > to) throw new ApiError('The period starts after it ends');
-            const jobs = await result(service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date')) as AnyRow[];
-            const [events, issues, cleaners, objects] = await Promise.all([
+            const jobs = await allRows(() => service.from('st_jobs').select('*').gte('service_date', from).lte('service_date', to).order('service_date').order('id'));
+            const jobIds = new Set(jobs.map((job) => String(job.id)));
+            const lowId = jobs.reduce((min, job) => Math.min(min, Number(job.id)), Infinity), highId = jobs.reduce((max, job) => Math.max(max, Number(job.id)), 0);
+            const trailTypes = ['JOB_CREATED', 'CLIENT_BOOKED', 'CLEANER_ACCEPTED', 'ADMIN_ASSIGNED', 'STATUS_ARRIVED', 'REVIEW_REJECTED', 'CHECKIN_OUTSIDE_RADIUS', 'CLEANER_CANCELLED_LATE', 'RESCUE_OPENED', 'CLIENT_CANCELLED', 'ADMIN_CANCELLED', 'CRM_IMPORT', 'CRM_IMPORT_SAME_DAY'];
+            const [events, issues, cleaners, objects, feedback] = await Promise.all([
                 jobs.length
-                    ? result(service.from('st_job_events').select('job_id,event_type,created_at').in('job_id', jobs.map((job) => job.id))) as Promise<AnyRow[]>
+                    ? allRows(() => service.from('st_job_events').select('id,job_id,event_type,created_at').in('event_type', trailTypes).gte('job_id', lowId).lte('job_id', highId).order('id')).then((rows) => rows.filter((row) => jobIds.has(String(row.job_id))))
                     : Promise.resolve([] as AnyRow[]),
-                result(service.from('st_issues').select('id').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`)) as Promise<AnyRow[]>,
-                activeCleaners(date),
+                allRows(() => service.from('st_issues').select('id').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`).order('id')),
+                allRows(() => service.from('st_cleaners').select('id,user_id,active,transport').order('id')),
                 result(service.from('st_objects').select('id,code,name,duration_minutes').order('code')) as Promise<AnyRow[]>,
+                jobs.length
+                    ? allRows(() => service.from('st_job_feedback').select('job_id,rating').gte('job_id', lowId).lte('job_id', highId).order('job_id')).then((rows) => rows.filter((row) => jobIds.has(String(row.job_id))))
+                    : Promise.resolve([] as AnyRow[]),
             ]);
+            const cleanerUsers = await fetchRows('st_users', cleaners.map((item) => item.user_id));
+            const names = new Map(cleanerUsers.map((user) => [String(user.id), user.full_name]));
             // A deadline is a wall-clock time, so it is compared in Bratislava
             // time rather than UTC — including across the DST change.
-            const computed = operationsAnalytics({ jobs, events, issues, offsetMinutes: zoneOffsetMinutes(to) });
-            return { from, to, ...computed, cleanerRanking: cleaners, objectPerformance: objectAnalytics({ objects, jobs }) };
+            const offsetMinutes = zoneOffsetMinutes(to);
+            const computed = operationsAnalytics({ jobs, events, issues, offsetMinutes });
+            const ranking = cleanerAnalytics({ cleaners: cleaners.map((item) => ({ ...item, full_name: names.get(String(item.user_id)) || '' })), jobs, events, feedback, offsetMinutes });
+            return { from, to, ...computed, cleanerRanking: ranking, objectPerformance: objectAnalytics({ objects, jobs }) };
         }
         if (route === 'admin/settings' && method === 'GET')
             return { settings: await settings() };

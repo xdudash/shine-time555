@@ -46,7 +46,7 @@ try{
  await page.evaluate(async()=>{state.me={id:2,role:'CLEANER',full_name:'Test Cleaner',language:'en'};location.hash='cleaner/home';await render();});
  await page.waitForTimeout(150);
  assert.equal(await page.locator('.bottom-nav').getByText('Map',{exact:true}).count(),0,'cleaner has no standalone map tab');
- assert.equal(await page.locator('#online-toggle').innerText(),'● ONLINE');
+ assert.equal(await page.locator('#online-toggle').count(),0,'the header has no online/offline badge');
  assert.equal(await page.locator('.mobile-kpi').last().locator('.v').innerText(),'—','unknown projected finish is explicit');
  console.log('PASS: mobile cleaner home and availability');
  await page.evaluate(async()=>{window.ShineTimeSupabase.uploadProofFile=async(id,category,file)=>{window.lastUpload={id,category,mime:file.type};return {}};location.hash='cleaner/job/1';await render()});

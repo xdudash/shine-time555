@@ -69,7 +69,7 @@ test('marketplace projection omits access and commercial secrets', () => {
   assert.equal(projected.extra_cost, undefined);
   assert.equal(projected.client_name, undefined);
   assert.equal(projected.client_company, undefined);
-  assert.equal(projected.address, undefined);
+  assert.equal(projected.address, 'Main 1', 'the street address is shown so cleaners can choose by place; entry details stay hidden');
   assert.equal(projected.payout, 20);
 });
 

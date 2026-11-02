@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {operationsAnalytics, objectAnalytics, minutesBetween, zoneOffsetMinutes} from '../supabase/functions/st-api/analytics.mjs';
+import {operationsAnalytics, objectAnalytics, cleanerAnalytics, minutesBetween, zoneOffsetMinutes} from '../supabase/functions/st-api/analytics.mjs';
 
 const job = (overrides) => ({
   id: 1, object_id: 11, service_date: '2026-10-05', earliest_start: '10:00', deadline: '15:00',
@@ -174,4 +174,37 @@ test('the operating offset follows the Bratislava DST change', () => {
   assert.equal(zoneOffsetMinutes('2026-10-25'), 60, 'the day the clocks go back');
   assert.equal(zoneOffsetMinutes('2026-10-24'), 120, 'the day before');
   assert.equal(zoneOffsetMinutes('nonsense'), 0, 'a broken date degrades to UTC instead of throwing');
+});
+
+test('cleanings imported from the old CRM count, but never feed a timing measure', () => {
+  const jobs = [
+    job({id: 1, assigned_cleaner_id: 5, completed_at: '2026-10-05T08:00:00Z'}),
+    job({id: 2, assigned_cleaner_id: 5, completed_at: '2026-10-05T08:00:00Z'}),
+    job({id: 3, assigned_cleaner_id: 5, completed_at: '2026-10-05T14:00:00Z'}),
+  ];
+  const events = [event(1, 'CRM_IMPORT', '2026-10-20T10:00:00Z'), event(2, 'CRM_IMPORT_SAME_DAY', '2026-10-20T10:00:00Z')];
+  const {summary, funnel} = operationsAnalytics({jobs, events});
+  assert.equal(summary.completed, 3, 'imported cleanings are cleanings');
+  assert.equal(summary.importedJobs, 2);
+  assert.equal(summary.onTimeOf, 1, 'only the cleaning with a real finish time is measured');
+  assert.equal(summary.onTimePct, 0, 'that one finished after its 15:00 deadline (14:00Z = 16:00)');
+  assert.deepEqual(funnel.map((step) => step.jobs), [3, 3, 3, 3, 3], 'a completed cleaning was taken and visited');
+});
+
+test('cleaner figures are counted, not read from the starting values', () => {
+  const cleaners = [{id: 5, full_name: 'Anna', active: true}, {id: 6, full_name: 'Idle', active: true}, {id: 7, full_name: 'Left', active: false}];
+  const jobs = [
+    job({id: 1, assigned_cleaner_id: 5, completed_at: '2026-10-05T10:00:00Z'}),
+    job({id: 2, assigned_cleaner_id: 5, completed_at: '2026-10-05T10:00:00Z'}),
+    job({id: 3, assigned_cleaner_id: 5, status: 'CANCELLED'}),
+    job({id: 4, assigned_cleaner_id: 7, completed_at: '2026-10-05T10:00:00Z'}),
+  ];
+  const events = [event(2, 'CRM_IMPORT', '2026-10-20T10:00:00Z'), event(1, 'REVIEW_REJECTED', '2026-10-05T11:00:00Z')];
+  const rows = cleanerAnalytics({cleaners, jobs, events, feedback: [{job_id: 1, rating: 4}, {job_id: 2, rating: 5}]});
+  const anna = rows.find((row) => row.id === 5);
+  assert.deepEqual({jobs: anna.jobs, completed: anna.completed, rating: anna.rating, ratedOf: anna.ratedOf, onTimeOf: anna.onTimeOf, onTimePct: anna.onTimePct, reworkPct: anna.reworkPct}, {jobs: 3, completed: 2, rating: 4.5, ratedOf: 2, onTimeOf: 1, onTimePct: 100, reworkPct: 50});
+  assert.equal(rows.find((row) => row.id === 6).rating, null, 'no ratings means no number');
+  assert.equal(rows.find((row) => row.id === 7).completed, 1, 'a cleaner who left still shows the work they did');
+  assert.equal(rows.some((row) => row.full_name === 'Left' && !row.jobs), false);
+  assert.deepEqual(rows.map((row) => row.id), [5, 7, 6], 'busiest first');
 });

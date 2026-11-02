@@ -90,7 +90,7 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    if(path.startsWith('/api/client/slots'))return {object:{id:11,name:'Dunajská apartment',client_price:42,duration_minutes:90},window:{from:'11:00',to:'15:00',durationMinutes:90},slots:[]};
    if(path==='/api/client/bookings'&&opts.method==='POST'){window.bookings=(window.bookings||[]).concat([opts.body]);return {booking:{id:301,status:'UNASSIGNED'}}}
    if(path==='/api/client/objects')return {objects:[{id:11,code:'BA-101',name:'Dunajská apartment',address:'Dunajská 15',zone:'Staré Mesto',active:true,approval_status:'APPROVED',client_price:42,apartment_type:'2 rooms'}]};
-   if(path.startsWith('/api/cleaner/marketplace'))return {jobs:[{id:401,object_code:'BA-101',zone:'Staré Mesto',earliest_start:'11:00',deadline:'15:00',duration_minutes:90,payout:24,bonus:0,client_note:'Guests at 16:00',feasible:true,earliest_feasible_start:'11:00',latest_start:'13:30'},{id:402,object_code:'BA-102',zone:'Ružinov',earliest_start:'09:00',deadline:'10:00',duration_minutes:90,payout:20,bonus:6,feasible:false,feasibility_reason:'Not enough time left before the deadline'}]};
+   if(path.startsWith('/api/cleaner/marketplace'))return {jobs:[{id:401,object_code:'BA-101',address:'Dunajská 15',lat:48.1459,lng:17.1077,zone:'Staré Mesto',earliest_start:'11:00',deadline:'15:00',duration_minutes:90,payout:24,bonus:0,client_note:'Guests at 16:00',apartment_type:'Apartment',feasible:true,earliest_feasible_start:'11:00',latest_start:'13:30'},{id:403,object_code:'BA-103',address:'Mlynská 4',zone:'Ružinov',earliest_start:'10:00',deadline:'16:00',duration_minutes:60,payout:18,bonus:0,feasible:true,earliest_feasible_start:'10:00',latest_start:'15:00'},{id:402,object_code:'BA-102',address:'Obchodná 9',zone:'Staré Mesto',earliest_start:'09:00',deadline:'10:00',duration_minutes:90,payout:20,bonus:0,feasible:false,feasibility_reason:'Conflicts with your other jobs that day'}]};
    if(m=path.match(/^\/api\/cleaner\/jobs\/(\d+)\/accept$/)){window.accepts=(window.accepts||[]).concat([{id:Number(m[1]),body:opts.body}]);return {job:{id:Number(m[1]),status:'ACCEPTED'}}}
    if(path==='/api/admin/managers'&&(opts.method||'GET')==='GET')return {managers:[{id:7,full_name:'Dispatcher One',email:'d1@test.invalid',phone:'',language:'en',active:true}]};
    if(path==='/api/admin/managers'&&opts.method==='POST'){window.createdManager=opts.body;return {manager:{id:8}}}
@@ -148,7 +148,7 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
       reworkPct:12.5,reworkOf:8,outsideRadius:1,lateReleases:2},
      funnel:[{step:'booked',jobs:12},{step:'taken',jobs:9},{step:'arrived',jobs:8},{step:'completed',jobs:8},{step:'approved',jobs:7}],
      byDate:[{date:'2099-01-01',jobs:3,completed:2,expired:1,rescue:1,onTimePct:50},{date:'2099-01-02',jobs:4,completed:3,expired:0,rescue:1,onTimePct:100},{date:'2099-01-03',jobs:5,completed:3,expired:1,rescue:1,onTimePct:66.7}],
-     cleanerRanking:[{full_name:'Test Cleaner',reliability_score:95,rating:4.8,completed_jobs:40,reclean_rate:2.5,cancellation_rate:1.2}],
+     cleanerRanking:[{id:1,full_name:'Test Cleaner',active:true,jobs:42,completed:40,rating:4.8,ratedOf:5,onTimePct:90,onTimeOf:10,reworkPct:2.5,lateReleases:1},{id:2,full_name:'New Cleaner',active:true,jobs:0,completed:0,rating:null,ratedOf:0,onTimePct:null,onTimeOf:0,reworkPct:null,lateReleases:0}],
      objectPerformance:[{id:11,code:'BA-101',name:'Dunajská apartment',duration_minutes:90,jobs:7,completed:6,expired:1,avg_worked_minutes:112,over_standard_minutes:22},
       {id:12,code:'BA-102',name:'Riverside',duration_minutes:60,jobs:0,completed:0,expired:0,avg_worked_minutes:null,over_standard_minutes:null}]};
    }
@@ -386,20 +386,33 @@ try {
  {
   const {page,errors}=await openApp({width:390,height:844});
   await page.evaluate(async()=>{state.me={id:3,role:'CLEANER',full_name:'Cleaner',language:'en'};state.settings={};location.hash='cleaner/jobs';await new Promise(r=>setTimeout(r,100));await render()});
-  await page.locator('#start-401').waitFor();
+  await page.locator('.market-row',{hasText:'Dunajská 15'}).waitFor();
   assert.equal(await page.locator('.day-chips button').count(),7,'a week of days');
+  assert.equal(await page.locator('#online-toggle').count(),0,'no online/offline badge in the header');
+  // Addresses, grouped by area; overlapping cleanings are folded away.
+  assert.deepEqual(await page.locator('.market-zone').evaluateAll(n=>n.map(x=>x.firstChild.textContent)),['Ružinov','Staré Mesto']);
+  assert.equal(await page.locator('.market-row:visible',{hasText:'Obchodná 9'}).count(),0,'overlapping cleaning is hidden in the folder');
+  await page.locator('.market-hidden summary').click();
+  assert.match(await page.locator('.market-hidden').innerText(),/Obchodná 9[\s\S]*Conflicts with your other jobs/);
+  // The area filter narrows the list.
+  await page.locator('.zone-chips button[data-zone="Ružinov"]').click();
+  await page.locator('.market-row',{hasText:'Mlynská 4'}).waitFor();
+  assert.equal(await page.locator('.market-row',{hasText:'Dunajská 15'}).count(),0);
+  await page.locator('.zone-chips button').first().click();
+  // The card opens on tap with the details and the start picker.
+  await page.locator('.market-row',{hasText:'Dunajská 15'}).click();
+  await page.locator('#start-401').waitFor();
   const options=await page.locator('#start-401 option').allInnerTexts();
   assert.equal(options.at(0),'11:00');assert.equal(options.at(-1),'13:30');
-  assert.match(await page.locator('.job-card',{hasText:'BA-101'}).innerText(),/Guests at 16:00/);
-  assert.equal(await page.locator('.job-card',{hasText:'BA-102'}).locator('button[disabled]').count(),1);
+  assert.match(await page.locator('.modal').innerText(),/Guests at 16:00/);
   await page.selectOption('#start-401','12:30');
-  await page.locator('.job-card',{hasText:'BA-101'}).getByRole('button',{name:'Take cleaning'}).click();
+  await page.locator('.modal').getByRole('button',{name:'Take cleaning'}).click();
   await page.waitForFunction(()=>window.accepts?.length===1);
   assert.deepEqual(await page.evaluate(()=>accepts[0]),{id:401,body:{plannedStart:'12:30'}});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
   assert.deepEqual(errors,[]);
   await page.close();
-  console.log('PASS cleaner marketplace: 7 days, start picker, client note, honest refusal');
+  console.log('PASS cleaner marketplace: addresses, areas, card, folded overlaps');
  }
  // Admin creates an operations manager; the password rule is 12 characters.
  {
@@ -496,6 +509,11 @@ try {
   assert.equal(await page.locator('.trend-dot').count(),6,'three days per chart');
   assert.match(await page.locator('.funnel-row').first().innerText(),/booked[\s\S]*12/i);
   assert.equal(await page.locator('.funnel-row').count(),5);
+  // Cleaners: counted figures, a dash where nothing can be measured, and no invented reliability score.
+  const cleanersTable=await page.locator('table',{hasText:'Test Cleaner'}).first().innerText();
+  assert.match(cleanersTable,/Test Cleaner[\s\S]*40[\s\S]*★4\.8[\s\S]*90%/);
+  assert.match(cleanersTable,/New Cleaner\s+0\s+—\s+—/,'a cleaner without data shows dashes, not 5.0 / 95');
+  assert.doesNotMatch(cleanersTable,/Reliability|95/);
   // the funnel bars shrink monotonically, so a wider later step would be visible
   const widths=await page.locator('.funnel-bar>span').evaluateAll(els=>els.map(el=>parseFloat(el.style.width)));
   assert.deepEqual(widths,[...widths].sort((a,b)=>b-a));
@@ -645,7 +663,7 @@ try {
  // The cleaner's earnings cards come from the server.
  {
   const {page,errors}=await openApp({width:390,height:844});
-  await page.evaluate(async()=>{state.me={id:2,role:'CLEANER',full_name:'Test Cleaner',language:'en',cleaner_id:1};state.settings={};location.hash='cleaner/earnings';await render()});
+  await page.evaluate(async()=>{state.me={id:2,role:'CLEANER',full_name:'Test Cleaner',language:'en',cleaner_id:1,rating:4.8};state.settings={};location.hash='cleaner/earnings';await render()});
   await page.locator('.earnings-kpis').waitFor();
   const text=await page.locator('.earnings-kpis').innerText();
   // Cents from the server, euro on screen; whole amounts render without decimals.
@@ -654,7 +672,7 @@ try {
   assert.match(text,/€31\b[\s\S]*Waiting for review/);
   assert.match(text,/€5\b[\s\S]*Ready to be paid/);
   assert.match(text,/€15\b[\s\S]*Already paid/);
-  assert.match(text,/4\.75[\s\S]*Rating/);
+  assert.match(text,/★ 4\.8[\s\S]*Rating/,'the rating shown is the counted one');
   assert.match(await page.locator('#page').innerText(),/★ 5/,'the client rating of a cleaning is shown to the cleaner');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
   assert.deepEqual(errors,[]);

@@ -91,7 +91,7 @@ try{
   await page.evaluate(async()=>{STPreview.switchRole('CLEANER');location.hash='cleaner/profile';await render()});
   await page.locator('.profile-stats').waitFor();
   const text=await page.locator('#page').innerText();
-  assert.match(text,/★ 4\.9[\s\S]*Рейтинг/);assert.match(text,/96\s*\/100[\s\S]*Надёжность/i);
+  assert.match(text,/★ 4\.9[\s\S]*Рейтинг/);assert.match(text,/40[\s\S]*Завершено/);assert.doesNotMatch(text,/Надёжность|\/100/,'no invented reliability score');
   assert.match(text,/Гибкий/,'mode is translated');assert.match(text,/Авто/,'transport is translated');
   assert.equal(await page.locator('.profile-day').count(),2,'availability for today and tomorrow');
   assert.match(await page.locator('.profile-day').nth(1).innerText(),/Завтра/);
@@ -116,6 +116,17 @@ try{
   await page.locator('.standard-edit').first().waitFor();
   assert.equal(await page.locator('.standard-edit').count(),2,'saved items are loaded');
   assert.deepEqual(await page.locator('.std-required').evaluateAll(x=>x.map(i=>i.checked)),[true,false],'optional items stay optional');
+  // Items can be added, moved and removed again.
+  const labels=()=>page.locator('.std-label').evaluateAll(x=>x.map(i=>i.value));
+  const first=(await labels())[0];
+  await page.locator('.std-tools button').nth(1).click();
+  assert.equal((await labels())[1],first,'item moved down');
+  await page.getByRole('button',{name:/\+/}).last().click();
+  assert.equal(await page.locator('.standard-edit').count(),3,'an item is added');
+  await page.locator('.std-label').last().fill('Check balcony');
+  await page.locator('.standard-edit').first().locator('.std-tools button').last().click();
+  assert.equal(await page.locator('.standard-edit').count(),2,'an item is removed');
+  assert.equal(await page.locator('.std-num').last().innerText(),'2','numbers follow the new order');
   await page.evaluate(()=>closeModal());
   await page.evaluate(async()=>{window.objectReply={object:{id:11,code:'BA-001'}};await checklistModal(11)});
   await page.locator('#toast-root .toast,.toast').first().waitFor();
