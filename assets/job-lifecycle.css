@@ -1,2 +1,42 @@
 /* Shine Time Job Lifecycle Console — additive controls. */
 .st-lifecycle-controls{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:5px 0 0 34px}.st-lifecycle-btn{border:1px solid #c9d8d2;background:#eef5f2;color:#123c32;border-radius:8px;padding:7px 10px;font-size:9px;font-weight:850;cursor:pointer}.st-lifecycle-btn:hover{background:#dfeee8;border-color:#aac8bd;transform:translateY(-1px)}.st-lifecycle-btn:active{transform:none}.st-lifecycle-btn:disabled{opacity:.5;cursor:wait}@media(max-width:820px){.st-lifecycle-controls{justify-content:flex-start;padding-left:0}.st-lifecycle-btn{flex:1;min-width:130px}}
+/* Cleaner job screen: the main action has the full width; secondary actions sit above it. */
+.cleaner-shell .sticky-action{flex-direction:column;flex-wrap:nowrap;gap:8px;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))}
+.cleaner-shell .sticky-action .action-row{display:flex;gap:8px}
+.cleaner-shell .sticky-action .action-row .btn{flex:1;min-height:40px;padding:8px 10px;font-size:14px;line-height:1.2;white-space:normal}
+.cleaner-shell .sticky-action>.btn{width:100%;min-height:50px;font-size:16px;white-space:normal}
+.cleaner-shell .sticky-action .action-hint{margin:0;font-size:12px;color:var(--muted);text-align:center}
+.cleaner-shell .active-job-body{padding-bottom:200px}
+.cleaner-shell .active-job-head .job-sub{color:#b7c0cf}
+.cleaner-shell .job-info .info-row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.cleaner-shell .job-info .info-row:first-of-type{border-top:0;padding-top:0}
+.cleaner-shell .job-info .info-row .k{font-size:12px;font-weight:700;color:var(--muted)}
+.cleaner-shell .job-info .info-row p{font-size:14px;overflow-wrap:anywhere}
+.cleaner-shell .checklist-head{display:flex;justify-content:space-between;align-items:center}
+.cleaner-shell .checklist-head h4{margin:0}
+.cleaner-shell .check-item span{overflow-wrap:anywhere}
+/* The connection badge must never cover a cleaner's buttons: it is shown only when the
+   connection is not live, and then at the top of the screen. */
+.live-state[data-role="CLEANER"]{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto;right:auto;left:50%;transform:translateX(-50%)}
+
+/* Cleaner profile */
+.cleaner-shell .profile-id{display:flex;align-items:center;gap:12px}
+.cleaner-shell .profile-id .avatar{width:56px;height:56px;font-size:18px;flex:none}
+.cleaner-shell .profile-id h2{margin:0;font-size:20px;overflow-wrap:anywhere}
+.cleaner-shell .profile-id .address{overflow-wrap:anywhere}
+.cleaner-shell .profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.cleaner-shell .profile-stats>div{background:#f5f7fa;border-radius:12px;padding:12px;text-align:center}
+.cleaner-shell .profile-stats strong{display:block;font-size:22px}
+.cleaner-shell .profile-stats strong span{font-size:13px;color:var(--muted);font-weight:600}
+.cleaner-shell .profile-stats small{color:var(--muted);font-size:12px}
+.cleaner-shell .profile-title{margin:0 0 10px;font-size:16px}
+.cleaner-shell .profile-rows{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cleaner-shell .profile-rows>div{display:flex;flex-direction:column;gap:4px}
+.cleaner-shell .profile-rows .wide{grid-column:1/-1}
+.cleaner-shell .profile-rows span{font-size:12px;color:var(--muted)}
+.cleaner-shell .profile-rows .pill{margin:0 4px 4px 0}
+.cleaner-shell .profile-day{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.cleaner-shell .profile-day:first-of-type{border-top:0}
+.cleaner-shell .profile-day small{display:block;color:var(--muted)}
+.cleaner-shell .profile-card+.job-card .lang-select,.cleaner-shell .job-card>.lang-select{width:100%}
+.cleaner-shell .job-card>.lang-select{width:100%;max-width:none;background:#fff;color:var(--text,#111827);border:1px solid var(--line)}

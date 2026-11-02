@@ -1,7 +1,7 @@
 /* Private reference media: never persisted in browser storage or shared between views. */
 (function(){
  const words={uk:['Фото об’єкта','Додати фото','Підпис: будинок, вхід, орієнтир','Завантаження…','Фото поки немає','Повторити','Використовуйте JPEG, PNG або WebP до 5 МБ','Збережено','Закрити','Фото для розпізнавання об’єкта, не звіт про прибирання.'],ru:['Фото объекта','Добавить фото','Подпись: здание, вход, ориентир','Загрузка…','Фото пока нет','Повторить','Используйте JPEG, PNG или WebP до 5 МБ','Сохранено','Закрыть','Фото помогают узнать объект; это не отчёт об уборке.'],sk:['Fotografie objektu','Pridať fotografiu','Popis: budova, vchod, orientačný bod','Načítavanie…','Zatiaľ žiadne fotografie','Skúsiť znova','Použite JPEG, PNG alebo WebP do 5 MB','Uložené','Zavrieť','Fotografie na rozpoznanie objektu, nie dôkaz upratovania.'],en:['Property photos','Add photo','Caption: building, entrance, landmark','Loading…','No photos yet','Retry','Use JPEG, PNG or WebP up to 5 MB','Saved','Close','Reference photos help identify the property; they are not cleaning proof.']};
- const label=i=>(words[state.locale==='ua'?'uk':state.locale]||words.en)[i];
+ const label=i=>{const l=window.ST_I18N?.getLocale?.()||state.locale;return (words[l==='ua'?'uk':l]||words.en)[i]};
  const tr=k=>window.ST_I18N?.t?.(k,k)||k;
  const validData=s=>typeof s==='string'&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(s);
  let running=0;const queue=[];

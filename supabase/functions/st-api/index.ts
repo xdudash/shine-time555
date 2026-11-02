@@ -799,8 +799,15 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
         const objectRoute = route.match(/^admin\/objects\/(\d+)$/);
         if (objectRoute) {
             const id = number(objectRoute[1]);
-            if (method === 'GET')
-                return { object: await one(service.from('st_objects').select('*').eq('id', id).single()) };
+            if (method === 'GET') {
+                // The cleaning-standard editor needs the template items; without them it would open empty
+                // and a save would replace the real standard with nothing.
+                const [object, checklist] = await Promise.all([
+                    one(service.from('st_objects').select('*').eq('id', id).single()),
+                    result(service.from('st_checklist_items').select('*').eq('object_id', id).order('sort_order').order('id')),
+                ]);
+                return { object, checklist };
+            }
             if (method === 'PATCH') {
                 const map: AnyRow = { name: body.name, address: body.address, zone: body.zone, service_category: body.serviceCategory, apartment_type: body.apartmentType, bedrooms: body.bedrooms, bathrooms: body.bathrooms, lat: body.lat, lng: body.lng, checkout_time: body.checkoutTime, deadline_time: body.deadlineTime, duration_minutes: body.durationMinutes, payout: body.payout, client_price: body.clientPrice, active: body.active, approval_status: body.approvalStatus, client_id: body.clientId, access_instructions: body.accessInstructions, key_instructions: body.keyInstructions, parking: body.parking, linen_location: body.linenLocation, supplies_location: body.suppliesLocation, wifi: body.wifi, notes: body.notes };
                 if (body.lat !== undefined || body.lng !== undefined) {
