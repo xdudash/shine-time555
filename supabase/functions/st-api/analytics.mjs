@@ -38,6 +38,8 @@ export function zoneOffsetMinutes(isoDate, timeZone = 'Europe/Bratislava') {
   return Number.isFinite(local.getTime()) ? Math.round((local.getTime() - at.getTime()) / 60000) : 0;
 }
 
+const IMPORT_EVENTS = ['CRM_IMPORT', 'CRM_IMPORT_SAME_DAY'];
+
 const percent = (part, whole) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
 
 function median(values) {
@@ -71,12 +73,17 @@ export function operationsAnalytics({jobs = [], events = [], issues = [], offset
     .filter((event) => types.includes(event.event_type))
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))[0] || null;
 
+  // Cleanings brought in from the old CRM carry no real check-in, finish or take-up times: their
+  // "completed" moment is just the service day. They count as cleanings but never feed a timing measure.
+  const imported = new Set(jobs.filter((job) => (eventsByJob.get(job.id) || []).some((event) => IMPORT_EVENTS.includes(event.event_type))).map((job) => job.id));
+  const live = (job) => !imported.has(job.id);
+
   const completed = jobs.filter((job) => job.status === 'COMPLETED');
   const expired = jobs.filter((job) => job.status === 'EXPIRED');
   const cancelled = jobs.filter((job) => job.status === 'CANCELLED');
 
   // On time = finished before the job's own deadline.
-  const measurable = completed.filter((job) => job.completed_at && deadlineAt(job, offsetMinutes));
+  const measurable = completed.filter((job) => live(job) && job.completed_at && deadlineAt(job, offsetMinutes));
   const onTime = measurable.filter((job) => stamp(job.completed_at) <= deadlineAt(job, offsetMinutes));
   const overrunMinutes = measurable
     .map((job) => minutesBetween(deadlineAt(job, offsetMinutes), job.completed_at))
@@ -84,7 +91,7 @@ export function operationsAnalytics({jobs = [], events = [], issues = [], offset
 
   // How long a published cleaning waits for a cleaner.
   const acceptanceMinutes = [];
-  for (const job of jobs) {
+  for (const job of jobs.filter(live)) {
     const created = firstEvent(job.id, ['JOB_CREATED', 'CLIENT_BOOKED']);
     const accepted = firstEvent(job.id, ['CLEANER_ACCEPTED', 'ADMIN_ASSIGNED']);
     const from = created?.created_at || job.created_at;
@@ -109,10 +116,12 @@ export function operationsAnalytics({jobs = [], events = [], issues = [], offset
   // The funnel: how far each cleaning got. Terminal states are counted where
   // they stopped, so the steps always add up to the jobs in the period.
   const reached = (types) => jobs.filter((job) => (eventsByJob.get(job.id) || []).some((event) => types.includes(event.event_type))).length;
+  // A cleaning that was completed was necessarily taken and visited, whether or not the trail says so.
+  const wentThrough = (types) => jobs.filter((job) => job.status === 'COMPLETED' || (eventsByJob.get(job.id) || []).some((event) => types.includes(event.event_type))).length;
   const funnel = [
     {step: 'booked', jobs: jobs.length},
-    {step: 'taken', jobs: reached(['CLEANER_ACCEPTED', 'ADMIN_ASSIGNED'])},
-    {step: 'arrived', jobs: reached(['STATUS_ARRIVED'])},
+    {step: 'taken', jobs: jobs.filter((job) => job.assigned_cleaner_id || job.status === 'COMPLETED' || (eventsByJob.get(job.id) || []).some((event) => ['CLEANER_ACCEPTED', 'ADMIN_ASSIGNED'].includes(event.event_type))).length},
+    {step: 'arrived', jobs: wentThrough(['STATUS_ARRIVED'])},
     {step: 'completed', jobs: completed.length},
     {step: 'approved', jobs: completed.filter((job) => job.review_status === 'APPROVED').length},
   ];
@@ -120,7 +129,7 @@ export function operationsAnalytics({jobs = [], events = [], issues = [], offset
   const byDate = [...new Set(jobs.map((job) => job.service_date))].filter(Boolean).sort().map((date) => {
     const dayJobs = jobs.filter((job) => job.service_date === date);
     const dayCompleted = dayJobs.filter((job) => job.status === 'COMPLETED');
-    const dayMeasurable = dayCompleted.filter((job) => job.completed_at && deadlineAt(job, offsetMinutes));
+    const dayMeasurable = dayCompleted.filter((job) => live(job) && job.completed_at && deadlineAt(job, offsetMinutes));
     return {
       date,
       jobs: dayJobs.length,
@@ -143,6 +152,7 @@ export function operationsAnalytics({jobs = [], events = [], issues = [], offset
       issues: issues.length,
       onTimePct: percent(onTime.length, measurable.length),
       onTimeOf: measurable.length,
+      importedJobs: jobs.filter((job) => imported.has(job.id)).length,
       medianOverrunMinutes: median(overrunMinutes),
       medianMinutesToAccept: median(acceptanceMinutes),
       acceptedOf: acceptanceMinutes.length,
@@ -180,4 +190,45 @@ export function objectAnalytics({objects = [], jobs = []} = {}) {
         : null,
     };
   }).sort((a, b) => b.jobs - a.jobs);
+}
+
+/**
+ * Per-cleaner figures from the cleanings themselves. The stored reliability and rating columns are
+ * starting values (95 and 5.0 for everyone), so they are not shown; what is shown is counted:
+ * cleanings and completed ones in the period, the average of real client ratings, and on-time only
+ * from cleanings that have a real finish time.
+ */
+export function cleanerAnalytics({cleaners = [], jobs = [], events = [], feedback = [], offsetMinutes = 120} = {}) {
+  const importedIds = new Set(events.filter((event) => IMPORT_EVENTS.includes(event.event_type)).map((event) => String(event.job_id)));
+  const trail = new Map();
+  for (const event of events) trail.set(String(event.job_id), [...(trail.get(String(event.job_id)) || []), event.event_type]);
+  const eventTypes = (jobId) => trail.get(String(jobId)) || [];
+  const ratingByJob = new Map(feedback.map((row) => [String(row.job_id), Number(row.rating)]));
+  const byCleaner = new Map();
+  for (const job of jobs) {
+    if (!job.assigned_cleaner_id) continue;
+    const key = String(job.assigned_cleaner_id);
+    byCleaner.set(key, [...(byCleaner.get(key) || []), job]);
+  }
+  return cleaners.map((cleaner) => {
+    const own = byCleaner.get(String(cleaner.id)) || [];
+    const completed = own.filter((job) => job.status === 'COMPLETED');
+    const measurable = completed.filter((job) => !importedIds.has(String(job.id)) && job.completed_at && deadlineAt(job, offsetMinutes));
+    const ratings = own.map((job) => ratingByJob.get(String(job.id))).filter((value) => Number.isFinite(value) && value > 0);
+    const reworked = own.filter((job) => eventTypes(job.id).includes('REVIEW_REJECTED')).length;
+    const released = own.filter((job) => eventTypes(job.id).includes('CLEANER_CANCELLED_LATE')).length;
+    return {
+      id: cleaner.id,
+      full_name: cleaner.full_name || '',
+      active: cleaner.active !== false,
+      jobs: own.length,
+      completed: completed.length,
+      onTimePct: percent(measurable.filter((job) => stamp(job.completed_at) <= deadlineAt(job, offsetMinutes)).length, measurable.length),
+      onTimeOf: measurable.length,
+      rating: ratings.length ? Math.round((ratings.reduce((sum, value) => sum + value, 0) / ratings.length) * 10) / 10 : null,
+      ratedOf: ratings.length,
+      reworkPct: percent(reworked, completed.length),
+      lateReleases: released,
+    };
+  }).filter((row) => row.jobs > 0 || row.active).sort((a, b) => b.completed - a.completed || a.full_name.localeCompare(b.full_name));
 }

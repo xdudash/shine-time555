@@ -40,3 +40,27 @@
 .cleaner-shell .profile-day small{display:block;color:var(--muted)}
 .cleaner-shell .profile-card+.job-card .lang-select,.cleaner-shell .job-card>.lang-select{width:100%}
 .cleaner-shell .job-card>.lang-select{width:100%;max-width:none;background:#fff;color:var(--text,#111827);border:1px solid var(--line)}
+
+/* Cleaner marketplace: grouped rows, card, folded unavailable list */
+.cleaner-shell .zone-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;margin:0 -2px}
+.cleaner-shell .zone-chips .btn{white-space:nowrap;flex:0 0 auto}
+.cleaner-shell .market-group{margin-bottom:14px}
+.cleaner-shell .market-zone{display:flex;justify-content:space-between;align-items:center;margin:14px 2px 8px;font-size:15px;color:var(--muted)}
+.cleaner-shell .market-zone span{font-weight:600;font-size:13px;background:#e9eef3;border-radius:999px;padding:1px 9px}
+.cleaner-shell .market-list{display:grid;gap:8px}
+.cleaner-shell .market-row{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;font:inherit;color:inherit;cursor:pointer}
+.cleaner-shell .market-row.dim{opacity:.75}
+.cleaner-shell .market-main{display:grid;gap:2px;min-width:0}
+.cleaner-shell .market-main strong{overflow-wrap:anywhere}
+.cleaner-shell .market-main small{color:var(--muted)}
+.cleaner-shell .market-main .why{color:#b45309}
+.cleaner-shell .market-side{text-align:right;display:grid;gap:4px;justify-items:end}
+.cleaner-shell .market-hidden{margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:4px 14px 14px}
+.cleaner-shell .market-hidden summary{cursor:pointer;padding:10px 0;font-weight:600}
+.market-card-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px}
+.market-card .info-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+.market-card .info-row span{color:var(--muted)}
+.market-card .take-row{margin-top:10px}
+.standard-edit{display:grid!important;grid-template-columns:auto minmax(0,1fr) 130px auto;gap:8px;align-items:start}
+.standard-edit .std-tools{display:flex;gap:4px}
+@media(max-width:560px){.standard-edit{grid-template-columns:auto minmax(0,1fr) auto}.standard-edit .std-category{grid-column:2/4;width:auto!important}.standard-edit .std-tools{grid-column:3;grid-row:1}}

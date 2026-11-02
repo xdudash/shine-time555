@@ -1,7 +1,7 @@
 const MARKETPLACE_FIELDS = [
   'id', 'object_id', 'service_date', 'earliest_start', 'deadline', 'duration_minutes',
   'status', 'planned_start', 'risk_score', 'risk_level', 'risk_reasons', 'rescue_state',
-  'object_code', 'object_name', 'zone', 'apartment_type', 'bedrooms', 'bathrooms',
+  'object_code', 'object_name', 'address', 'lat', 'lng', 'zone', 'apartment_type', 'bedrooms', 'bathrooms',
   'payout', 'bonus', 'feasible', 'feasibility_reason', 'projected_finish', 'earliest_feasible_start', 'latest_start', 'client_note',
 ];
 
