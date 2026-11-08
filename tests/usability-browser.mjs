@@ -472,8 +472,8 @@ try {
 
   // Turning the account-wide channel off is stored, not only shown.
   assert.equal(await page.locator('#notification-card input[type=checkbox]').count(),1,'push is the only account-wide switch left');
-  await page.waitForFunction(()=>window.channelPatches?.length);
   await page.locator('#notification-card input[type=checkbox]').last().uncheck();
+  await page.waitForFunction(()=>window.channelPatches?.length);
   assert.deepEqual(await page.evaluate(()=>channelPatches.at(-1)),{push:false});
 
   await page.getByRole('button',{name:'Turn off on this browser'}).click();
