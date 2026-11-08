@@ -449,7 +449,7 @@ try {
     addEventListener(){},register:async()=>({}),
    }});
    window.Notification={permission:'default',requestPermission:async()=>{window.Notification.permission='granted';return 'granted'}};
-   state.me={id:2,role:'CLEANER',full_name:'Test Cleaner',language:'en',notify_push:true,notify_email:true,cleaner_mode:'FLEX',reliability_score:95};
+   state.me={id:2,role:'CLEANER',full_name:'Test Cleaner',language:'en',notify_push:true,cleaner_mode:'FLEX',reliability_score:95};
    state.settings={};
    state.push={enabled:true,publicKey:'BPc1'+'a'.repeat(83)};
    location.hash='cleaner/profile';

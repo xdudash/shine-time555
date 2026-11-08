@@ -1,3 +1,5 @@
+> **2026-11-08 — email notifications are removed.** Notifications are delivered in the app and as push only. Everything below about SMTP, the EMAIL channel, `notify_email` and `emailNotificationTypes` is history (migration `20261108100000_remove_email_notifications.sql`). The `SMTP_*` function secrets are no longer read and can be deleted.
+
 # SSD-016 — Stage 1, fix 5: notifications leave the application (push + email)
 
 **Date:** 2026-10-12 · **Scope:** schema + Edge Function + browser + service worker · **API contract:** `2026-10-12-stage1` (unchanged; the routes are additive)

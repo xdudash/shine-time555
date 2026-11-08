@@ -33,7 +33,8 @@
 - `st_jobs.status` gains `EXPIRED`.
 - `st_jobs_object_id_service_date_key` is replaced by a partial unique index `st_jobs_one_active_per_object_day … where status not in ('CANCELLED','EXPIRED')`, so a cancelled or expired cleaning no longer blocks rebooking the same property for the same day.
 - New columns: `client_note` (≤ 1000 chars), `checkin_distance_m`, `escalated_at`, `expired_at`.
-- New settings: `cleanerCancellationCutoffMinutes=180`, `rescueBonus=6`, `managerEscalationHours=24`, `rescueHours=3`.
+- New settings: `cleanerCancellationCutoffMinutes=180`, `managerEscalationHours=24`, `rescueHours=3`.
+- Retired 2026-11-02: `rescueBonus` is gone; urgent cleanings carry no bonus (see migration `20261102100000_remove_rescue_bonus.sql`).
 - `st_notify_staff(type,title,message)` notifies every active `ADMIN` and `OPERATIONS_MANAGER`.
 - `st_create_job` never auto-assigns; it accepts `earliestStart`, `deadline`, `note`, publishes to the marketplace and notifies cleaners and staff.
 - `st_job_command` accept branch picks the first free 15-minute start inside the window when the client gave none — the same scan the browser and `logic.mjs` run, so the UI and the server can no longer disagree. Cancel rules per the decisions above.

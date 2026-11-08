@@ -71,7 +71,7 @@ test('the settings removed as dead are gone from the server, the form and the st
 test('the stage 1 dispatch and notification settings reached the interface', () => {
   const form = formSettingKeys();
   for (const key of ['managerEscalationHours', 'rescueHours', 'cleanerCancellationCutoffMinutes',
-    'emailNotificationTypes', 'notificationRetryLimit', 'notificationBatchSize']) {
+    'notificationRetryLimit', 'notificationBatchSize']) {
     assert.ok(form.includes(key), `${key} is read by the server but cannot be changed anywhere`);
   }
 });
@@ -94,4 +94,11 @@ test('the rescue bonus is retired everywhere: no setting, no field, no route, fr
   assert.match(retire, /new\.bonus := old\.bonus/);
   const tick = retire.slice(retire.indexOf('function public.st_dispatch_tick'));
   assert.ok(!/bonus/i.test(tick.slice(0, tick.indexOf('end $$'))), 'the automatic rescue still adds a bonus');
+});
+
+test('email notifications are retired', () => {
+  const sql = fs.readFileSync(new URL('../supabase/migrations/20261108100000_remove_email_notifications.sql', import.meta.url), 'utf8');
+  assert.match(sql, /delete from public\.st_settings where setting_key = 'emailNotificationTypes'/);
+  assert.match(sql, /drop column if exists notify_email/);
+  assert.ok(!formSettingKeys().includes('emailNotificationTypes'));
 });

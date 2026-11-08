@@ -6,7 +6,6 @@ import { operationsRoute } from './operations.mjs';
 import { propertyPhotosRoute } from './property-photos.mjs';
 import { validatePhoto, validateMedia } from './media.mjs';
 import { drainOutbox, workerConfigFromEnv, secretMatches, channelReadiness } from './notification-worker.mjs';
-import { sendMail } from './smtp.mjs';
 import { deliverPush } from './webpush.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -92,7 +91,6 @@ async function settings() {
     windowStart: '10:00', travelBuffer: 15, safetyBuffer: 10, reserveTargetPct: 20,
     checkinRadiusMeters: 250,
     cleanerCancellationCutoffMinutes: 180, managerEscalationHours: 24, rescueHours: 3,
-    emailNotificationTypes: ['CLIENT_BOOKING', 'ASSIGNED', 'RESCUE', 'EXPIRED', 'ESCALATION', 'REVIEW_REJECTED', 'SETTLEMENT'],
     notificationRetryLimit: 5, notificationBatchSize: 25,
     ...settingsFromRows(rows),
   };
@@ -153,7 +151,6 @@ async function publicUser(ctx: any) {
     phone: ctx.appUser.phone || '',
     language: ctx.appUser.language,
     notify_push: ctx.appUser.notify_push !== false,
-    notify_email: ctx.appUser.notify_email !== false,
     cleaner_id: ctx.cleaner?.id ?? null,
     cleaner_mode: ctx.cleaner?.mode ?? null,
     reliability_score: ctx.cleaner?.reliability_score ?? null,
@@ -1159,9 +1156,9 @@ async function account(ctx: any, route: string, method: string, body: AnyRow) {
   if (route === 'account/notifications' && method === 'PATCH') {
     const user = await one(service.rpc('st_set_notification_preferences', {
       p_actor_id: ctx.appUser.id,
-      p_body: { push: body.push === undefined ? null : truthy(body.push), email: body.email === undefined ? null : truthy(body.email) },
+      p_body: { push: body.push === undefined ? null : truthy(body.push) },
     })) as AnyRow;
-    return { push: user.notify_push, email: user.notify_email };
+    return { push: user.notify_push };
   }
   if (route === 'account/push' && method === 'POST') {
     const subscription = {
@@ -1247,7 +1244,6 @@ Deno.serve(async (req) => {
         limit: body.limit === undefined ? null : number(body.limit, 25),
         claim: (limit: number | null) => one(service.rpc('st_claim_notifications', { p_limit: limit })),
         report: (results: AnyRow[]) => one(service.rpc('st_report_notifications', { p_results: { results } })),
-        sendMailImpl: sendMail,
       });
       return json({ ...summary, results: undefined, channels: channelReadiness(notificationConfig) });
     }

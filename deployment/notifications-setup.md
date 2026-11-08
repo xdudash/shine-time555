@@ -1,3 +1,5 @@
+> **2026-11-08 — email notifications are removed.** Notifications are delivered in the app and as push only. Everything below about SMTP, the EMAIL channel, `notify_email` and `emailNotificationTypes` is history (migration `20261108100000_remove_email_notifications.sql`). The `SMTP_*` function secrets are no longer read and can be deleted.
+
 # Notification delivery — what to set before the first message is sent
 
 Nothing in this repository contains a key. All of it goes into the Edge Function
