@@ -124,8 +124,6 @@ function notificationCard(){
     ${lines.join('')}
     <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
       ${toggle('push',state.me?.notify_push!==false,'Send me push notifications')}
-      ${toggle('email',state.me?.notify_email!==false,'Send me email notifications')}
-      <small class="subtle">${esc(t('Email is used for bookings, rescue, expired cleanings and settlements.','Email is used for bookings, rescue, expired cleanings and settlements.'))}</small>
     </div></div>`;
 }
 async function enableBrowserPush(){
@@ -157,7 +155,7 @@ async function sendTestPush(){ try{const r=await api('/api/account/push/test',{m
 async function setNotificationChannel(channel,on){
   try{
     const saved=await api('/api/account/notifications',{method:'PATCH',body:{[channel]:Boolean(on)}});
-    if(state.me){state.me.notify_push=saved.push;state.me.notify_email=saved.email}
+    if(state.me){state.me.notify_push=saved.push}
     toast(t('Saved','Saved'),'success');
     await refreshPushState();
   }catch(e){toast(e.message,'error');await refreshPushState()}
@@ -955,7 +953,6 @@ async function adminSettings(){
   ${num('rescueHours','Open rescue this many hours before the start','min="1"')}
   ${num('cleanerCancellationCutoffMinutes','A cleaner release later than this many minutes before the start counts as late','min="0"')}
   <h3 class="wide settings-group">${esc(t('Notifications','Notifications'))}</h3>
-  <div class="field wide"><label for="set-emailNotificationTypes">${esc(t('Notification types sent by email','Notification types sent by email'))}</label><input class="input" id="set-emailNotificationTypes" name="emailNotificationTypes" value="${esc((Array.isArray(s.emailNotificationTypes)?s.emailNotificationTypes:[]).join(', '))}"><small class="subtle">${esc(t('Push is sent for every type. Comma-separated, e.g. CLIENT_BOOKING, RESCUE, EXPIRED.','Push is sent for every type. Comma-separated, e.g. CLIENT_BOOKING, RESCUE, EXPIRED.'))}</small></div>
   ${num('notificationRetryLimit','Delivery attempts before a message is given up','min="1" max="20"')}
   ${num('notificationBatchSize','Messages sent per run','min="1" max="100"')}
   <div class="wide"><button class="btn primary" type="button" onclick="saveSettings()">${esc(t('Save settings','Save settings'))}</button></div>
@@ -964,7 +961,7 @@ async function adminSettings(){
 
 /* The saved keys are exactly the editable keys of settings(); the contract test
    tests/settings-contract.test.mjs fails if the two lists drift apart. */
-const SETTING_FIELDS={companyName:'text',windowStart:'text',travelBuffer:'number',safetyBuffer:'number',reserveTargetPct:'number',checkinRadiusMeters:'number',managerEscalationHours:'number',rescueHours:'number',cleanerCancellationCutoffMinutes:'number',emailNotificationTypes:'list',notificationRetryLimit:'number',notificationBatchSize:'number'};
+const SETTING_FIELDS={companyName:'text',windowStart:'text',travelBuffer:'number',safetyBuffer:'number',reserveTargetPct:'number',checkinRadiusMeters:'number',managerEscalationHours:'number',rescueHours:'number',cleanerCancellationCutoffMinutes:'number',notificationRetryLimit:'number',notificationBatchSize:'number'};
 window.saveSettings=async()=>{
  const f=new FormData($('#settings-form'));
  const body={};

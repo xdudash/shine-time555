@@ -1070,7 +1070,6 @@ window.ST_I18N.addTranslations({
   "Dispatch": "Назначения",
   "Warn operations this many hours before an unassigned cleaning": "За сколько часов предупреждать диспетчерскую о неназначенной уборке",
   "Open rescue this many hours before the start": "За сколько часов до начала открывать rescue",
-  "Rescue bonus (€)": "Бонус за rescue (€)",
   "A cleaner release later than this many minutes before the start counts as late": "Отказ клинера позже чем за столько минут до начала считается поздним",
   "Notification types sent by email": "Типы уведомлений, которые уходят на email",
   "Push is sent for every type. Comma-separated, e.g. CLIENT_BOOKING, RESCUE, EXPIRED.": "Пуш отправляется для всех типов. Через запятую, например CLIENT_BOOKING, RESCUE, EXPIRED.",
@@ -1157,7 +1156,6 @@ window.ST_I18N.addTranslations({
   "Dispatch": "Призначення",
   "Warn operations this many hours before an unassigned cleaning": "За скільки годин попереджати диспетчерську про непризначене прибирання",
   "Open rescue this many hours before the start": "За скільки годин до початку відкривати rescue",
-  "Rescue bonus (€)": "Бонус за rescue (€)",
   "A cleaner release later than this many minutes before the start counts as late": "Відмова прибиральника пізніше ніж за стільки хвилин до початку вважається пізньою",
   "Notification types sent by email": "Типи повідомлень, що йдуть на email",
   "Push is sent for every type. Comma-separated, e.g. CLIENT_BOOKING, RESCUE, EXPIRED.": "Push надсилається для всіх типів. Через кому, наприклад CLIENT_BOOKING, RESCUE, EXPIRED.",
@@ -1244,7 +1242,6 @@ window.ST_I18N.addTranslations({
   "Dispatch": "Dispečing",
   "Warn operations this many hours before an unassigned cleaning": "Koľko hodín pred nepriradeným upratovaním upozorniť dispečing",
   "Open rescue this many hours before the start": "Koľko hodín pred začiatkom otvoriť rescue",
-  "Rescue bonus (€)": "Bonus za rescue (€)",
   "A cleaner release later than this many minutes before the start counts as late": "Vrátenie upratovačom neskôr ako toľko minút pred začiatkom sa počíta ako neskoré",
   "Notification types sent by email": "Typy upozornení posielané e-mailom",
   "Push is sent for every type. Comma-separated, e.g. CLIENT_BOOKING, RESCUE, EXPIRED.": "Push sa posiela pre všetky typy. Oddelené čiarkou, napr. CLIENT_BOOKING, RESCUE, EXPIRED.",
@@ -1352,7 +1349,6 @@ window.ST_I18N.addTranslations({
   "Amounts are base payout plus bonus.": "Суммы — базовая выплата плюс бонус.",
   "Payments by month": "Выплаты по месяцам",
   "Completed cleanings": "Завершённые уборки",
-  "Base payout + rescue bonus": "Базовая выплата + бонус за rescue",
   "No completed cleanings yet.": "Завершённых уборок пока нет.",
   "bonus": "бонус"
  },
@@ -1430,7 +1426,6 @@ window.ST_I18N.addTranslations({
   "Amounts are base payout plus bonus.": "Суми — базова виплата плюс бонус.",
   "Payments by month": "Виплати за місяцями",
   "Completed cleanings": "Завершені прибирання",
-  "Base payout + rescue bonus": "Базова виплата + бонус за rescue",
   "No completed cleanings yet.": "Завершених прибирань ще немає.",
   "bonus": "бонус"
  },
@@ -1508,7 +1503,6 @@ window.ST_I18N.addTranslations({
   "Amounts are base payout plus bonus.": "Sumy sú základná výplata plus bonus.",
   "Payments by month": "Platby po mesiacoch",
   "Completed cleanings": "Dokončené upratovania",
-  "Base payout + rescue bonus": "Základná výplata + bonus za rescue",
   "No completed cleanings yet.": "Zatiaľ žiadne dokončené upratovania.",
   "bonus": "bonus"
  }

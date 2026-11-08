@@ -449,7 +449,7 @@ try {
     addEventListener(){},register:async()=>({}),
    }});
    window.Notification={permission:'default',requestPermission:async()=>{window.Notification.permission='granted';return 'granted'}};
-   state.me={id:2,role:'CLEANER',full_name:'Test Cleaner',language:'en',notify_push:true,notify_email:true,cleaner_mode:'FLEX',reliability_score:95};
+   state.me={id:2,role:'CLEANER',full_name:'Test Cleaner',language:'en',notify_push:true,cleaner_mode:'FLEX',reliability_score:95};
    state.settings={};
    state.push={enabled:true,publicKey:'BPc1'+'a'.repeat(83)};
    location.hash='cleaner/profile';
@@ -471,9 +471,10 @@ try {
   await page.waitForFunction(()=>window.testPushes===1);
 
   // Turning the account-wide channel off is stored, not only shown.
+  assert.equal(await page.locator('#notification-card input[type=checkbox]').count(),1,'push is the only account-wide switch left');
   await page.locator('#notification-card input[type=checkbox]').last().uncheck();
   await page.waitForFunction(()=>window.channelPatches?.length);
-  assert.deepEqual(await page.evaluate(()=>channelPatches.at(-1)),{email:false});
+  assert.deepEqual(await page.evaluate(()=>channelPatches.at(-1)),{push:false});
 
   await page.getByRole('button',{name:'Turn off on this browser'}).click();
   await page.waitForFunction(()=>window.removedSubscription);
