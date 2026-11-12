@@ -66,7 +66,8 @@
   function navigationRoute(route) {
     const [area, page] = String(route).split('?')[0].split('/');
     if (area === 'admin') return `admin/${adminSectionFor(page || 'today')}`;
-    if (area === 'cleaner' && page === 'job') return 'cleaner/myday';
+    if (area === 'cleaner' && (page === 'job' || page === 'myday' || page === 'map' || page === 'settlements')) return page === 'settlements' ? 'cleaner/earnings' : 'cleaner/home';
+    if (area === 'client' && page === 'recurring') return 'client/book';
     if (area === 'client' && page === 'booking') return 'client/bookings';
     return `${area}/${page}`;
   }
