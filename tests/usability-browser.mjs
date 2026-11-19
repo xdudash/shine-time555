@@ -753,6 +753,7 @@ try {
  {
   const {page,errors}=await openApp({width:390,height:844});
   await page.evaluate(async()=>{state.me={id:4,role:'OWNER',full_name:'Olga Owner',language:'en'};state.settings={};location.hash='client/bookings';await new Promise(r=>setTimeout(r,80));await render()});
+  await page.locator('.filter-fold summary').click();
   await page.locator('#booking-filters').waitFor();
   assert.match(await page.locator('.section-head').innerText(),/2 cleanings · charged €42/);
   assert.equal(await page.locator('tbody tr').count(),2);

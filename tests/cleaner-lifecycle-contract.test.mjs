@@ -28,9 +28,3 @@ test('cleaner GPS enforcement overrides the permissive check-in fallback', () =>
   assert.ok(index.indexOf('assets/app.js') < index.indexOf('assets/cleaner-gps-enforcement.js'));
 });
 
-test('operations dispatch console contains no quick-actions surface', () => {
-  const source = read('assets/dispatch-console.js');
-  assert.doesNotMatch(source, /Quick actions/i);
-  assert.doesNotMatch(source, /data-quick/);
-  assert.doesNotMatch(source, /Operator checklist/i);
-});

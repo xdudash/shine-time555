@@ -8,7 +8,7 @@ test('navigation highlights parent tabs for details and ignores booking query pa
   const context={window:{}};vm.runInNewContext(read('assets/operations-ui-core.js'),context);
   // Since fix 21 an admin route highlights its section, so the old page names
   // and the new sub-tabs both light up the one menu entry that hosts them.
-  for(const [route,expected] of [['client/home','client/home'],['client/book?object=11','client/book'],['client/booking/101','client/bookings'],['cleaner/job/101','cleaner/myday'],
+  for(const [route,expected] of [['client/home','client/home'],['client/book?object=11','client/book'],['client/booking/101','client/bookings'],['cleaner/job/101','cleaner/home'],['cleaner/myday','cleaner/home'],['client/recurring','client/book'],
     ['admin/jobs','admin/cleanings'],['admin/schedule','admin/cleanings'],['admin/live','admin/today'],['admin/map','admin/today'],['admin/monitoring','admin/today'],
     ['admin/issues','admin/review'],['admin/review/issues','admin/review'],['admin/cleaners','admin/team'],
     ['admin/statements','admin/finance'],['admin/settlements','admin/finance'],['admin/owner','admin/finance'],['admin/finance/entries','admin/finance'],

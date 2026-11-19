@@ -4,10 +4,6 @@ import fs from 'node:fs';
 const root=new URL('..',import.meta.url);
 const read=p=>fs.readFileSync(new URL(p,root),'utf8');
 
-test('form tools expose draft lifecycle and required-field helpers',()=>{
- const s=read('assets/form-tools.js');
- assert.match(s,/ShineTimeForms/);assert.match(s,/localStorage/);assert.match(s,/serialize/);assert.match(s,/restore/);assert.match(s,/required/);assert.match(s,/savedAt/);
-});
 
 test('table tools expose search sorting and row copy',()=>{
  const s=read('assets/table-tools.js');

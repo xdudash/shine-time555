@@ -61,3 +61,16 @@
 @media (prefers-reduced-motion:reduce){
   .app-shell .sidebar,.app-shell .mobile-menu-backdrop{transition:none}
 }
+/* Navigation: four tabs for cleaners, five for clients; the client profile lives in the header. */
+.cleaner-shell:not(.client-shell) .bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+.client-shell .bottom-nav.client-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
+.cleaner-top .profile-link{min-width:40px;border-radius:999px;font-weight:800;letter-spacing:.3px}
+/* Status pills keep their dot on the same line inside compact cards. */
+.compact-card .pill{display:inline-flex;align-items:center;white-space:nowrap;margin-top:0;font-size:11px}
+.compact-card .pill .dot{display:inline-block;margin-top:0}
+/* The action bar is opaque so the page never shows through it. */
+.cleaner-shell .sticky-action{background:#fff;box-shadow:0 -8px 24px rgba(17,24,39,.08)}
+.filter-fold>summary{cursor:pointer;font-weight:700;list-style:none;display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.filter-fold>summary::-webkit-details-marker{display:none}
+.filter-fold>summary::before{content:"▸";margin-right:2px}
+.filter-fold[open]>summary::before{content:"▾"}
