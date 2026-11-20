@@ -18,8 +18,8 @@ test('a reservation books one check-out cleaning as the owner, and a repeat sync
   const stay={uid:'r1',checkIn:await dates(db,2),checkOut:await dates(db,4),summary:'Reserved'};
   const first=await sync(db,cal,[stay]);
   assert.equal(first.created,1);
-  const job=(await db.query("select j.*,to_char(j.service_date,'YYYY-MM-DD') day from st_jobs j join st_stays s on s.job_id=j.id where s.uid='r1'")).rows[0];
-  assert.equal(job.day,stay.checkOut);
+  const job=(await db.query("select j.*,to_char(j.service_date,'YYYY-MM-DD') as service_day from st_jobs j join st_stays s on s.job_id=j.id where s.uid='r1'")).rows[0];
+  assert.equal(job.service_day,stay.checkOut);
   assert.equal(job.booking_source,'CALENDAR');
   assert.equal(job.status,'UNASSIGNED');
   assert.match(job.client_note,/Guest check-out · Airbnb/);
