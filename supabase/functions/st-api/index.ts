@@ -7,6 +7,7 @@ import { propertyPhotosRoute } from './property-photos.mjs';
 import { validatePhoto, validateMedia } from './media.mjs';
 import { drainOutbox, workerConfigFromEnv, secretMatches, channelReadiness } from './notification-worker.mjs';
 import { deliverPush } from './webpush.mjs';
+import { calendarsRoute, drainCalendars } from './calendars.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -1262,6 +1263,13 @@ Deno.serve(async (req) => {
       });
       return json({ ...summary, results: undefined, channels: channelReadiness(notificationConfig) });
     }
+    if (route === 'dispatch/calendars' && method === 'POST') {
+      // Scheduled Airbnb / Booking.com calendar refresh. Same gate as dispatch/outbox.
+      if (!notificationConfig.secret) throw new ApiError('The calendar worker is not configured', 503);
+      if (!secretMatches(notificationConfig.secret, req.headers.get('x-st-worker-secret'))) throw new ApiError('Forbidden', 403);
+      const summary = await drainCalendars({ service, result, today, limit: body.limit === undefined ? 20 : Math.min(50, number(body.limit, 20)) });
+      return json({ synced: summary.synced, failed: summary.failed });
+    }
     const ctx = await context(req);
     if (route === 'me' && method === 'GET') return json({
       user: await publicUser(ctx), settings: await settings(), csrf: 'supabase', apiVersion: APP_BUILD,
@@ -1273,6 +1281,8 @@ Deno.serve(async (req) => {
       return json({ notifications, unread: notifications.filter((item) => !item.read_at).length });
     }
     if (route === 'notifications/read' && method === 'POST') { await result(service.from('st_notifications').update({ read_at: new Date().toISOString() }).eq('user_id', ctx.appUser.id).is('read_at', null)); return json({ ok: true }); }
+    const calendars = await calendarsRoute({ ctx, route, method, query, body, service, result, ApiError, clientObject, today });
+    if (calendars !== null) return json(calendars);
     const propertyPhotos = await propertyPhotosRoute({ ctx, route, method, body, service, result, ApiError, jobFor, clientObject });
     if (propertyPhotos !== null) return json(propertyPhotos);
     const extended=await operationsRoute({ctx,route,method,query,body,service,result,ApiError,today});

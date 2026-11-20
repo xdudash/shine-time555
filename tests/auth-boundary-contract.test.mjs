@@ -25,9 +25,9 @@ test('the function is the only gate, and it knows it', () => {
   assert.match(api, /if \(!appUser \|\| !appUser\.active\) throw new ApiError\('This account is not activated by Operations', 403\)/);
 });
 
-test('only the three known routes are served before authentication, and each guards itself', () => {
+test('only the four known routes are served before authentication, and each guards itself', () => {
   const routesBeforeAuth = [...beforeAuth.matchAll(/route === '([^']+)'/g)].map((match) => match[1]);
-  assert.deepEqual([...new Set(routesBeforeAuth)].sort(), ['account/request', 'bootstrap', 'dispatch/outbox'],
+  assert.deepEqual([...new Set(routesBeforeAuth)].sort(), ['account/request', 'bootstrap', 'dispatch/calendars', 'dispatch/outbox'],
     'a new route must sit after context(req), or it is open to the internet');
 
   // bootstrap still requires a signed-in Supabase user, and can only ever
@@ -42,6 +42,12 @@ test('only the three known routes are served before authentication, and each gua
   assert.match(dispatchBlock, /secretMatches\(notificationConfig\.secret, req\.headers\.get\('x-st-worker-secret'\)\)/);
   assert.ok(dispatchBlock.indexOf('secretMatches') < dispatchBlock.indexOf('drainOutbox'),
     'the secret is checked before any work is done');
+
+  // dispatch/calendars (scheduled Airbnb / Booking.com refresh) has the same gate.
+  const calendarBlock = beforeAuth.slice(beforeAuth.indexOf("route === 'dispatch/calendars'"));
+  assert.match(calendarBlock, /if \(!notificationConfig\.secret\) throw new ApiError\([^)]*503\)/);
+  assert.match(calendarBlock, /secretMatches\(notificationConfig\.secret, req\.headers\.get\('x-st-worker-secret'\)\)/);
+  assert.ok(calendarBlock.indexOf('secretMatches') < calendarBlock.indexOf('drainCalendars'), 'the secret is checked before any calendar is fetched');
 
   // account/request (stage 3) is the self-registration ask. It cannot sit
   // behind context(), which requires an ACTIVE application account, so it
