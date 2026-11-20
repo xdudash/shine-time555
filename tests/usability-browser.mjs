@@ -49,6 +49,17 @@ async function openApp(viewport={width:1280,height:900},locale='en'){
    }
    if(path.startsWith('/api/admin/finance?'))return {entries:[{id:1,client_id:4,entry_date:'2099-01-09',entry_type:'INCOME',category:'LAUNDRY',amount:12,description:'Towels'}]};
    if(m=path.match(/^\/api\/objects\/11\/reference-photos(?:\/(\d+))?$/)){window.photos ||= [{id:1,caption:'Entrance',mime:'image/png'},{id:2,caption:'Door',mime:'image/png'}];if(opts.method==='DELETE'){photos=photos.filter(p=>p.id!==Number(m[1]));return {ok:true}}if(m[1])return {dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aBZkAAAAASUVORK5CYII='};return {photos:structuredClone(photos)}}
+   if(m=path.match(/^\/api\/objects\/(\d+)\/calendars$/)){
+    window.calendars ||= [{id:7,object_id:11,source:'AIRBNB',urlPreview:'www.airbnb.com/…9f3a',auto_create:true,last_synced_at:'2099-01-01T10:00:00Z',last_status:'OK',last_error:null,last_summary:{stays:2,created:1}}];
+    if(opts.method==='POST'){window.calendarPosts=(window.calendarPosts||[]).concat([opts.body]);calendars.push({id:8,object_id:11,source:opts.body.source,urlPreview:'ical.booking.com/…abcd',auto_create:opts.body.autoCreate,last_synced_at:'2099-01-01T10:05:00Z',last_status:'OK',last_error:null,last_summary:{stays:1,created:1}});return {calendar:calendars.at(-1),sync:{stays:1,created:1}}}
+    return {calendars:structuredClone(calendars),stays:[{id:1,object_id:11,source:'AIRBNB',check_in:'2099-01-02',check_out:'2099-01-05',status:'ACTIVE',job:{id:101,status:'UNASSIGNED',service_date:'2099-01-05',assigned:false}},{id:2,object_id:11,source:'BOOKING',check_in:'2099-01-06',check_out:'2099-01-08',status:'ACTIVE',last_error:'Another cleaning at this property overlaps this time window',job:null}]};
+   }
+   if(m=path.match(/^\/api\/calendars\/(\d+)(\/sync)?$/)){
+    window.calendarWrites=(window.calendarWrites||[]).concat([{id:Number(m[1]),sync:!!m[2],method:opts.method,body:opts.body}]);
+    if(opts.method==='DELETE'){calendars=calendars.filter(c=>c.id!==Number(m[1]));return {ok:true}}
+    if(opts.method==='PATCH'){const c=calendars.find(x=>x.id===Number(m[1]));c.auto_create=opts.body.autoCreate;return {calendar:structuredClone(c)}}
+    return {calendar:structuredClone(calendars.find(x=>x.id===Number(m[1]))),sync:{stays:2,created:0}};
+   }
    if(path==='/api/admin/objects')return {objects:structuredClone(objects)};
    if(m=path.match(/^\/api\/admin\/clients\/5\/properties(?:\/(\d+))?$/)){
     if((opts.method||'GET')==='GET')return {objectIds:[...linked]};
@@ -855,6 +866,35 @@ try {
   assert.deepEqual(errors,[]);
   await page.close();
   console.log('PASS account requests: queue, required reason to reject, optional note to approve, decided history');
+ }
+ // Guest calendars: connect an Airbnb / Booking.com link, see stays and their cleanings, switch automation, disconnect.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(async()=>{state.me={id:4,role:'OWNER',full_name:'Olga Owner',language:'en'};state.settings={};await calendarsModal(11)});
+  await page.locator('[data-calendar="7"]').waitFor();
+  const text=await page.locator('#modal-root').innerText();
+  assert.match(text,/Airbnb/);assert.match(text,/www\.airbnb\.com\/…9f3a/,'only the link preview is shown');
+  assert.match(text,/Cleaning not booked/,'a stay whose cleaning failed says so');
+  await page.locator('#calendar-form select[name=source]').selectOption('BOOKING');
+  await page.locator('#calendar-form input[name=url]').fill('https://ical.booking.com/v1/export?t=abcd');
+  await page.locator('#calendar-connect').click();
+  await page.waitForFunction(()=>window.calendarPosts?.length===1);
+  assert.deepEqual(await page.evaluate(()=>calendarPosts[0]),{source:'BOOKING',url:'https://ical.booking.com/v1/export?t=abcd',autoCreate:true});
+  await page.locator('[data-calendar="8"]').waitFor();
+  await page.locator('[data-calendar="7"] input[type=checkbox]').uncheck();
+  await page.waitForFunction(()=>window.calendarWrites?.some(w=>w.method==='PATCH'&&w.body.autoCreate===false));
+  await page.locator('[data-calendar="7"] button',{hasText:'Sync now'}).click();
+  await page.waitForFunction(()=>window.calendarWrites?.some(w=>w.sync));
+  await page.locator('[data-calendar="8"]').waitFor();
+  await page.locator('[data-calendar="8"] button',{hasText:'Disconnect'}).click();
+  await page.locator('#ask-ok').click();
+  await page.waitForFunction(()=>window.calendarWrites?.some(w=>w.method==='DELETE'&&w.id===8));
+  await page.waitForFunction(()=>!document.querySelector('[data-calendar="8"]')&&document.querySelector('[data-calendar="7"]'));
+  const width=await page.evaluate(()=>document.documentElement.scrollWidth);
+  assert.ok(width<=391,'no horizontal scroll on a phone');
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS guest calendars: connect, stays with cleanings, automation switch, sync, disconnect');
  }
  // Language switch re-renders navigation, not only the page body.
  {

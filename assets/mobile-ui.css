@@ -78,3 +78,12 @@
 .overdue-banner{border:1px solid #fecaca;background:#fff7f7;margin-bottom:16px}
 .overdue-banner .event{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center}
 @media (max-width:640px){.overdue-banner .event{grid-template-columns:1fr auto}.overdue-banner .event time{grid-column:1/-1}}
+/* Guest calendars: stays read as date range, then property and platform, then the cleaning. */
+.stay-list .event{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line,#e5e7eb)}
+.stay-list .event time{grid-column:1/-1;font-weight:700;color:var(--ink,#111827)}
+.stay-list .event .pill{white-space:nowrap}
+.calendar-card{margin-bottom:12px}
+.calendar-card .job-card-top{gap:10px;align-items:flex-start}
+.calendar-card .job-card-top>div{min-width:0}
+.calendar-card .job-card-top .subtle{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calendar-card .pill{white-space:nowrap;flex:none}

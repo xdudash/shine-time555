@@ -29,6 +29,7 @@
   const clients=[{id:4,full_name:'Demo owner',company_name:'Demo stays',account_type:'OWNER',email:'owner@example.invalid',language:'en',user_active:true,active:true,objects:2,approved_objects:2,month_jobs:2,month_revenue:175},{id:5,full_name:'Demo manager',company_name:'Demo stays Prague',account_type:'PROPERTY_MANAGER',email:'manager@example.invalid',language:'en',user_active:true,active:true,objects:2,approved_objects:2,month_jobs:2,month_revenue:100}];
   const settings={companyName:'Shine Time Demo',timezone:'Europe/Bratislava',windowStart:'10:00',windowEnd:'15:00',travelBuffer:30,sameZoneTravelBuffer:15,safetyBuffer:15,rescueStart:'13:30',checkinRadiusMeters:150,reserveTargetPct:20,clientBookingStepMinutes:30,clientCancellationCutoffHours:12};
   const issues=[{id:1,object_code:'BA-002',type:'SUPPLIES',cleaner_name:'Demo cleaner',description:'Fictional example: restock towels',status:'OPEN',priority:'NORMAL',created_at:new Date().toISOString()}];
+  const stays=[{id:1,object_id:11,object_code:'BA-001',object_name:'Old Town apartment',source:'AIRBNB',check_in:yesterday,check_out:tomorrow,status:'ACTIVE',summary:'Reserved',last_error:null,job:{id:103,status:'ACCEPTED',service_date:tomorrow,assigned:true}},{id:2,object_id:11,object_code:'BA-001',object_name:'Old Town apartment',source:'BOOKING',check_in:tomorrow,check_out:new Date(Date.parse(today+'T12:00:00Z')+4*86400000).toISOString().slice(0,10),status:'ACTIVE',summary:'CLOSED - Not available',last_error:null,job:null}];
   const current=()=>jobs.filter(j=>j.service_date===today);
   const clone=x=>structuredClone(x);
   const omit=(record,keys)=>Object.fromEntries(Object.entries(record).filter(([key])=>!keys.includes(key)));
@@ -93,6 +94,8 @@
     else if(/^\/api\/client\/bookings\/\d+$/.test(resource)){const b=clientJob(jobs.find(j=>j.id===Number(resource.split('/').at(-1))));data={booking:b,photos:[],issues:[],feedback:b.status==='COMPLETED'?{job_id:b.id,rating:5,comment:'Spotless, thank you',complaint:false,created_at:b.completed_at||null,updated_at:b.completed_at||null}:null,rating:{canRate:b.status==='COMPLETED',windowDays:14,closesAt:null}};}
     else if(resource==='/api/client/profile')data={client:{...identities[role],account_type:role}};
     else if(resource==='/api/notifications')data={notifications:[],unread:0};
+    else if(/^\/api\/objects\/\d+\/calendars$/.test(resource)){const id=Number(resource.split('/')[3]);data={calendars:id===11?[{id:1,object_id:11,source:'AIRBNB',urlPreview:'www.airbnb.com/…9f3a',auto_create:true,last_synced_at:new Date().toISOString(),last_status:'OK',last_error:null,last_summary:{stays:2,created:1}}]:[],stays:id===11?stays:[]}}
+    else if(resource==='/api/stays')data={stays,from:today,to:isoDays(14)};
     else return Promise.reject(Error('No synthetic data for this screen yet: '+resource));
     return Promise.resolve(clone(data));
   }
