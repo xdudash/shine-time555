@@ -35,6 +35,14 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
 });
 
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bratislava' }).format(new Date());
+const OVERDUE_STATUSES = ['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'CLEANING'];
+// Bratislava wall-clock time as "YYYY-MM-DDTHH:MM", comparable with a job's date and deadline.
+const localNowStamp = () => {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Bratislava', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((p) => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+};
+const isOverdue = (job: AnyRow, now = localNowStamp()) =>
+  OVERDUE_STATUSES.includes(String(job.status)) && `${String(job.service_date).slice(0, 10)}T${String(job.deadline || '23:59').slice(0, 5)}` < now;
 const currentTime = () => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Bratislava', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
 const toMinutes = (value: string | null | undefined) => {
   const [hours, minutes] = String(value || '00:00').slice(0, 5).split(':').map(Number);
@@ -875,7 +883,14 @@ async function routeAdmin(ctx: any, route: string, method: string, query: AnyRow
                 builder = builder.eq('status', query.status);
             if (query.cleanerId)
                 builder = builder.eq('assigned_cleaner_id', number(query.cleanerId));
-            return { jobs: await hydrateJobs(await result(builder) as AnyRow[]) };
+            const jobs = await hydrateJobs(await result(builder) as AnyRow[]);
+            if (query.review) return { jobs };
+            // Overdue: taken by a cleaner but still open after its deadline, on any day up to today.
+            // Automatic expiry only closes cleanings nobody took, so these would otherwise sit forever.
+            const open = await result(service.from('st_jobs').select('*')
+                .in('status', OVERDUE_STATUSES).lte('service_date', today()).order('service_date').limit(200)) as AnyRow[];
+            const overdue = await hydrateJobs(open.filter((job) => isOverdue(job)));
+            return { jobs, overdue };
         }
         if (route === 'admin/jobs' && method === 'POST') {
             const job = await createJob(ctx, body);

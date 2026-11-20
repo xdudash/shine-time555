@@ -74,3 +74,7 @@
 .filter-fold>summary::-webkit-details-marker{display:none}
 .filter-fold>summary::before{content:"▸";margin-right:2px}
 .filter-fold[open]>summary::before{content:"▾"}
+/* Overdue cleanings stand out on the operations board. */
+.overdue-banner{border:1px solid #fecaca;background:#fff7f7;margin-bottom:16px}
+.overdue-banner .event{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center}
+@media (max-width:640px){.overdue-banner .event{grid-template-columns:1fr auto}.overdue-banner .event time{grid-column:1/-1}}
