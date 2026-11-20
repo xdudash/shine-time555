@@ -31,12 +31,13 @@ test('a manual cleaning joins the monthly reconciliation as completed and approv
  }finally{await db.close()}
 });
 
-test('manual cleanings need a past date, an approved property and an admin, and cannot duplicate a booked date',async()=>{
+test('manual cleanings need a past date, an approved property and an admin; a second visit on one date is allowed',async()=>{
  const db=await setup();try{
   await assert.rejects(manualJob(db,{daysAgo:-1}),/past service date/i);
   await assert.rejects(manualJob(db,{daysAgo:400}),/past service date/i);
   await manualJob(db);
-  await assert.rejects(manualJob(db),/already recorded/i,'same property and date is refused');
+  const second=await manualJob(db);
+  assert.ok(second>0,'a second cleaning at the same property on the same date is recorded');
   await assert.rejects(db.query("select st_create_manual_completed_job(4, jsonb_build_object('objectId',1,'serviceDate',(current_date-5)::text,'cleanerId',1,'clientPrice',40,'payout',20,'note','x'))"),/forbidden/i);
  }finally{await db.close()}
 });

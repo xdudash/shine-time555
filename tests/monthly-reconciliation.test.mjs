@@ -40,9 +40,11 @@ test('finance correction can fix the date and total amounts and leaves an audit 
   const events=(await db.query("select event_type,payload_json from st_job_events where job_id=1 order by id desc limit 1")).rows[0];
   assert.equal(events.event_type,'FINANCE_CORRECTION');
   assert.equal(Number(events.payload_json.after.clientAmountCents),5000);
-  await assert.rejects(db.query(
-   "select st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+1)::text,'clientAmountCents',5000,'cleanerAmountCents',2700))"
-  ),/already has a cleaning/i);
+  // Moving a finished cleaning onto a date that already has one is allowed: two visits a day are real.
+  const {rows:[{moved}]}=await db.query(
+   "select to_jsonb(st_correct_completed_job_finance(1,1,jsonb_build_object('serviceDate',(current_date+1)::text,'clientAmountCents',5000,'cleanerAmountCents',2700))) as moved"
+  );
+  assert.equal(String(moved.service_date).slice(0,10),(await db.query("select to_char(current_date+1,'YYYY-MM-DD') as day_value")).rows[0].day_value);
  }finally{await db.close()}
 });
 
