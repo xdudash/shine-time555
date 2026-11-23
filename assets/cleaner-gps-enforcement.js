@@ -2,12 +2,12 @@
 (()=>{
   'use strict';
   const toast=(message,type='')=>window.toast?.(message,type);
-  // A fix from the last minute is good enough for a 150 m check-in radius. If precise GPS does not
-  // answer quickly (indoors), the phone's network position is tried before giving up.
+  // Check-in always uses a fresh position (never a cached one). If precise GPS does not answer within
+  // 5 s (indoors), the phone's fresh network position is tried before giving up.
   const locate=()=>new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,error=>{
     if(error?.code===1)return reject(error);
-    navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,timeout:6000,maximumAge:120000});
-  },{enableHighAccuracy:true,timeout:5000,maximumAge:60000}));
+    navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,timeout:6000,maximumAge:0});
+  },{enableHighAccuracy:true,timeout:5000,maximumAge:0}));
   window.checkInJob=async id=>{
     if(!navigator.geolocation)return toast('Location is required to check in. Enable GPS/location services and try again.','error');
     const tapped=document.activeElement?.closest?.('button,.btn');
