@@ -179,6 +179,14 @@ const clock = (value, fallback) => {
 
 const online = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
+// Minutes since midnight in Europe/Bratislava for a timestamp.
+function bratislavaMinutes(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 0;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Bratislava', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date).map((part) => [part.type, part.value]));
+  return Number(parts.hour) * 60 + Number(parts.minute);
+}
+
 export const activeAssignmentStatuses = ['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'CLEANING'];
 
 export function cleanerStatusTransitionAllowed(from, to) {
@@ -198,9 +206,12 @@ export function marketplaceForCleaner({ cleaner, availability, assignedJobs, job
   const travelBuffer = Number(settings?.travelBuffer ?? 15);
   const configuredMax = Number(cleaner?.max_jobs_day);
   const maxJobs = Number.isFinite(configuredMax) ? Math.max(0, configuredMax) : 5;
+  // Every cleaning of the day counts toward the daily limit, finished ones included.
   const activeAssigned = assignedJobs.filter((job) => !['CANCELLED', 'EXPIRED'].includes(job.status));
-  const busy = activeAssigned.map((job) => {
-    const start = clock(job.planned_start || job.earliest_start, '10:00');
+  // Only cleanings still ahead or under way occupy time: a cleaner who finished early is free.
+  // A cleaning already started sits at its actual start, not its planned one.
+  const busy = activeAssigned.filter((job) => activeAssignmentStatuses.includes(job.status)).map((job) => {
+    const start = job.actual_start ? bratislavaMinutes(job.actual_start) : clock(job.planned_start || job.earliest_start, '10:00');
     return { start, finish: start + Math.max(0, Number(job.duration_minutes || 0)) + safetyBuffer };
   });
   const declaredOffline = availability && availability.online !== undefined && availability.online !== null && !online(availability.online) && availability.explicit === true;
