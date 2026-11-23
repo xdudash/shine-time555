@@ -87,3 +87,11 @@
 .calendar-card .job-card-top>div{min-width:0}
 .calendar-card .job-card-top .subtle{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .calendar-card .pill{white-space:nowrap;flex:none}
+/* Instant feedback: a tapped action shows a spinner until the server answers; a thin bar runs on top. */
+.btn.is-loading,button.is-loading{position:relative;pointer-events:none;opacity:.75;color:transparent!important}
+.btn.is-loading::after,button.is-loading::after{content:"";position:absolute;inset:0;margin:auto;width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-color:#111827 transparent #111827 transparent;animation:st-spin .7s linear infinite}
+.btn.primary.is-loading::after,.btn.green.is-loading::after,.btn.dark.is-loading::after{border-color:#fff transparent #fff transparent}
+body.is-busy::before{content:"";position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;background:linear-gradient(90deg,transparent,#16a34a,transparent);background-size:50% 100%;background-repeat:no-repeat;animation:st-bar 1s ease-in-out infinite}
+@keyframes st-spin{to{transform:rotate(360deg)}}
+@keyframes st-bar{0%{background-position:-50% 0}100%{background-position:150% 0}}
+@media (prefers-reduced-motion:reduce){.btn.is-loading::after,button.is-loading::after,body.is-busy::before{animation-duration:2.5s}}

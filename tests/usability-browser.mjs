@@ -867,6 +867,24 @@ try {
   await page.close();
   console.log('PASS account requests: queue, required reason to reject, optional note to approve, decided history');
  }
+ // A tapped action answers at once: spinner on the button, a top bar, no double submit, then it clears.
+ {
+  const {page,errors}=await openApp({width:390,height:844});
+  await page.evaluate(()=>{
+   window.slowCalls=0;
+   const original=window.ShineTimeSupabase.request;
+   window.ShineTimeSupabase.request=(path,opts={})=>{if(path==='/api/slow'){slowCalls++;return new Promise(r=>setTimeout(()=>r({ok:true}),600))}return original(path,opts)};
+   document.body.insertAdjacentHTML('afterbegin','<button class="btn primary" id="slow-action" onclick="api(\'/api/slow\',{method:\'POST\',body:{}})">Save</button>');
+  });
+  await page.locator('#slow-action').click();
+  await page.waitForFunction(()=>document.querySelector('#slow-action').classList.contains('is-loading')&&document.body.classList.contains('is-busy'));
+  await page.locator('#slow-action').click({force:true});
+  await page.waitForFunction(()=>!document.querySelector('#slow-action').classList.contains('is-loading')&&!document.body.classList.contains('is-busy'));
+  assert.equal(await page.evaluate(()=>slowCalls),1,'a second tap while the first is running is ignored');
+  assert.deepEqual(errors,[]);
+  await page.close();
+  console.log('PASS instant feedback: spinner, top bar, no double submit');
+ }
  // Guest calendars: connect an Airbnb / Booking.com link, see stays and their cleanings, switch automation, disconnect.
  {
   const {page,errors}=await openApp({width:390,height:844});

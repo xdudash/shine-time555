@@ -73,9 +73,22 @@ const fmtStamp = v => { if(!v)return '—'; try{return new Intl.DateTimeFormat(i
 const today = () => new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Bratislava'}).format(new Date());
 const tomorrow = () => { const d=new Date(); d.setDate(d.getDate()+1); return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Bratislava'}).format(d); };
 
+/* Every tap on an action gets an answer at once: the button that started a change shows a spinner
+   and cannot be tapped twice, and a thin bar runs at the top until the server replies. */
+let lastTap={el:null,at:0},pendingChanges=0;
+document.addEventListener('pointerdown',e=>{const el=e.target?.closest?.('button,.btn');if(el)lastTap={el,at:Date.now()}},true);
+document.addEventListener('click',e=>{const el=e.target?.closest?.('button,.btn');if(el?.classList.contains('is-loading')){e.preventDefault();e.stopImmediatePropagation()}else if(el)lastTap={el,at:Date.now()}},true);
+function markBusy(el){if(!el||!el.isConnected||el.classList.contains('is-loading')||el.matches('.check-btn,[data-no-busy]'))return null;el.classList.add('is-loading');el.setAttribute('aria-busy','true');return el}
+function clearBusy(el){if(!el)return;el.classList.remove('is-loading');el.removeAttribute('aria-busy')}
+window.markBusy=markBusy;window.clearBusy=clearBusy;
 async function api(path,opts={}) {
   if(!window.ShineTimeSupabase?.request)throw new Error('Supabase client did not load. Refresh once or check the uploaded assets.');
-  return window.ShineTimeSupabase.request(path,opts);
+  const change=opts.method&&opts.method!=='GET';
+  if(!change)return window.ShineTimeSupabase.request(path,opts);
+  const button=Date.now()-lastTap.at<1500?markBusy(lastTap.el):null;
+  pendingChanges++;document.body.classList.add('is-busy');
+  try{return await window.ShineTimeSupabase.request(path,opts)}
+  finally{pendingChanges=Math.max(0,pendingChanges-1);if(!pendingChanges)document.body.classList.remove('is-busy');clearBusy(button)}
 }
 function toast(msg,type=''){const d=document.createElement('div');d.className=`toast ${type}`;d.textContent=msg;$('#toast-root').appendChild(d);setTimeout(()=>d.remove(),3200)}
 function closeModal(){ $('#modal-root').innerHTML='';state.editing=false;liveUpdates?.resume(); }
@@ -1083,7 +1096,7 @@ async function cleanerProfile(){
 }
 async function cleanerMap(){const [d,m]=await Promise.all([cleanerHeaderAvailability(),api('/api/cleaner/marketplace')]);const points=[...d.jobs.map(j=>({lat:j.lat,lng:j.lng,name:`${j.object_code} · ${j.status}`,detail:j.address,id:j.id,assigned:true})),...m.jobs.map(j=>({lat:j.lat,lng:j.lng,name:`${j.object_code} · available`,detail:`${j.zone} · ${money(Number(j.payout)+Number(j.bonus))}`,id:j.id,assigned:false}))];$('#page').innerHTML=`<div id="cleaner-map" class="map compact"></div><div style="height:10px"></div><div class="job-card"><strong>Map legend</strong><p class="subtle">Assigned jobs include full address. Marketplace access instructions remain hidden until you take the cleaning.</p></div>`;setTimeout(()=>renderLeaflet('cleaner-map',points,p=>p.assigned?navTo(`cleaner/job/${p.id}`):null),20)}
 
-async function cleanerJobDetail(id){await cleanerHeaderAvailability();const j=await api(`/api/cleaner/jobs/${id}`);renderCleanerJob(j)}
+async function cleanerJobDetail(id){const [j]=await Promise.all([api(`/api/cleaner/jobs/${id}`),cleanerHeaderAvailability().catch(()=>null)]);renderCleanerJob(j)}
 // One place name for a cleaning: imported properties often carry the address as their name,
 // so the address is shown once and the internal code stays small for talking to Operations.
 function jobPlace(j){

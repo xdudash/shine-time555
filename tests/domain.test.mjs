@@ -80,3 +80,42 @@ test('API role projection strips internal prices from cleaner and owner payloads
  assert.equal(cleaner.jobs[0].payout,20);assert.equal(cleaner.jobs[0].client_price,undefined);
  const owner=projectResponse(payload,'OWNER');assert.equal(owner.jobs[0].payout,undefined);assert.equal(owner.jobs[0].client_price,40);
 });
+
+test('a cleaning finished early frees the rest of its window for the next one', () => {
+  const offer = { earliest_start: '10:00', deadline: '13:00', duration_minutes: 60, status: 'UNASSIGNED' };
+  const finished = marketplaceForCleaner({
+    cleaner: { id: 1, max_jobs_day: 5 }, availability: null,
+    assignedJobs: [{ planned_start: '10:00', duration_minutes: 180, status: 'COMPLETED' }],
+    jobs: [offer], settings, now: '11:00',
+  }).jobs[0];
+  assert.equal(finished.feasible, true, 'a finished cleaning does not occupy its planned window');
+  assert.equal(finished.earliest_feasible_start, '11:15');
+  const stillGoing = marketplaceForCleaner({
+    cleaner: { id: 1, max_jobs_day: 5 }, availability: null,
+    assignedJobs: [{ planned_start: '10:00', duration_minutes: 180, status: 'CLEANING' }],
+    jobs: [offer], settings, now: '11:00',
+  }).jobs[0];
+  assert.equal(stillGoing.feasible, false, 'a cleaning under way still occupies its time');
+  assert.match(stillGoing.feasibility_reason, /Conflicts/);
+});
+
+test('a cleaning started early is placed at its actual start', () => {
+  // Planned 12:00–13:00, actually started 09:00 Bratislava time (08:00 UTC in November).
+  const { jobs } = marketplaceForCleaner({
+    cleaner: { id: 1, max_jobs_day: 5 }, availability: null,
+    assignedJobs: [{ planned_start: '12:00', actual_start: '2026-11-23T08:00:00Z', duration_minutes: 60, status: 'CLEANING' }],
+    jobs: [{ earliest_start: '12:00', deadline: '13:00', duration_minutes: 60, status: 'UNASSIGNED' }], settings, now: '09:30',
+  });
+  assert.equal(jobs[0].feasible, true);
+  assert.equal(jobs[0].earliest_feasible_start, '12:00');
+});
+
+test('finished cleanings still count toward the daily limit', () => {
+  const { jobs } = marketplaceForCleaner({
+    cleaner: { id: 1, max_jobs_day: 1 }, availability: null,
+    assignedJobs: [{ planned_start: '08:00', duration_minutes: 60, status: 'COMPLETED' }],
+    jobs: [{ earliest_start: '12:00', deadline: '15:00', duration_minutes: 60, status: 'UNASSIGNED' }], settings, now: '10:00',
+  });
+  assert.equal(jobs[0].feasible, false);
+  assert.match(jobs[0].feasibility_reason, /Daily limit/);
+});
